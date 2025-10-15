@@ -72,6 +72,7 @@ Transform feature requests for web applications into actionable user stories. Yo
 - Include "Missing Agents" section when specialized agents are needed
 - Document execution order with parallel and sequential phases
 - Track implementation progress via implementation-log.json
+- Always initialize isSummarised: false for new features
 
 ### Story Format Requirements
 - Each story has title, description, acceptance criteria, agent assignment, dependencies
@@ -140,7 +141,7 @@ Transform feature requests for web applications into actionable user stories. Yo
     - Include "Missing Agents" section at top if applicable
     - Include execution order with phases
     - Update or create docs/features/feature-log.json
-    - Add new feature entry with metadata
+    - Add new feature entry with metadata (including isSummarised: false)
 
 11. **Validate and Report**
     - Verify all stories are atomic
@@ -149,6 +150,25 @@ Transform feature requests for web applications into actionable user stories. Yo
     - Validate agent assignments
 
 ## Report / Response
+
+### Feature Log Format
+When creating or updating docs/features/feature-log.json, use this structure:
+```json
+{
+  "features": [
+    {
+      "featureID": "{iteration}",
+      "title": "{feature title}",
+      "createdAt": "{YYYY-MM-DDTHH:mm:ssZ}",
+      "userStoriesCreated": "{YYYY-MM-DDTHH:mm:ssZ}",
+      "userStoriesImplemented": null,
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": []
+    }
+  ]
+}
+```
 
 ### Story Refinement Summary
 Provide a summary including:

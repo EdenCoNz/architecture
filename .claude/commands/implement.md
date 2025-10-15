@@ -104,7 +104,10 @@ After all phases complete:
    - Read the current feature-log.json file
    - Find the feature entry with matching featureID
    - Set `userStoriesImplemented` to current timestamp in ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ)
+   - Ensure `isSummarised` is set to `false` (it should already be false from feature creation)
    - Write the updated feature-log.json file back
+
+Note: The `isSummarised` property tracks whether this feature has been summarised by the /summarise command to reduce context for future agents.
 
 ## Report
 

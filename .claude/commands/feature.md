@@ -37,8 +37,11 @@ You MUST plan the user stories needed for this feature based on the available ag
 After the product-owner agent completes and returns its output:
 
 1. **Extract the feature ID**: Look in the agent's output for "Feature #XXX" or check the docs/features/ directory for the newly created feature folder
-2. **Automatically launch implementation**: Use the SlashCommand tool to execute: `/implement {feature_id}`
-3. **Do not ask the user for confirmation** - automatically proceed with implementation
+2. **Verify feature log entry**: Ensure the feature-log.json includes the new feature with `isSummarised: false`
+3. **Automatically launch implementation**: Use the SlashCommand tool to execute: `/implement {feature_id}`
+4. **Do not ask the user for confirmation** - automatically proceed with implementation
+
+Note: All new features should have `isSummarised: false` by default, which allows the /summarise command to process them later.
 
 ## Report
 
