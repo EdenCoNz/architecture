@@ -126,16 +126,21 @@ jobs:
           # Stage all changes
           git add .claude context
 
-          # Create commit with detailed message
-          COMMIT_MSG="Sync .claude and context folders from architecture repository
+          # Create commit with detailed message using heredoc
+          COMMIT_MSG=$(cat <<'COMMITMSG'
+          Sync .claude and context folders from architecture repository
 
-Synced folders:
-- .claude/ (Claude AI commands, agents, and configurations)
-- context/ (Project context and documentation)
+          Synced folders:
+          - .claude/ (Claude AI commands, agents, and configurations)
+          - context/ (Project context and documentation)
 
-Source commit: ${{ github.sha }}
-Triggered by: ${{ github.actor }}
-Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          Source commit: ${{ github.sha }}
+          Triggered by: ${{ github.actor }}
+          Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMITMSG
+          )
+          # Remove leading whitespace from each line
+          COMMIT_MSG=$(echo "$COMMIT_MSG" | sed 's/^          //')
 
           git commit -m "$COMMIT_MSG"
 
