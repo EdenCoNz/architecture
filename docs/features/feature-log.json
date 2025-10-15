@@ -1,0 +1,29 @@
+{
+  "features": [
+    {
+      "id": 1,
+      "title": "Initialize Frontend Web Application",
+      "description": "Initialize a modern frontend web application in the frontend/ directory with proper project structure, build tooling, and foundational components",
+      "createdDate": "2025-10-15",
+      "userStoriesImplemented": "2025-10-15T19:45:00Z",
+      "totalStories": 10,
+      "completedStories": 10,
+      "assignedAgents": [
+        "frontend-developer",
+        "ui-ux-designer",
+        "devops-engineer"
+      ],
+      "executionPhases": 5,
+      "parallelPhases": 2,
+      "sequentialPhases": 3,
+      "filesPath": "docs/features/1/user-stories.md",
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-15T19:07:45Z",
+          "designBriefUpdated": true
+        }
+      ]
+    }
+  ]
+}
