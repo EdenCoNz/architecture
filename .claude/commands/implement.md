@@ -22,8 +22,7 @@ Execute user stories for a specific feature by launching appropriate agents in t
 
 - Check if user-stories file exists before proceeding
 - Skip stories that are already completed (found in implementation logs)
-- ONLY execute user stories assigned to the ui-ux-designer agent
-- Skip all other user stories (backend-developer, frontend-developer, general-purpose, etc.)
+- Execute ALL user stories regardless of agent type (ui-ux-designer, frontend-developer, backend-developer, devops-engineer, etc.)
 - Respect execution order: sequential phases run one-by-one, parallel phases run simultaneously
 - Each agent MUST record their work in the implementation log
 - Update feature log only when ALL stories are completed
@@ -47,17 +46,17 @@ Execute user stories for a specific feature by launching appropriate agents in t
 For each phase in the execution order:
 
 1. Skip stories that are already completed (check implementation-log.json)
-2. Filter for ONLY ui-ux-designer agent stories
+2. Execute ALL stories in the phase regardless of agent type
 3. For sequential phases:
-   - Launch ui-ux-designer agents one by one
+   - Launch agents one by one in the specified order
    - Wait for each to complete before starting the next
 4. For parallel phases:
-   - Launch all ui-ux-designer agents simultaneously
+   - Launch all agents in the phase simultaneously
    - Use multiple Task tool calls in a single message
 
 ### Step 4: Pass Story Context to Agents
 
-For each ui-ux-designer agent, provide:
+For each agent (regardless of type), provide:
 
 ```
 Feature ID: $ID
