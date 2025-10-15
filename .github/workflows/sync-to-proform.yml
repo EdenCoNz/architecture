@@ -134,7 +134,7 @@ Synced folders:
 - context/ (Project context and documentation)
 
 Source commit: ${{ github.sha }}
-Triggered by: @${{ github.actor }}
+Triggered by: ${{ github.actor }}
 Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           git commit -m "$COMMIT_MSG"
