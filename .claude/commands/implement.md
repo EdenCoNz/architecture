@@ -76,7 +76,7 @@ IMPORTANT: After completing this user story, you MUST:
 1. Record your work in docs/features/$ID/implementation-log.json:
    - Story number and title
    - Timestamp of completion
-   - All files created or modified
+   - All files created or modified (use RELATIVE paths from project root, e.g., "frontend/src/App.tsx" NOT "/home/user/project/frontend/src/App.tsx")
    - All actions taken (tool calls, decisions made)
    - Any issues encountered and how they were resolved
    - Status (completed/partial/blocked)

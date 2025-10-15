@@ -82,36 +82,43 @@ Transform feature requests for web applications into actionable user stories. Yo
 
 ## Workflow
 
-1. **Check Available Agents**
+1. **Load Implementation Context**
+   - Check if docs/features/implementation-log-summary.json exists
+   - If exists: Read it to understand what features have been implemented
+   - Review completed work, key technical decisions, and recommendations
+   - Use this context to ensure new features align with existing architecture
+   - Note any relevant patterns or standards established in previous features
+
+2. **Check Available Agents**
    - List all agents in .claude/agents/
    - Understand capabilities of each specialized agent
    - Identify gaps in agent coverage
 
-2. **Identify Missing Agents**
+3. **Identify Missing Agents**
    - Note any specialized agent types needed but not available
    - Document these in "Missing Agents Needed" section
 
-3. **Analyze Feature Request**
+4. **Analyze Feature Request**
    - Understand core requirements for web application
    - Identify UI-heavy vs logic-heavy components
    - Determine scope and complexity
 
-4. **Generate Unique Feature ID**
+5. **Generate Unique Feature ID**
    - Check if docs/features/feature-log.json exists
    - If exists: Find latest feature where userStoriesImplemented: true, increment iteration
    - If doesn't exist: Start with iteration 1
    - Format: {iteration} (e.g., 1, 2, 3)
 
-5. **Separate Design from Implementation**
+6. **Separate Design from Implementation**
    - Create design stories for UI/UX work (assign to ui-ux-designer)
    - Create implementation stories for functional code (assign to developers)
    - Ensure design stories come first in execution order
 
-6. **Create Initial User Stories**
+7. **Create Initial User Stories**
    - Break down feature based on feature request
    - Start with high-level story breakdown
 
-7. **REFINE FOR ATOMICITY** (CRITICAL)
+8. **REFINE FOR ATOMICITY** (CRITICAL)
    - Apply atomicity checks to every story:
      - ✂️ Title contains "and": Split into separate stories
      - ✂️ More than 3-4 acceptance criteria: Split by criteria groupings
@@ -123,27 +130,27 @@ Transform feature requests for web applications into actionable user stories. Yo
      - ✂️ Business logic + UI together: Consider splitting if too large
    - Re-number stories and update dependencies after splitting
 
-8. **Assign Agents**
+9. **Assign Agents**
    - Assign appropriate agent from .claude/agents/ for each story
    - Use ui-ux-designer for ALL UI/wireframe-related stories
    - Use specialized agents for their expertise areas
    - Use general-purpose agent if no suitable specialized agent exists
 
-9. **Create Optimal Execution Order**
-   - Analyze dependencies between stories
-   - Determine which stories can run in parallel
-   - Group into phases (Phase 1, Phase 2, etc.)
-   - Design stories typically run first
-   - Implementation stories depend on design stories
+10. **Create Optimal Execution Order**
+    - Analyze dependencies between stories
+    - Determine which stories can run in parallel
+    - Group into phases (Phase 1, Phase 2, etc.)
+    - Design stories typically run first
+    - Implementation stories depend on design stories
 
-10. **Create Files**
+11. **Create Files**
     - Create docs/features/{id}/user-stories.md
     - Include "Missing Agents" section at top if applicable
     - Include execution order with phases
     - Update or create docs/features/feature-log.json
     - Add new feature entry with metadata (including isSummarised: false)
 
-11. **Validate and Report**
+12. **Validate and Report**
     - Verify all stories are atomic
     - Confirm design-implementation separation
     - Check execution order makes sense

@@ -23,7 +23,9 @@
           "completedAt": "2025-10-15T19:07:45Z",
           "designBriefUpdated": true
         }
-      ]
+      ],
+      "isSummarised": true,
+      "summarisedAt": "2025-10-15T20:15:00Z"
     }
   ]
 }

@@ -101,6 +101,7 @@ Use Glob tool to find all files: `context/devops/**/*` and read each file
 - Create runbooks for operations
 - Make code self-documenting
 - Follow established conventions
+- **Always use relative paths from project root** in documentation and logs (e.g., ".github/workflows/ci.yml" NOT "/home/user/project/.github/workflows/ci.yml")
 
 ### Production-Ready Standards
 - **Validate all YAML files (workflows, Docker Compose) before completion**
