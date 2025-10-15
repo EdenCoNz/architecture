@@ -78,9 +78,7 @@ describe('Home Page', () => {
       });
       expect(muiHeading).toBeInTheDocument();
 
-      const muiDescription = screen.getByText(
-        /comprehensive material design 3 component library/i
-      );
+      const muiDescription = screen.getByText(/comprehensive material design 3 component library/i);
       expect(muiDescription).toBeInTheDocument();
     });
 
@@ -92,9 +90,7 @@ describe('Home Page', () => {
       });
       expect(routerHeading).toBeInTheDocument();
 
-      const routerDescription = screen.getByText(
-        /client-side routing with seamless navigation/i
-      );
+      const routerDescription = screen.getByText(/client-side routing with seamless navigation/i);
       expect(routerDescription).toBeInTheDocument();
     });
 
