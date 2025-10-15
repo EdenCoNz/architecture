@@ -21,7 +21,16 @@ name: Sync to Proform Repository
 # and can be scoped to specific repositories.
 
 on:
-  # Manual trigger only - no automatic execution
+  # Trigger automatically on pushes to main branch
+  push:
+    branches:
+      - main
+    paths:
+      - '.claude/**'
+      - 'context/**'
+      - '.github/workflows/sync-to-proform.yml'
+
+  # Also allow manual trigger
   workflow_dispatch:
     inputs:
       dry_run:
