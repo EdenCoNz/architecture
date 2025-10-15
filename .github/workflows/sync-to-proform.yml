@@ -1,0 +1,173 @@
+name: Sync to Proform Repository
+
+# This workflow syncs specific folders (.claude and context) to the target repository
+# at https://github.com/EdenCoNz/proform
+#
+# IMPORTANT: Before running this workflow, you must configure the following secrets:
+# - TARGET_REPO_PAT: A GitHub Personal Access Token (classic or fine-grained) with permissions to push to the target repo
+#
+# To create a Personal Access Token (PAT):
+# 1. Go to GitHub Settings → Developer settings → Personal access tokens
+# 2. For Classic PAT: Select 'repo' scope (full control of private repositories)
+# 3. For Fine-grained PAT (recommended):
+#    - Repository access: Only select repositories → EdenCoNz/proform
+#    - Permissions: Contents (Read and Write)
+# 4. Copy the generated token
+# 5. In this repository: Settings → Secrets and variables → Actions → New repository secret
+#    Name: TARGET_REPO_PAT
+#    Value: <paste your token>
+#
+# Security Note: Fine-grained PATs are recommended as they provide minimal required permissions
+# and can be scoped to specific repositories.
+
+on:
+  # Manual trigger only - no automatic execution
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Perform a dry run without pushing changes'
+        required: false
+        type: boolean
+        default: false
+
+# Explicit permissions (least privilege principle)
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync folders to Proform
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          fetch-depth: 0  # Full history for proper git operations
+
+      - name: Validate folders exist
+        run: |
+          echo "Validating required folders..."
+
+          if [ ! -d ".claude" ]; then
+            echo "ERROR: .claude folder not found"
+            exit 1
+          fi
+
+          if [ ! -d "context" ]; then
+            echo "ERROR: context folder not found"
+            exit 1
+          fi
+
+          echo "✓ All required folders found"
+
+          echo "Folder contents summary:"
+          echo "📁 .claude:"
+          find .claude -type f | wc -l | xargs echo "  Files:"
+
+          echo "📁 context:"
+          find context -type f | wc -l | xargs echo "  Files:"
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone target repository
+        env:
+          TARGET_REPO_PAT: ${{ secrets.TARGET_REPO_PAT }}
+        run: |
+          echo "Cloning target repository..."
+
+          # Clone using PAT authentication
+          git clone "https://x-access-token:${TARGET_REPO_PAT}@github.com/EdenCoNz/proform.git" target-repo
+
+          cd target-repo
+
+          # Verify we're in the right repository
+          echo "Target repository: $(git remote get-url origin)"
+          echo "Current branch: $(git branch --show-current)"
+
+      - name: Sync folders
+        run: |
+          echo "Syncing folders to target repository..."
+
+          cd target-repo
+
+          # Remove existing folders in target (clean sync)
+          echo "Removing existing folders in target..."
+          rm -rf .claude context
+
+          # Copy folders from source
+          echo "Copying .claude folder..."
+          cp -r ../.claude .
+
+          echo "Copying context folder..."
+          cp -r ../context .
+
+          # Show what changed
+          echo ""
+          echo "Changes to be committed:"
+          git status --short
+
+      - name: Commit and push changes
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          cd target-repo
+
+          # Check if there are changes to commit
+          if [[ -z $(git status --porcelain) ]]; then
+            echo "✓ No changes detected - folders are already in sync"
+            exit 0
+          fi
+
+          # Stage all changes
+          git add .claude context
+
+          # Create commit with detailed message
+          COMMIT_MSG="Sync .claude and context folders from architecture repository
+
+Synced folders:
+- .claude/ (Claude AI commands, agents, and configurations)
+- context/ (Project context and documentation)
+
+Source commit: ${{ github.sha }}
+Triggered by: @${{ github.actor }}
+Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          git commit -m "$COMMIT_MSG"
+
+          # Show commit details
+          echo ""
+          echo "Commit created:"
+          git log -1 --stat
+
+          # Push changes (unless dry run)
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo ""
+            echo "🔍 DRY RUN MODE - Changes were committed locally but NOT pushed"
+            echo "The following would have been pushed:"
+            git log origin/main..HEAD --oneline
+          else
+            echo ""
+            echo "Pushing changes to target repository..."
+            git push origin main
+            echo "✅ Successfully synced folders to https://github.com/EdenCoNz/proform"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Sync Operation Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Source Repository: ${{ github.repository }}"
+          echo "Target Repository: EdenCoNz/proform"
+          echo "Source Commit: ${{ github.sha }}"
+          echo "Triggered by: @${{ github.actor }}"
+          echo "Dry Run: ${{ inputs.dry_run }}"
+          echo "Status: ${{ job.status }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
