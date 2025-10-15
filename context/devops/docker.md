@@ -281,11 +281,6 @@ Docker Compose was primarily designed for local development and lacks critical p
 - Single-host constraint (no cluster orchestration)
 - No sophisticated secrets management
 
-**Production Orchestration Options:**
-- **Docker Swarm**: Docker-native orchestration for simpler use cases, built-in load balancing, rolling updates, secrets management. Good for small to medium deployments.
-- **Kubernetes**: Industry-standard orchestration for complex, large-scale deployments. Extensive ecosystem, advanced scheduling, comprehensive service mesh integration.
-- **Managed Services**: AWS ECS/Fargate, Google Cloud Run, Azure Container Instances reduce operational overhead.
-
 **When to Use Compose in Production:**
 Docker Compose is acceptable for production in limited scenarios:
 - Single server deployments with moderate traffic
@@ -294,6 +289,9 @@ Docker Compose is acceptable for production in limited scenarios:
 - Small teams without orchestration expertise
 
 Use with strict configuration: restart policies (`restart: always`), resource limits, health checks, log aggregation, and proper monitoring.
+
+**Beyond Single-Host:**
+For multi-host deployments, high availability, or complex orchestration needs, consider container orchestration platforms (Docker Swarm, Kubernetes) or managed container services. These topics are beyond the scope of Docker core expertise.
 
 ### 7. Networking & Storage
 
@@ -393,11 +391,6 @@ console.log(JSON.stringify({
 }));
 ```
 
-**Log Aggregation:**
-- **ELK Stack**: Elasticsearch + Logstash + Kibana for log storage, processing, and visualization
-- **Loki + Grafana**: Lightweight alternative, label-based indexing
-- **Cloud Solutions**: AWS CloudWatch, Google Cloud Logging, Azure Monitor
-
 **Docker Logging Drivers:**
 ```yaml
 services:
@@ -409,13 +402,24 @@ services:
         max-file: "3"
 ```
 
-Options: `json-file`, `syslog`, `journald`, `fluentd`, `awslogs`, `gcplogs`
+Docker supports multiple logging drivers: `json-file` (default), `syslog`, `journald`, `fluentd`, `awslogs`, `gcplogs`. Configure drivers to send logs to external aggregation systems or keep them local with rotation policies.
 
-**Monitoring Tools (2024-2025):**
-- **Prometheus + Grafana**: Industry-standard metrics collection and visualization
-- **cAdvisor**: Container-specific metrics (CPU, memory, network, disk)
-- **Docker Stats API**: Built-in resource usage monitoring
-- **Commercial Solutions**: Datadog, New Relic, Dynatrace, Lumigo for comprehensive observability
+**Docker Native Monitoring:**
+
+**Docker Stats Command:**
+```bash
+# Real-time resource usage
+docker stats
+
+# Specific container
+docker stats container_name
+
+# No streaming (one-time output)
+docker stats --no-stream
+```
+
+**Docker Stats API:**
+Access container metrics programmatically via Docker Engine API for integration into monitoring systems.
 
 **Key Metrics to Monitor:**
 - Container resource usage (CPU, memory, disk I/O, network)
@@ -423,6 +427,8 @@ Options: `json-file`, `syslog`, `journald`, `fluentd`, `awslogs`, `gcplogs`
 - Container restart counts
 - Image pull times and failures
 - Application-specific metrics exposed via /metrics endpoints
+
+**Note:** For production observability platforms (Prometheus, Grafana, ELK Stack, etc.), consult general DevOps monitoring guidance as these are beyond Docker core expertise.
 
 ### 9. CI/CD Integration
 

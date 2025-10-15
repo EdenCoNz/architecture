@@ -240,41 +240,14 @@ jobs:
         run: aws s3 sync ./dist s3://my-bucket
 ```
 
-**Cloud Provider Setup (AWS):**
+**Cloud Provider Setup:**
 
-```hcl
-# Terraform example for AWS OIDC provider
-resource "aws_iam_openid_connect_provider" "github_actions" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
-}
+Each cloud provider requires OIDC trust relationship configuration. Consult cloud provider documentation for:
+- Creating OIDC identity provider pointing to GitHub Actions
+- Configuring trust relationships with subject claim filters (repository, branch, environment)
+- Setting appropriate IAM policies for deployment actions
 
-resource "aws_iam_role" "github_actions" {
-  name = "GitHubActionsRole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_openid_connect_provider.github_actions.arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:org/repo:*"
-          }
-        }
-      }
-    ]
-  })
-}
-```
+**Note:** Infrastructure provisioning (Terraform, CloudFormation, etc.) is beyond GitHub Actions core expertise. Focus on the workflow configuration; consult IaC documentation for cloud provider setup.
 
 **Supported Cloud Providers:**
 - AWS (IAM roles with OIDC)
@@ -454,14 +427,7 @@ steps:
     # Implementation varies by infrastructure
 ```
 
-**AWS CodeBuild Integration (2024 Recommendation):**
-
-GitHub Actions now supports AWS CodeBuild as managed self-hosted runners:
-- No infrastructure to manage
-- Ephemeral and scalable by default
-- Strong security boundaries
-- Low startup latency
-- Fully managed by AWS
+**Note:** Managed self-hosted runner services (AWS CodeBuild, cloud-specific solutions) are beyond GitHub Actions core expertise. Consult cloud provider documentation for integration details.
 
 **Security Monitoring:**
 
@@ -1343,85 +1309,26 @@ Example use cases:
 - Ensure recent backup exists
 - Validate compliance requirements
 
-**Blue-Green Deployments**
+**Deployment Strategy Patterns**
+
+GitHub Actions supports various deployment patterns through workflow configuration. The actual infrastructure deployment commands depend on your orchestration platform (Kubernetes, cloud services, etc.) and are beyond GitHub Actions core scope.
+
+**Key GitHub Actions Features for Deployments:**
+
+- **Environment Protection**: Use environments with required reviewers and wait timers
+- **Conditional Execution**: Use `if` conditions to control deployment flow
+- **Step Outputs**: Share deployment identifiers between steps
+- **Job Dependencies**: Sequence deployment validation steps with `needs`
+- **Timeout Controls**: Set limits to prevent hanging deployments
+- **Continue on Error**: Allow non-critical steps to fail
+
+**Example: Basic Deployment with Validation**
 
 ```yaml
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
-
-    steps:
-      - name: Deploy to blue environment
-        run: |
-          # Deploy new version to blue environment
-          kubectl apply -f k8s/blue-deployment.yaml
-
-      - name: Run smoke tests
-        run: |
-          # Test blue environment
-          ./scripts/smoke-test.sh blue
-
-      - name: Switch traffic to blue
-        run: |
-          # Update service to point to blue
-          kubectl patch service app -p '{"spec":{"selector":{"version":"blue"}}}'
-
-      - name: Monitor new deployment
-        run: |
-          sleep 300
-          ./scripts/check-errors.sh
-
-      - name: Keep or rollback
-        run: |
-          if [ $ERRORS -eq 0 ]; then
-            echo "Deployment successful, removing green"
-            kubectl delete deployment app-green
-          else
-            echo "Errors detected, rolling back"
-            kubectl patch service app -p '{"spec":{"selector":{"version":"green"}}}'
-            kubectl delete deployment app-blue
-          fi
-```
-
-**Canary Deployments**
-
-```yaml
-jobs:
-  canary-deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy canary (10% traffic)
-        run: |
-          kubectl apply -f k8s/canary-deployment.yaml
-          kubectl patch service app -p '{"spec":{"selector":{"version":"canary"}}}'
-          # Configure traffic split: 90% stable, 10% canary
-
-      - name: Monitor canary
-        run: |
-          # Monitor error rates for 30 minutes
-          ./scripts/monitor-canary.sh --duration 30m
-
-      - name: Gradual rollout
-        run: |
-          # Increase to 25% traffic
-          ./scripts/set-traffic-split.sh --canary 25
-
-          # Monitor again
-          ./scripts/monitor-canary.sh --duration 30m
-
-          # Full rollout
-          kubectl apply -f k8s/production-deployment.yaml
-          kubectl delete deployment app-canary
-```
-
-**Rollback Strategy**
-
-```yaml
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
 
     steps:
       - name: Deploy new version
@@ -1437,8 +1344,10 @@ jobs:
         if: failure() && steps.deploy.outcome == 'success'
         run: |
           echo "Health check failed, rolling back"
-          ./deploy.sh ${{ github.event.before }}  # Previous commit
+          ./deploy.sh ${{ github.event.before }}
 ```
+
+**Note:** Specific deployment strategies (blue-green, canary, rolling updates) require infrastructure-specific implementations. Consult orchestration platform documentation for command details.
 
 ### 7. Monitoring and Notifications (2024-2025)
 
@@ -1626,52 +1535,40 @@ jobs:
 
 **Multi-Cloud Deployments**
 
+For deploying to multiple cloud providers, use separate jobs with appropriate authentication actions:
+
 ```yaml
 jobs:
-  deploy-aws:
+  deploy-cloud-a:
     runs-on: ubuntu-latest
-    environment: production-aws
+    environment: production-cloud-a
+    permissions:
+      id-token: write  # For OIDC authentication
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: <cloud-provider-auth-action>  # Use provider-specific action
+        with:
+          # Provider-specific authentication parameters
+      - name: Deploy
+        run: ./deploy-cloud-a.sh
+
+  deploy-cloud-b:
+    runs-on: ubuntu-latest
+    environment: production-cloud-b
     permissions:
       id-token: write
 
     steps:
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: <cloud-provider-auth-action>
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
-          aws-region: us-east-1
-
-      - name: Deploy to AWS
-        run: ./deploy-aws.sh
-
-  deploy-azure:
-    runs-on: ubuntu-latest
-    environment: production-azure
-
-    steps:
-      - uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to Azure
-        run: ./deploy-azure.sh
-
-  deploy-gcp:
-    runs-on: ubuntu-latest
-    environment: production-gcp
-    permissions:
-      id-token: write
-
-    steps:
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Deploy to GCP
-        run: ./deploy-gcp.sh
+          # Provider-specific authentication parameters
+      - name: Deploy
+        run: ./deploy-cloud-b.sh
 ```
+
+**Note:** Cloud provider authentication actions (aws-actions/configure-aws-credentials, azure/login, google-github-actions/auth) have provider-specific configurations. Consult cloud provider documentation for setup details.
 
 ## Action Items
 
