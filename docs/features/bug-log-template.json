@@ -8,6 +8,15 @@
       "reportedDate": "2025-10-17",
       "isFixed": false,
       "fixedDate": null
+    },
+    {
+      "bugID": 2,
+      "featureID": 2,
+      "featureName": "feature/2-test",
+      "title": "Test failure job failed - simulated test failure",
+      "reportedDate": "2025-10-16",
+      "isFixed": false,
+      "fixedDate": null
     }
   ]
 }
