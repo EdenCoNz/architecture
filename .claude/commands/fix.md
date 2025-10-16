@@ -1,10 +1,14 @@
 ---
-description: Process and fix bugs from bug-log.json
+description: Process and fix bugs from bug-log.json [bugid]
 ---
 
 ## Purpose
 
 Process bug reports from docs/features/bug-log.json, create user stories for unfixed bugs using the product-owner agent, and automatically commit and push the changes. This command orchestrates the entire bug fix planning workflow from identifying unfixed bugs to committing the user stories to the repository.
+
+## Arguments
+
+- `bugid` (optional): The ID of a specific bug to process. If provided, only that bug will be processed and git pull will be skipped (assuming you already have the latest changes).
 
 ## Instructions
 
@@ -12,16 +16,39 @@ You MUST follow the workflow steps in sequential order. Do NOT ask the user for 
 
 ## Workflow
 
-### Step 1: Read Bug Log
+### Step 1: Pull Latest Changes (Conditional)
+
+**If bugid argument is provided**:
+- Skip this step entirely
+- Assume the current branch has the latest changes
+- Proceed directly to Step 2
+
+**If bugid argument is NOT provided**:
+Pull the latest changes from the current branch to ensure we have the most up-to-date bug-log.json:
+
+```bash
+git pull
+```
+
+If there are any conflicts or errors during pull, report to the user and stop.
+
+### Step 2: Read Bug Log
 
 Read the bug log file:
 - Path: docs/features/bug-log.json
 - If the file doesn't exist, create it with an empty bugs array and report to the user that no bugs exist
 - Parse the JSON structure
 
-### Step 2: Identify Unfixed Bugs
+### Step 3: Identify Unfixed Bugs
 
-Iterate through the bugs array and identify all bugs where `isFixed` is not set to `true` (this includes `false`, `null`, or missing values).
+**If bugid argument is provided**:
+- Find the specific bug with matching ID in the bugs array
+- If the bug doesn't exist, report error and stop
+- If the bug's `isFixed` is already `true`, report that the bug is already fixed and stop
+- Proceed with only this bug
+
+**If bugid argument is NOT provided**:
+- Iterate through the bugs array and identify all bugs where `isFixed` is not set to `true` (this includes `false`, `null`, or missing values)
 
 For each unfixed bug:
 - Note the bug ID
@@ -30,8 +57,14 @@ For each unfixed bug:
 - Note the bug title
 - Note the severity
 
-### Step 3: Check and Switch to Feature Branch
+### Step 4: Check and Switch to Feature Branch (Conditional)
 
+**If bugid argument is provided**:
+- Skip this step entirely
+- Assume we're already on the correct branch
+- Proceed directly to Step 5
+
+**If bugid argument is NOT provided**:
 For each unfixed bug, check if we're on the correct branch:
 
 1. **Get current branch**:
@@ -40,21 +73,21 @@ git branch --show-current
 ```
 
 2. **Check if current branch matches featureName**:
-   - If current branch matches the bug's featureName, proceed to git pull
+   - If current branch matches the bug's featureName, continue to next bug
    - If current branch does NOT match, switch to the feature branch:
      ```bash
      git checkout {featureName}
      ```
    - If checkout fails (branch doesn't exist), report error and skip this bug
 
-3. **Pull latest changes**:
+3. **Pull latest changes after switching**:
 ```bash
 git pull
 ```
 
 If there are any conflicts or errors during pull, stop processing this bug and report to the user.
 
-### Step 4: Read Bug Details
+### Step 5: Read Bug Details
 
 For each unfixed bug, read the bug details from the markdown file:
 
@@ -62,7 +95,7 @@ For each unfixed bug, read the bug details from the markdown file:
 2. **Read the file**: Use the Read tool to get the complete bug details
 3. **If file doesn't exist**: Report error and skip this bug
 
-### Step 5: Process Each Unfixed Bug
+### Step 6: Process Each Unfixed Bug
 
 For EACH unfixed bug identified, do the following sequentially:
 
@@ -93,7 +126,19 @@ Ensure all stories follow TDD methodology and are independently deployable.
    - Set `userStoriesCreated` to current ISO timestamp
    - Set `userStoriesPath` to the path created by the product-owner agent (typically docs/features/bugs/{bugID}/user-stories.md)
 
-### Step 6: Commit Changes
+4. **Implement User Stories**: After user stories are created for the bug, automatically call the implement command:
+   ```
+   /implement {bugID}
+   ```
+
+   This will:
+   - Implement the user stories created for this bug
+   - Run tests and builds as specified in the implement workflow
+   - Commit and push the implementation changes
+
+   Wait for the implement command to complete before proceeding to the next bug.
+
+### Step 7: Commit Changes
 
 After ALL bugs have been processed:
 
@@ -112,7 +157,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 Example: "Fix planning for bugs: 1, 3, 5"
 
-### Step 7: Push to Remote
+### Step 8: Push to Remote
 
 Push the commit to the remote repository:
 
