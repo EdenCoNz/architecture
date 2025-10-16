@@ -463,6 +463,7 @@ jobs:
 
       - name: Fetch failed job logs
         id: fetch-logs
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -472,85 +473,99 @@ jobs:
 
           echo "Fetching logs for job: $FAILED_JOB"
 
-          # Fetch jobs list - fail if this doesn't work
+          # Try to get job ID first - store response in temp file to check for errors
           JOBS_RESPONSE=$(mktemp)
           if ! gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE" 2>&1; then
-            echo "❌ API call failed to fetch jobs list"
-            cat "$JOBS_RESPONSE"
+            echo "API call failed to fetch jobs list"
+            echo "failed_step=API Error - Permission Denied" >> $GITHUB_OUTPUT
+            echo "API Error: Unable to fetch job information due to insufficient permissions" > job_logs.txt
             rm -f "$JOBS_RESPONSE"
-            exit 1
+            exit 0
           fi
 
-          # Validate response is valid JSON with jobs array
+          # Check if response is valid JSON and contains jobs array
           if ! jq -e '.jobs' "$JOBS_RESPONSE" > /dev/null 2>&1; then
-            echo "❌ Invalid API response - expected JSON with jobs array"
-            cat "$JOBS_RESPONSE"
+            echo "Invalid API response - may be an error message"
+            echo "failed_step=API Error - Invalid Response" >> $GITHUB_OUTPUT
+            echo "API Error: Received invalid response when fetching job information" > job_logs.txt
             rm -f "$JOBS_RESPONSE"
-            exit 1
+            exit 0
           fi
 
-          # Extract job ID
-          JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE")
+          # Extract job ID from valid response
+          JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE" 2>/dev/null || echo "")
           rm -f "$JOBS_RESPONSE"
 
           if [ -z "$JOB_ID" ]; then
-            echo "❌ Could not find job ID for: $FAILED_JOB"
-            exit 1
+            echo "Could not find job ID for: $FAILED_JOB"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "No logs available - job not found" > job_logs.txt
+            exit 0
           fi
 
           echo "Found job ID: $JOB_ID"
 
-          # Get the failed step name from job details
+          # Get the failed step name from job details - store response to validate
           STEP_RESPONSE=$(mktemp)
           if ! gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE" 2>&1; then
-            echo "❌ API call failed to fetch step details"
-            cat "$STEP_RESPONSE"
+            echo "API call failed to fetch step details"
+            FAILED_STEP="API Error - Permission Denied"
             rm -f "$STEP_RESPONSE"
-            exit 1
-          fi
+          else
+            # Validate response is valid JSON
+            if ! jq -e '.jobs' "$STEP_RESPONSE" > /dev/null 2>&1; then
+              echo "Invalid API response for step details"
+              FAILED_STEP="API Error - Invalid Response"
+              rm -f "$STEP_RESPONSE"
+            else
+              # Extract failed step from valid response
+              FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" 2>/dev/null | head -n 1)
+              rm -f "$STEP_RESPONSE"
 
-          # Validate response is valid JSON
-          if ! jq -e '.jobs' "$STEP_RESPONSE" > /dev/null 2>&1; then
-            echo "❌ Invalid API response for step details"
-            cat "$STEP_RESPONSE"
-            rm -f "$STEP_RESPONSE"
-            exit 1
-          fi
-
-          # Extract failed step
-          FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" | head -n 1)
-          rm -f "$STEP_RESPONSE"
-
-          if [ -z "$FAILED_STEP" ]; then
-            echo "❌ Could not identify failed step"
-            exit 1
+              if [ -z "$FAILED_STEP" ]; then
+                FAILED_STEP="Unknown step"
+              fi
+            fi
           fi
 
           echo "Failed step: $FAILED_STEP"
-          # Sanitize output to prevent bash injection
+          # Sanitize output to prevent bash injection - replace any special characters
           SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
           echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
 
-          # Download job logs
+          # Download job logs using gh CLI
+          # Note: Logs may not be immediately available, so we handle errors gracefully
           LOGS_RESPONSE=$(mktemp)
-          if ! gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > "$LOGS_RESPONSE" 2>&1; then
-            echo "❌ Failed to download job logs"
-            cat "$LOGS_RESPONSE"
-            rm -f "$LOGS_RESPONSE"
-            exit 1
+          if gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > "$LOGS_RESPONSE" 2>&1; then
+            # Check if response looks like logs (not JSON error)
+            if head -n 1 "$LOGS_RESPONSE" | grep -q "^{"; then
+              # Looks like JSON error response
+              echo "Received JSON error instead of logs"
+              echo "API Error: Unable to fetch logs due to insufficient permissions" > job_logs.txt
+            else
+              # Looks like actual logs
+              mv "$LOGS_RESPONSE" job_logs.txt
+              echo "Successfully downloaded logs ($(wc -l < job_logs.txt) lines)"
+            fi
+          else
+            echo "Could not download full logs, using fallback"
+            # Get step logs from job details API as fallback
+            FALLBACK_RESPONSE=$(mktemp)
+            if gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$FALLBACK_RESPONSE" 2>&1; then
+              # Validate it's valid JSON
+              if jq -e '.jobs' "$FALLBACK_RESPONSE" > /dev/null 2>&1; then
+                jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | \"Step: \(.name)\nConclusion: \(.conclusion)\nCompleted at: \(.completed_at)\"" "$FALLBACK_RESPONSE" > job_logs.txt 2>/dev/null || echo "Logs not available" > job_logs.txt
+              else
+                echo "Logs not available - API error" > job_logs.txt
+              fi
+            else
+              echo "Logs not available - API error" > job_logs.txt
+            fi
+            rm -f "$FALLBACK_RESPONSE"
           fi
 
-          # Check if response looks like logs (not JSON error)
-          if head -n 1 "$LOGS_RESPONSE" | grep -q "^{"; then
-            echo "❌ Received JSON error instead of logs"
-            cat "$LOGS_RESPONSE"
-            rm -f "$LOGS_RESPONSE"
-            exit 1
-          fi
-
-          # Logs successfully retrieved
-          mv "$LOGS_RESPONSE" job_logs.txt
-          echo "✅ Successfully downloaded logs ($(wc -l < job_logs.txt) lines)"
+          # Clean up temp file if it still exists
+          rm -f "$LOGS_RESPONSE"
 
       - name: Create markdown file for bug
         run: |
