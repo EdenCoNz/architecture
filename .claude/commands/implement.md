@@ -1,21 +1,27 @@
 ---
-description: Implement feature by reading user stories and executing them in order
+description: Implement feature or bug by reading user stories and executing them in order
 args:
+  - name: type
+    description: Type of implementation (feature or bug)
+    required: true
   - name: id
-    description: Feature ID to implement (reads from docs/features/{id}/user-stories.md)
+    description: Feature or bug ID to implement
     required: true
 model: claude-sonnet-4-5
 ---
 
 ## Purpose
 
-Execute user stories for a specific feature by launching appropriate agents in the correct order. This command reads the user stories file, processes the execution order, and coordinates implementation across multiple phases.
+Execute user stories for a specific feature or bug by launching appropriate agents in the correct order. This command reads the user stories file, processes the execution order, and coordinates implementation across multiple phases.
 
 ## Variables
 
-- `$ID` - The feature ID number (e.g., "001" for Feature #001)
-- User stories path: `docs/features/$ID/user-stories.md`
-- Implementation log path: `docs/features/$ID/implementation-log.json`
+- `$TYPE` - The type of implementation ("feature" or "bug")
+- `$ID` - The feature or bug ID number (e.g., "001" for Feature #001 or Bug #001)
+- User stories path (feature): `docs/features/$ID/user-stories.md`
+- User stories path (bug): `docs/features/bugs/$ID/user-stories.md`
+- Implementation log path (feature): `docs/features/$ID/implementation-log.json`
+- Implementation log path (bug): `docs/features/bugs/$ID/implementation-log.json`
 - Feature log path: `docs/features/feature-log.json`
 
 ## Instructions
@@ -29,10 +35,24 @@ Execute user stories for a specific feature by launching appropriate agents in t
 
 ## Workflow
 
+### Step 0: Determine Paths Based on Type
+
+1. If `$TYPE` is "feature":
+   - Set base path to `docs/features/$ID`
+   - Set user stories path to `docs/features/$ID/user-stories.md`
+   - Set implementation log path to `docs/features/$ID/implementation-log.json`
+2. If `$TYPE` is "bug":
+   - Set base path to `docs/features/bugs/$ID`
+   - Set user stories path to `docs/features/bugs/$ID/user-stories.md`
+   - Set implementation log path to `docs/features/bugs/$ID/implementation-log.json`
+3. If `$TYPE` is neither "feature" nor "bug":
+   - Respond with: "Error: Type must be either 'feature' or 'bug'"
+   - Stop execution
+
 ### Step 1: Validate User Stories File
 
-1. Check if user-stories file exists at `docs/features/$ID/user-stories.md`
-2. If not found, respond with: "Error: No user stories found for Feature #$ID. Run /plan first."
+1. Check if user-stories file exists at the determined path
+2. If not found, respond with: "Error: No user stories found for $TYPE #$ID. Run /plan first."
 3. If found, proceed to next step
 
 ### Step 2: Parse Execution Order
@@ -59,9 +79,9 @@ For each phase in the execution order:
 For each agent (regardless of type), provide:
 
 ```
-Feature ID: $ID
+$TYPE ID: $ID
 
-Implement the following user story from docs/features/$ID/user-stories.md:
+Implement the following user story from {user-stories-path}:
 
 [Story Title]
 [Story Description]
@@ -73,7 +93,7 @@ Execute this implementation following best practices and ensure all acceptance c
 
 IMPORTANT: After completing this user story, you MUST:
 
-1. Record your work in docs/features/$ID/implementation-log.json:
+1. Record your work in {implementation-log-path}:
    - Story number and title
    - Timestamp of completion
    - All files created or modified (use RELATIVE paths from project root, e.g., "frontend/src/App.tsx" NOT "/home/user/project/frontend/src/App.tsx")
@@ -95,6 +115,8 @@ IMPORTANT: After completing this user story, you MUST:
      ```
 ```
 
+Note: Replace {user-stories-path} and {implementation-log-path} with the actual paths determined in Step 0.
+
 ### Step 5: Verify Completion and Update Feature Log
 
 After all phases complete:
@@ -113,11 +135,11 @@ Note: The `isSummarised` property tracks whether this feature has been summarise
 
 After all stories are completed and feature log is updated:
 
-1. **Read implementation-log.json**: Extract all completed stories and files modified
-2. **Read feature-log.json**: Get the feature title for this feature ID
+1. **Read implementation-log.json**: Extract all completed stories and files modified from the determined implementation log path
+2. **Read feature-log.json**: Get the title for this feature/bug ID
 3. **Create detailed commit message**: Use the following format:
    ```
-   Implementation of {id}-{feature-title}
+   Implementation of {type}-{id}-{title}
 
    Completed user stories:
    - Story #{num}: {story-title}
@@ -131,6 +153,7 @@ After all stories are completed and feature log is updated:
 
    Co-Authored-By: Claude <noreply@anthropic.com>
    ```
+   Note: {type} should be lowercase ("feature" or "bug")
 4. **Stage and commit**: Use Bash tool to:
    - Stage all modified files
    - Create commit with the detailed message using HEREDOC format
