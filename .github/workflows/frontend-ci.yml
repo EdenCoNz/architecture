@@ -1,0 +1,512 @@
+name: Frontend CI/CD
+
+# Trigger on pull requests and pushes to main branch
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+# Explicit permissions (least privilege)
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+# Prevent concurrent runs for same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Lint and Format Check
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check Prettier formatting
+        run: npm run format:check
+
+  # Job 2: Type Check
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type check
+        run: npx tsc -b --noEmit
+
+  # Job 3: Build
+  build:
+    name: Build Application
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    needs: [lint, typecheck]  # Only build if lint and typecheck pass
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: frontend/dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Check build size
+        run: |
+          echo "## Build Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Bundle Size" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          du -sh dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### File Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          find dist -name "*.js" -o -name "*.css" | xargs du -h | sort -rh | head -10 >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 4: Security Audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true  # Don't fail build on audit issues, but report them
+
+      - name: Security audit summary
+        if: always()
+        run: |
+          echo "## Security Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          npm audit --audit-level=moderate || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 5: Docker Build and Test
+  docker:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: [build]  # Run after build job succeeds
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: |
+            frontend:${{ github.sha }}
+            frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start container for testing
+        run: |
+          echo "Starting Docker container for health check testing..."
+          docker run -d --name frontend-test -p 8080:8080 frontend:${{ github.sha }}
+
+          echo "Waiting for container to be ready..."
+          sleep 5
+
+          echo "Container status:"
+          docker ps -a --filter name=frontend-test
+
+      - name: Test health endpoint
+        run: |
+          echo "Testing health endpoint..."
+
+          # Wait up to 30 seconds for health endpoint to respond
+          max_attempts=30
+          attempt=0
+
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost:8080/health; then
+              echo "✅ Health check passed!"
+              echo ""
+              echo "Health endpoint response:"
+              curl -s http://localhost:8080/health
+              exit 0
+            fi
+
+            echo "Attempt $((attempt + 1))/$max_attempts - waiting for health endpoint..."
+            sleep 1
+            attempt=$((attempt + 1))
+          done
+
+          echo "❌ Health check failed after $max_attempts attempts"
+          echo ""
+          echo "Container logs:"
+          docker logs frontend-test
+          exit 1
+
+      - name: Test application root
+        run: |
+          echo "Testing application root endpoint..."
+
+          if curl -f -s http://localhost:8080/ | grep -q "<!DOCTYPE html>"; then
+            echo "✅ Application root responds with HTML"
+          else
+            echo "❌ Application root did not respond with valid HTML"
+            docker logs frontend-test
+            exit 1
+          fi
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          echo "## Docker Container Failure Logs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          docker logs frontend-test >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Could not retrieve logs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Stop and remove test container
+        if: always()
+        run: |
+          docker stop frontend-test || true
+          docker rm frontend-test || true
+
+      - name: Docker build summary
+        if: success()
+        run: |
+          echo "## Docker Build Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker image built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Image tagged with commit SHA: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Image tagged with: \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Container health check passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Application serves HTML correctly" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          docker images frontend:${{ github.sha }} >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Size" >> $GITHUB_STEP_SUMMARY
+          docker images frontend:${{ github.sha }} --format "{{.Size}}" >> $GITHUB_STEP_SUMMARY
+
+  # Job 6: Deployment Readiness (only on main branch)
+  deployment-check:
+    name: Deployment Readiness Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, typecheck, build, security, docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: dist/
+
+      - name: Verify build artifacts
+        run: |
+          echo "## Deployment Readiness" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build artifacts generated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker image built and tested successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Ready for deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifact Contents" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lah dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check index.html exists
+        run: |
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ Error: index.html not found in build artifacts"
+            exit 1
+          fi
+          echo "✅ index.html exists in build artifacts"
+
+  # Job 7: Claude-based CI Failure Auto-fix
+  claude-ci-fix:
+    name: Auto-fix CI Failures with Claude
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: [lint, typecheck, build, security, docker, deployment-check]
+    if: always() && (needs.lint.result == 'failure' || needs.typecheck.result == 'failure' || needs.build.result == 'failure' || needs.security.result == 'failure' || needs.docker.result == 'failure' || needs.deployment-check.result == 'failure')
+
+    permissions:
+      contents: write  # Required to commit and push fixes
+      pull-requests: write
+      id-token: write  # Required for Claude Code action
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better context
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detect failed jobs and extract logs
+        id: detect-failure
+        run: |
+          echo "Analyzing workflow failures..."
+
+          # Create detailed failure report
+          FAILURE_REPORT=""
+          FAILED_JOBS=""
+
+          # Check each job and collect failure details
+          if [[ "${{ needs.lint.result }}" == "failure" ]]; then
+            FAILED_JOBS="${FAILED_JOBS}lint,"
+            FAILURE_REPORT="${FAILURE_REPORT}## Job: lint (Lint and Format Check)\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Status: FAILED\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Likely cause: ESLint or Prettier formatting issues\n\n"
+          fi
+
+          if [[ "${{ needs.typecheck.result }}" == "failure" ]]; then
+            FAILED_JOBS="${FAILED_JOBS}typecheck,"
+            FAILURE_REPORT="${FAILURE_REPORT}## Job: typecheck (TypeScript Type Check)\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Status: FAILED\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Likely cause: TypeScript compilation errors\n\n"
+          fi
+
+          if [[ "${{ needs.build.result }}" == "failure" ]]; then
+            FAILED_JOBS="${FAILED_JOBS}build,"
+            FAILURE_REPORT="${FAILURE_REPORT}## Job: build (Build Application)\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Status: FAILED\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Likely cause: Build process errors or missing dependencies\n\n"
+          fi
+
+          if [[ "${{ needs.security.result }}" == "failure" ]]; then
+            FAILED_JOBS="${FAILED_JOBS}security,"
+            FAILURE_REPORT="${FAILURE_REPORT}## Job: security (Security Audit)\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Status: FAILED\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Likely cause: Security vulnerabilities in dependencies\n\n"
+          fi
+
+          if [[ "${{ needs.docker.result }}" == "failure" ]]; then
+            FAILED_JOBS="${FAILED_JOBS}docker,"
+            FAILURE_REPORT="${FAILURE_REPORT}## Job: docker (Build and Test Docker Image)\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Status: FAILED\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Likely cause: Docker build errors or container health check failures\n\n"
+          fi
+
+          if [[ "${{ needs.deployment-check.result }}" == "failure" ]]; then
+            FAILED_JOBS="${FAILED_JOBS}deployment-check,"
+            FAILURE_REPORT="${FAILURE_REPORT}## Job: deployment-check (Deployment Readiness Check)\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Status: FAILED\n"
+            FAILURE_REPORT="${FAILURE_REPORT}Likely cause: Missing build artifacts or validation errors\n\n"
+          fi
+
+          # Remove trailing comma
+          FAILED_JOBS="${FAILED_JOBS%,}"
+
+          # Add workflow context
+          FAILURE_REPORT="# Frontend CI/CD Workflow Failure Report\n\n${FAILURE_REPORT}"
+          FAILURE_REPORT="${FAILURE_REPORT}## Workflow Context\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Workflow: Frontend CI/CD (.github/workflows/frontend-ci.yml)\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Branch: ${{ github.ref_name }}\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Commit: ${{ github.sha }}\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Triggered by: ${{ github.event_name }}\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Actor: ${{ github.actor }}\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Run ID: ${{ github.run_id }}\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\n"
+
+          # Add instructions for Claude
+          FAILURE_REPORT="${FAILURE_REPORT}## Instructions\n"
+          FAILURE_REPORT="${FAILURE_REPORT}Please analyze the failed jobs listed above and:\n"
+          FAILURE_REPORT="${FAILURE_REPORT}1. Identify the root cause of each failure\n"
+          FAILURE_REPORT="${FAILURE_REPORT}2. Fix the issues in the codebase\n"
+          FAILURE_REPORT="${FAILURE_REPORT}3. Ensure all fixes follow best practices\n"
+          FAILURE_REPORT="${FAILURE_REPORT}4. Do NOT commit changes - this workflow will handle commits\n\n"
+
+          # Save to file and output variable
+          echo -e "$FAILURE_REPORT" > /tmp/failure-report.txt
+          echo "failure-report<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$FAILURE_REPORT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "failed-jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+
+          # Summary
+          echo "## CI Failure Detected" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Failed jobs: $FAILED_JOBS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Initiating Claude-based auto-fix..." >> $GITHUB_STEP_SUMMARY
+
+      - name: Run Claude CI fix command
+        id: claude-fix
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            /cifix ${{ steps.detect-failure.outputs.failure-report }}
+        continue-on-error: true
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "No changes were made by Claude" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "## Changes Detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            git diff --stat >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Configure Git
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          git config --global user.name "Claude Code CI Bot"
+          git config --global user.email "noreply@anthropic.com"
+
+      - name: Commit and push fixes
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          # Stage all changes
+          git add .
+
+          # Create detailed commit message
+          COMMIT_MSG="$(cat <<'EOF'
+          Fix CI failures detected in Frontend CI/CD workflow
+
+          This commit addresses failures in the following jobs:
+          ${{ steps.detect-failure.outputs.failed-jobs }}
+
+          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Branch: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+
+          Changes were automatically generated by Claude Code to resolve CI failures.
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+          )"
+
+          # Commit changes
+          git commit -m "$COMMIT_MSG"
+
+          # Push to the same branch
+          git push origin HEAD:${{ github.ref_name }}
+
+          echo "## ✅ Fixes Committed and Pushed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Changes have been pushed to branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A new workflow run will be triggered automatically to validate the fixes." >> $GITHUB_STEP_SUMMARY
+
+      - name: Report completion
+        if: always()
+        run: |
+          echo "## Claude CI Auto-fix Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.check-changes.outputs.has-changes }}" == "true" ]]; then
+            echo "✅ Fixes were committed and pushed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Monitor the next workflow run to verify if the fixes resolved the issues." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No changes were necessary or Claude was unable to fix the issues automatically" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Manual intervention may be required. Review the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
