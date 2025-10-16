@@ -7,7 +7,9 @@
       "title": "Test failure job failed - simulated test failure",
       "reportedDate": "2025-10-16",
       "isFixed": false,
-      "fixedDate": null
+      "fixedDate": null,
+      "userStoriesCreated": "2025-10-16T19:24:47Z",
+      "userStoriesPath": "docs/features/bugs/1/user-stories.md"
     }
   ]
 }
