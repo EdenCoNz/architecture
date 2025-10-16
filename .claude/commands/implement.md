@@ -109,6 +109,33 @@ After all phases complete:
 
 Note: The `isSummarised` property tracks whether this feature has been summarised by the /summarise command to reduce context for future agents.
 
+### Step 6: Commit Implementation and Push
+
+After all stories are completed and feature log is updated:
+
+1. **Read implementation-log.json**: Extract all completed stories and files modified
+2. **Read feature-log.json**: Get the feature title for this feature ID
+3. **Create detailed commit message**: Use the following format:
+   ```
+   Implementation of {id}-{feature-title}
+
+   Completed user stories:
+   - Story #{num}: {story-title}
+   - Story #{num}: {story-title}
+
+   Files modified:
+   - {file1}
+   - {file2}
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+   Co-Authored-By: Claude <noreply@anthropic.com>
+   ```
+4. **Stage and commit**: Use Bash tool to:
+   - Stage all modified files
+   - Create commit with the detailed message using HEREDOC format
+5. **Push to remote**: Use Bash tool to push the current branch to remote with `-u` flag
+
 ## Report
 
 Provide a comprehensive summary that includes:
@@ -118,3 +145,5 @@ Provide a comprehensive summary that includes:
 - Any stories that failed or are blocked
 - Confirmation of feature log update if all stories completed
 - Implementation log location for detailed records
+- Confirmation of commit created and pushed to remote
+- Current git branch name
