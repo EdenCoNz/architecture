@@ -1,0 +1,13 @@
+{
+  "bugs": [
+    {
+      "bugID": 1,
+      "featureID": 1,
+      "featureName": "feature/1-example-feature",
+      "title": "Example Bug Title",
+      "reportedDate": "2025-10-17",
+      "isFixed": false,
+      "fixedDate": null
+    }
+  ]
+}
