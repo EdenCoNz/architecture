@@ -2,11 +2,6 @@ name: Frontend CI/CD
 
 # Trigger on pull requests and pushes to main branch
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches: [main]
     paths:
@@ -493,6 +488,84 @@ jobs:
           echo "Changes have been pushed to branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "A new workflow run will be triggered automatically to validate the fixes." >> $GITHUB_STEP_SUMMARY
+
+      - name: Create pull request
+        if: steps.check-changes.outputs.has-changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if PR already exists for this branch
+          EXISTING_PR=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "## ℹ️ Pull Request Already Exists" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "A pull request already exists for this branch: #$EXISTING_PR" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "View PR: ${{ github.server_url }}/${{ github.repository }}/pull/$EXISTING_PR" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The new fixes have been pushed to the existing PR." >> $GITHUB_STEP_SUMMARY
+          else
+            # Create PR title and body
+            PR_TITLE="[Auto-fix] CI Failures in ${{ steps.detect-failure.outputs.failed-jobs }}"
+
+            # Create detailed PR body using heredoc
+            cat > /tmp/pr-body.txt <<'EOF'
+          ## Summary
+
+          This pull request contains automated fixes for CI failures detected in the Frontend CI/CD workflow.
+
+          ### Failed Jobs
+          ${{ steps.detect-failure.outputs.failed-jobs }}
+
+          ### What Changed
+          Claude Code analyzed the CI failures and automatically generated fixes to resolve the issues.
+
+          ### Workflow Details
+          - **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Source Branch**: `${{ github.ref_name }}`
+          - **Original Commit**: ${{ github.sha }}
+
+          ### Next Steps
+          1. Review the automated changes in the "Files changed" tab
+          2. The CI workflow will run automatically to validate the fixes
+          3. If CI passes, merge this PR to apply the fixes
+          4. If CI still fails, additional manual intervention may be required
+
+          ---
+
+          🤖 **This PR was automatically created by Claude Code** based on CI failure analysis.
+
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+
+            # Replace template variables in PR body
+            sed -i "s|\${{ steps.detect-failure.outputs.failed-jobs }}|${{ steps.detect-failure.outputs.failed-jobs }}|g" /tmp/pr-body.txt
+            sed -i "s|\${{ github.server_url }}|${{ github.server_url }}|g" /tmp/pr-body.txt
+            sed -i "s|\${{ github.repository }}|${{ github.repository }}|g" /tmp/pr-body.txt
+            sed -i "s|\${{ github.run_id }}|${{ github.run_id }}|g" /tmp/pr-body.txt
+            sed -i "s|\${{ github.ref_name }}|${{ github.ref_name }}|g" /tmp/pr-body.txt
+            sed -i "s|\${{ github.sha }}|${{ github.sha }}|g" /tmp/pr-body.txt
+
+            # Create the pull request
+            PR_URL=$(gh pr create \
+              --title "$PR_TITLE" \
+              --body-file /tmp/pr-body.txt \
+              --base main \
+              --head "${{ github.ref_name }}" \
+              2>&1)
+
+            # Extract PR number from URL
+            PR_NUMBER=$(echo "$PR_URL" | grep -oP 'pull/\K[0-9]+' || echo "")
+
+            echo "## ✅ Pull Request Created" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "A new pull request has been created with the automated fixes." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**PR URL**: $PR_URL" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The CI workflow will run automatically on the PR to validate the fixes." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Report completion
         if: always()

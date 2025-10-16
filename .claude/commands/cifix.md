@@ -1,8 +1,17 @@
 ---
 description: Analyze CI workflow failures and fix them using the appropriate agent
 args:
-  - name: logdetails
-    description: CI log details or error information from the failing workflow
+  - name: workflow.yml
+    description: The GitHub Actions workflow file name (e.g., frontend-ci.yml)
+    required: true
+  - name: job
+    description: The job name that is failing in the workflow
+    required: true
+  - name: step
+    description: The specific step within the job that is failing
+    required: true
+  - name: logdetail
+    description: CI log details or error information from the failing step
     required: true
 model: claude-sonnet-4-5
 ---
@@ -13,7 +22,10 @@ This command analyzes GitHub Actions workflow failures, identifies the root caus
 
 ## Variables
 
-- `{{{ logdetails }}}` - Contains CI log details, error messages, or failure information from the workflow
+- `{{{ workflow.yml }}}` - The workflow file name (e.g., frontend-ci.yml)
+- `{{{ job }}}` - The job name that is failing
+- `{{{ step }}}` - The specific step within the job that is failing
+- `{{{ logdetail }}}` - Contains CI log details, error messages, or failure information from the failing step
 
 ## Instructions
 
@@ -30,24 +42,29 @@ This command analyzes GitHub Actions workflow failures, identifies the root caus
 
 ## Workflow
 
-### Step 1: Locate Workflow Files
+### Step 1: Read the Workflow File
 
-Use the Glob tool to find all GitHub Actions workflow files:
-- Search for `.github/workflows/*.yml` and `.github/workflows/*.yaml`
-
-### Step 2: Analyze the Workflow
-
-Read the relevant workflow file(s) to understand:
+Read the specified workflow file at `.github/workflows/{{{ workflow.yml }}}` to understand:
 - The workflow structure and jobs
-- Which steps are configured
-- What each job does (build, test, lint, deploy, etc.)
+- The specific job `{{{ job }}}` configuration
+- The failing step `{{{ step }}}` and what it does
+
+### Step 2: Analyze the Failure Context
+
+Using the provided parameters:
+- Workflow file: `{{{ workflow.yml }}}`
+- Failing job: `{{{ job }}}`
+- Failing step: `{{{ step }}}`
+- Log details: `{{{ logdetail }}}`
+
+Understand the complete context of what is failing and why.
 
 ### Step 3: Parse the Log Details
 
-Analyze the provided log details (`{{{ logdetails }}}`) to identify:
-- Which job/step is failing
+Analyze the provided log details (`{{{ logdetail }}}`) to identify:
 - The specific error messages
 - The failure type (compilation error, test failure, configuration issue, etc.)
+- Any relevant stack traces or diagnostic information
 
 ### Step 4: Identify Root Cause
 
