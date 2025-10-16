@@ -14,7 +14,7 @@ This directory contains automated workflows for the architecture repository.
 
 #### Setup Instructions
 
-Before running this workflow for the first time, you must configure authentication:
+Before running this workflow for the first time, you must configure authentication.:
 
 ##### 1. Create a Personal Access Token (PAT)
 

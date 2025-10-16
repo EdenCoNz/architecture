@@ -1,9 +1,15 @@
 name: Frontend CI/CD
 
-# Trigger on pull requests and pushes to main branch
+# Trigger on pull requests and pushes to main and feature branches
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'feature/**'
+      - add-claude-github-actions-1760613422186
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
