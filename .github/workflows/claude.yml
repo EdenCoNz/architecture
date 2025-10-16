@@ -1,8 +1,6 @@
 name: Claude Test Command
 
 on:
-  push:
-    branches: [main, master, add-claude-github-actions-1760613422186]
   pull_request:
     branches: [main, master]
   workflow_dispatch:  # Allow manual triggering
