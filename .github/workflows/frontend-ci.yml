@@ -464,8 +464,8 @@ jobs:
           # Stage all changes
           git add .
 
-          # Create detailed commit message
-          COMMIT_MSG="$(cat <<'EOF'
+          # Create detailed commit message using proper variable expansion
+          cat > /tmp/commit-msg.txt <<EOF
           Fix CI failures detected in Frontend CI/CD workflow
 
           This commit addresses failures in the following jobs:
@@ -481,10 +481,9 @@ jobs:
 
           Co-Authored-By: Claude <noreply@anthropic.com>
           EOF
-          )"
 
           # Commit changes
-          git commit -m "$COMMIT_MSG"
+          git commit -F /tmp/commit-msg.txt
 
           # Push to the same branch
           git push origin HEAD:${{ github.ref_name }}
