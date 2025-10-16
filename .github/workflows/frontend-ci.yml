@@ -510,7 +510,7 @@ Endpoint: /repos/{owner}/{repo}/actions/runs/{run_id}/jobs
 Required Permission: actions=read
 
 TROUBLESHOOTING STEPS:
-1. Verify the workflow has 'actions=read' permission at the job level
+1. Verify the workflow has 'actions: read' permission at the job level
 2. Check if job-level permissions override workflow-level permissions
 3. Review GitHub Actions token permissions in workflow YAML
 4. Ensure the GITHUB_TOKEN has not been restricted by organization policies
