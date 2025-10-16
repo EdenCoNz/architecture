@@ -118,6 +118,275 @@ The application will be available at:
 
 Changes to source files will automatically reload in the browser.
 
+## Docker Development
+
+For developers who prefer containerized environments, you can run the application using Docker Compose with full hot module replacement (HMR) support.
+
+For comprehensive Docker documentation including production deployment, security best practices, and troubleshooting, see [docs/features/2/docker-guide.md](../../docs/features/2/docker-guide.md).
+
+### Quick Start Guide
+
+Get started with Docker in 3 simple steps:
+
+1. **Navigate to project root and copy environment template**:
+   ```bash
+   cd /path/to/architecture
+   cp .env.example .env
+   ```
+
+2. **Start the application**:
+   ```bash
+   docker compose up
+   ```
+
+3. **Access the application**:
+   Open http://localhost:5173 in your browser
+
+That's it! The application is now running with hot module replacement enabled. Changes to your code will automatically reload in the browser.
+
+### Prerequisites for Docker
+
+- **Docker**: v24.x or higher
+- **Docker Compose**: v2.x or higher
+
+Check your versions:
+
+```bash
+docker --version          # Should be v24.x or higher
+docker compose version    # Should be v2.x or higher
+```
+
+### Quick Start with Docker
+
+1. **Navigate to the project root** (not the frontend directory):
+
+```bash
+cd /path/to/architecture  # Project root where docker-compose.yml is located
+```
+
+2. **Copy environment variables**:
+
+```bash
+cp .env.example .env
+# Edit .env if you need to customize configuration
+```
+
+3. **Start the development server**:
+
+```bash
+docker compose up
+```
+
+The application will be available at http://localhost:5173 with hot module replacement enabled.
+
+### Docker npm Scripts
+
+For convenience, npm scripts are available in the frontend directory to manage Docker operations:
+
+#### `npm run docker:build`
+
+Builds the Docker images for the application.
+
+```bash
+cd frontend
+npm run docker:build
+```
+
+This command:
+- Builds the development Docker image using Dockerfile.dev
+- Pulls base images if not present locally
+- Applies BuildKit optimizations for faster builds
+- Tags the image for use with docker compose
+
+Use this command:
+- After modifying Dockerfile or Dockerfile.dev
+- When dependencies in package.json change significantly
+- To ensure you have the latest image definitions
+
+#### `npm run docker:run`
+
+Starts the Docker containers in foreground mode.
+
+```bash
+cd frontend
+npm run docker:run
+```
+
+This command:
+- Starts the frontend development server on port 5173
+- Shows real-time logs from the container
+- Enables hot module replacement for live code updates
+- Press Ctrl+C to stop services
+
+Equivalent to `docker compose up` from the project root.
+
+#### `npm run docker:stop`
+
+Stops and removes the Docker containers.
+
+```bash
+cd frontend
+npm run docker:stop
+```
+
+This command:
+- Stops all running services
+- Removes containers
+- Preserves volumes (node_modules, etc.)
+- Keeps networks intact
+
+Equivalent to `docker compose down` from the project root.
+
+**Note**: All Docker npm scripts must be run from the frontend directory. They automatically navigate to the project root to execute docker compose commands.
+
+### Docker Compose Commands
+
+For developers who prefer using Docker Compose directly from the project root:
+
+#### Start services in foreground
+
+```bash
+docker compose up
+```
+
+- Shows real-time logs from the frontend container
+- Press Ctrl+C to stop services
+
+#### Start services in background (detached mode)
+
+```bash
+docker compose up -d
+```
+
+- Starts services in the background
+- Use `docker compose logs` to view logs
+
+#### Stop and remove containers
+
+```bash
+docker compose down
+```
+
+- Stops all services
+- Removes containers, but preserves volumes
+- Use `docker compose down -v` to also remove volumes
+
+#### View logs
+
+```bash
+# Follow logs in real-time
+docker compose logs -f
+
+# View logs for specific service
+docker compose logs -f frontend
+
+# View last 100 lines
+docker compose logs --tail=100 frontend
+```
+
+#### Rebuild containers
+
+```bash
+# Rebuild after Dockerfile changes
+docker compose up --build
+
+# Force rebuild without cache
+docker compose build --no-cache
+```
+
+#### Restart services
+
+```bash
+# Restart all services
+docker compose restart
+
+# Restart specific service
+docker compose restart frontend
+```
+
+### How Hot Module Replacement Works
+
+The Docker setup uses volume mounts to enable live code updates:
+
+- **Source code** (`frontend/src/`) is mounted read-only into the container
+- **Configuration files** (`vite.config.ts`, `tsconfig.json`) are mounted
+- **node_modules** remains in the container for optimal performance
+- Changes to any mounted file trigger Vite's HMR automatically
+
+### Environment Variables
+
+Environment variables can be configured in the `.env` file at the project root:
+
+```bash
+# Frontend Configuration
+VITE_API_BASE_URL=http://localhost:3000
+NODE_ENV=development
+
+# Vite Development Server
+VITE_HOST=0.0.0.0
+VITE_PORT=5173
+```
+
+All variables prefixed with `VITE_` are exposed to the browser client. See `.env.example` for all available options.
+
+### Troubleshooting Docker
+
+**Issue**: Port 5173 already in use
+
+```bash
+# Stop the conflicting container
+docker compose down
+
+# Or kill the process using the port
+lsof -ti:5173 | xargs kill -9
+```
+
+**Issue**: Changes not reflecting in browser
+
+```bash
+# Restart the container
+docker compose restart frontend
+
+# Or rebuild if configuration changed
+docker compose up --build
+```
+
+**Issue**: Container fails to start
+
+```bash
+# View detailed logs
+docker compose logs frontend
+
+# Check container status
+docker compose ps
+
+# Rebuild from scratch
+docker compose down
+docker compose build --no-cache
+docker compose up
+```
+
+**Issue**: File permission errors
+
+```bash
+# The container runs as non-root user (nodejs:1001)
+# Ensure your local files are readable
+chmod -R 755 frontend/src
+```
+
+### Docker vs Native Development
+
+| Feature | Docker | Native |
+|---------|--------|--------|
+| Setup time | 2-3 minutes (first build) | 1-2 minutes |
+| HMR speed | Same as native | Fast |
+| Isolation | Complete environment isolation | Uses local Node.js |
+| Node version | Locked to Node 20 Alpine | Uses your installed version |
+| Consistency | Identical across all developers | May vary by system |
+| Resource usage | ~500MB RAM + Docker overhead | ~300MB RAM |
+
+Choose Docker if you want environment consistency and isolation. Choose native development if you prefer minimal resource usage.
+
 ## Available Scripts
 
 ### Development Scripts
@@ -261,6 +530,47 @@ npm run test:coverage
 **Coverage thresholds**:
 - Target: 80% coverage minimum
 - View detailed report: `coverage/index.html`
+
+### Docker Scripts
+
+#### `npm run docker:build`
+Builds Docker images for the application.
+
+```bash
+npm run docker:build
+```
+
+- Builds development Docker image using Dockerfile.dev
+- Pulls base images if not present
+- Applies BuildKit optimizations
+- Must be run from frontend directory
+
+#### `npm run docker:run`
+Starts Docker containers in foreground mode.
+
+```bash
+npm run docker:run
+```
+
+- Starts frontend dev server on port 5173
+- Shows real-time logs
+- Enables hot module replacement
+- Press Ctrl+C to stop services
+- Must be run from frontend directory
+
+#### `npm run docker:stop`
+Stops and removes Docker containers.
+
+```bash
+npm run docker:stop
+```
+
+- Stops all running services
+- Removes containers
+- Preserves volumes
+- Must be run from frontend directory
+
+See [Docker Development](#docker-development) section for detailed Docker usage and troubleshooting.
 
 ## Project Structure
 

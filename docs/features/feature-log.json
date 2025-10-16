@@ -26,6 +26,26 @@
       ],
       "isSummarised": true,
       "summarisedAt": "2025-10-15T20:15:00Z"
+    },
+    {
+      "id": 2,
+      "title": "Dockerize Frontend Application",
+      "description": "Dockerize the React frontend application to ensure consistent development and production environments with multi-stage builds, Docker Compose for local development, and CI/CD integration",
+      "createdDate": "2025-10-15",
+      "userStoriesCreated": "2025-10-15T23:15:00Z",
+      "userStoriesImplemented": "2025-10-15T23:50:00Z",
+      "totalStories": 7,
+      "completedStories": 7,
+      "assignedAgents": [
+        "devops-engineer"
+      ],
+      "executionPhases": 6,
+      "parallelPhases": 1,
+      "sequentialPhases": 5,
+      "filesPath": "docs/features/2/user-stories.md",
+      "actions": [],
+      "isSummarised": false,
+      "summarisedAt": null
     }
   ]
 }
