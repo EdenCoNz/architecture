@@ -342,8 +342,21 @@ jobs:
       - name: Parse branch and determine action
         id: parse
         run: |
-          BRANCH_NAME="${{ github.ref_name }}"
-          echo "Current branch: $BRANCH_NAME"
+          # Determine the branch name based on event type
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For pull requests, use the source branch (head_ref)
+            BRANCH_NAME="${{ github.head_ref }}"
+            echo "Event: Pull Request"
+            echo "Source branch (head): $BRANCH_NAME"
+            echo "Target branch (base): ${{ github.base_ref }}"
+          else
+            # For push events, use ref_name
+            BRANCH_NAME="${{ github.ref_name }}"
+            echo "Event: Push"
+            echo "Branch: $BRANCH_NAME"
+          fi
+
+          echo "Branch to analyze: $BRANCH_NAME"
 
           # Check if branch starts with feature/ or bug/
           if [[ "$BRANCH_NAME" =~ ^feature/([0-9]+) ]]; then

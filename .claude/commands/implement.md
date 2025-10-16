@@ -136,6 +136,26 @@ After all stories are completed and feature log is updated:
    - Create commit with the detailed message using HEREDOC format
 5. **Push to remote**: Use Bash tool to push the current branch to remote with `-u` flag
 
+### Step 7: Create Pull Request
+
+After pushing to remote:
+
+1. **Create PR to main**: Use `gh pr create` with the following format:
+   ```
+   gh pr create --base main --title "Implementation of {id}-{feature-title}" --body "$(cat <<'EOF'
+   ## Summary
+   - Story #{num}: {story-title}
+   - Story #{num}: {story-title}
+
+   ## Test plan
+   [List testing steps based on acceptance criteria]
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   EOF
+   )"
+   ```
+2. **Capture PR URL**: Store the URL returned from the command to include in the report
+
 ## Report
 
 Provide a comprehensive summary that includes:
@@ -147,3 +167,4 @@ Provide a comprehensive summary that includes:
 - Implementation log location for detailed records
 - Confirmation of commit created and pushed to remote
 - Current git branch name
+- Pull request URL created to main branch
