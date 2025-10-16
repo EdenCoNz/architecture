@@ -423,24 +423,7 @@ jobs:
             echo "----------------------------------------"
 
             # Parse failed jobs and their steps
-            echo "$JOBS_JSON" | jq -r '.jobs[] | select(.conclusion == "failure") |
-              "
-Job: \(.name)
-Status: \(.conclusion)
-Job ID: \(.id)
-Started: \(.started_at)
-Completed: \(.completed_at)
-
-Failed Steps:
-" + (.steps[] | select(.conclusion == "failure") |
-  "  - Step: \(.name)
-    Status: \(.conclusion)
-    Started: \(.started_at)
-    Completed: \(.completed_at)
-    Step Number: \(.number)
-") + "
-----------------------------------------
-"'
+            echo "$JOBS_JSON" | jq -r '.jobs[] | select(.conclusion == "failure") | "\nJob: \(.name)\nStatus: \(.conclusion)\nJob ID: \(.id)\nStarted: \(.started_at)\nCompleted: \(.completed_at)\n\nFailed Steps:\n" + (.steps[] | select(.conclusion == "failure") | "  - Step: \(.name)\n    Status: \(.conclusion)\n    Started: \(.started_at)\n    Completed: \(.completed_at)\n    Step Number: \(.number)\n") + "\n----------------------------------------\n"'
 
             echo ""
             echo "=========================================="
