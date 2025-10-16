@@ -455,14 +455,16 @@ jobs:
           echo "Updated bug log:"
           cat "$BUG_FILE"
 
-          # Export variables for next step
+          # Export variables for next steps
           echo "NEXT_BUG_ID=$NEXT_BUG_ID" >> $GITHUB_ENV
           echo "WORKFLOW_URL=$WORKFLOW_URL" >> $GITHUB_ENV
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
-          echo "COMMIT_SHA=$COMMIT_SHA" >> $GITHUB_ENV
+          echo "FAILED_JOB=$FAILED_JOB" >> $GITHUB_ENV
 
       - name: Fetch failed job logs
         id: fetch-logs
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
           RUN_ID="${{ github.run_id }}"
@@ -470,86 +472,96 @@ jobs:
 
           echo "Fetching logs for job: $FAILED_JOB"
 
-          # Get job details including logs
-          JOB_DATA=$(gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" --jq ".jobs[] | select(.name == \"$FAILED_JOB\")")
+          # Try to get job ID first
+          JOB_ID=$(gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" 2>/dev/null || echo "")
 
-          if [ -z "$JOB_DATA" ]; then
-            echo "Could not find job data"
+          if [ -z "$JOB_ID" ]; then
+            echo "Could not find job ID for: $FAILED_JOB"
             echo "failed_step=Unknown" >> $GITHUB_OUTPUT
-            echo "step_logs=No logs available" >> $GITHUB_OUTPUT
+            # Save a placeholder to a file for the next step
+            echo "No logs available - job not found" > job_logs.txt
             exit 0
           fi
 
-          # Get the failed step name
-          FAILED_STEP=$(echo "$JOB_DATA" | jq -r '.steps[] | select(.conclusion == "failure") | .name' | head -n 1)
+          echo "Found job ID: $JOB_ID"
+
+          # Get the failed step name from job details
+          FAILED_STEP=$(gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" \
+            2>/dev/null | head -n 1)
+
+          if [ -z "$FAILED_STEP" ]; then
+            FAILED_STEP="Unknown step"
+          fi
+
           echo "Failed step: $FAILED_STEP"
           echo "failed_step=$FAILED_STEP" >> $GITHUB_OUTPUT
 
-          # Download the logs
-          LOG_URL=$(echo "$JOB_DATA" | jq -r '.url')
-          gh api "$LOG_URL/logs" > job_logs.txt 2>&1 || echo "Could not download logs"
-
-          # Extract the failed step logs (this is a simplified approach)
-          # In practice, logs come as a single file, so we'll include relevant portions
-          if [ -f job_logs.txt ]; then
-            echo "step_logs<<EOF" >> $GITHUB_OUTPUT
-            cat job_logs.txt >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+          # Download job logs using gh CLI
+          # Note: Logs may not be immediately available, so we handle errors gracefully
+          if gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > job_logs.txt 2>&1; then
+            echo "Successfully downloaded logs ($(wc -l < job_logs.txt) lines)"
           else
-            echo "step_logs=No logs available" >> $GITHUB_OUTPUT
+            echo "Could not download full logs, using fallback"
+            # Get step logs from job details API as fallback
+            gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" \
+              --jq ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | \"Step: \(.name)\nConclusion: \(.conclusion)\nCompleted at: \(.completed_at)\"" \
+              > job_logs.txt 2>&1 || echo "Logs not available yet" > job_logs.txt
           fi
 
       - name: Create markdown file for bug
         run: |
           FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
-          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          FAILED_JOB="${{ env.FAILED_JOB }}"
           FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
           TITLE="${{ steps.failed-job.outputs.title }}"
           BUG_ID="${{ env.NEXT_BUG_ID }}"
           WORKFLOW_URL="${{ env.WORKFLOW_URL }}"
 
+          # Handle case where failed_step might be empty
+          if [ -z "$FAILED_STEP" ]; then
+            FAILED_STEP="Unknown"
+          fi
+
           # Create bugs directory if it doesn't exist
           BUGS_DIR="docs/features/${FEATURE_ID}/bugs"
           mkdir -p "$BUGS_DIR"
 
-          # Create markdown file
+          # Create markdown file path
           BUG_FILE="${BUGS_DIR}/${BUG_ID}.md"
 
-          cat > "$BUG_FILE" <<'BUGEOF'
-# Bug $BUG_ID: $TITLE
+          # Write the bug report using echo commands
+          echo "# Bug Report: ${TITLE}" > "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Failed Job" >> "$BUG_FILE"
+          echo "${FAILED_JOB}" >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Failed Step" >> "$BUG_FILE"
+          echo "${FAILED_STEP}" >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Raw Logs" >> "$BUG_FILE"
+          echo '```' >> "$BUG_FILE"
 
-## Failed Job
-$FAILED_JOB
-
-## Failed Step
-$FAILED_STEP
-
-## Raw Logs
-```
-$STEP_LOGS
-```
-
-## Workflow Run
-$WORKFLOW_URL
-BUGEOF
-
-          # Replace variables in the file
-          sed -i "s|\$BUG_ID|${BUG_ID}|g" "$BUG_FILE"
-          sed -i "s|\$TITLE|${TITLE}|g" "$BUG_FILE"
-          sed -i "s|\$FAILED_JOB|${FAILED_JOB}|g" "$BUG_FILE"
-          sed -i "s|\$FAILED_STEP|${FAILED_STEP}|g" "$BUG_FILE"
-          sed -i "s|\$WORKFLOW_URL|${WORKFLOW_URL}|g" "$BUG_FILE"
-
-          # Handle logs separately due to multiline content
+          # Append logs if available
           if [ -f job_logs.txt ]; then
-            # Create temp file with logs section
-            awk -v logs="$(cat job_logs.txt)" 'BEGIN{p=1} /\$STEP_LOGS/{print logs; p=0; next} p' "$BUG_FILE" > "${BUG_FILE}.tmp"
-            mv "${BUG_FILE}.tmp" "$BUG_FILE"
+            cat job_logs.txt >> "$BUG_FILE"
           else
-            sed -i "s|\$STEP_LOGS|No logs available|g" "$BUG_FILE"
+            echo "No logs available" >> "$BUG_FILE"
           fi
 
+          # Close the code block and add workflow URL
+          echo '```' >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Workflow Run" >> "$BUG_FILE"
+          echo "${WORKFLOW_URL}" >> "$BUG_FILE"
+
           echo "✅ Markdown file created: $BUG_FILE"
+          echo ""
+          echo "Bug report preview:"
+          echo "===================="
+          head -n 20 "$BUG_FILE"
+          echo "..."
 
       - name: Configure Git
         run: |
