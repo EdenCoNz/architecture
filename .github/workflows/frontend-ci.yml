@@ -19,6 +19,7 @@ permissions:
   contents: write
   pull-requests: write
   checks: write
+  actions: read  # Required for notify-on-failure job to fetch job details via API
 
 # Prevent concurrent runs for same branch/PR
 concurrency:
