@@ -11,6 +11,7 @@ permissions:
   contents: write  # Needed for log-bugs job to commit changes
   pull-requests: write
   checks: write
+  actions: read  # Needed to fetch job logs and job information
 
 # Prevent concurrent runs for same branch/PR
 concurrency:
