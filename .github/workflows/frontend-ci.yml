@@ -392,10 +392,16 @@ jobs:
 
       - name: Prepare failure logs
         if: steps.parse.outputs.branch_type != 'other'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "=========================================="
           echo "Preparing Failure Report"
           echo "=========================================="
+
+          # Fetch job details from GitHub API
+          echo "Fetching job details..."
+          JOBS_JSON=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs)
 
           # Create comprehensive failure report
           {
@@ -413,15 +419,50 @@ jobs:
             echo "Time: $(date -u)"
             echo "=========================================="
             echo ""
-            echo "Failed Jobs:"
+            echo "Failed Jobs and Steps:"
             echo "----------------------------------------"
-            echo "One or more jobs failed in the frontend CI/CD pipeline"
-            echo "Check the following jobs for failures:"
-            echo "  - Lint and Format Check"
-            echo "  - TypeScript Type Check"
-            echo "  - Build Application"
-            echo "  - Security Audit"
-            echo "  - Docker Build and Test"
+
+            # Parse failed jobs and their steps
+            echo "$JOBS_JSON" | jq -r '.jobs[] | select(.conclusion == "failure") |
+              "
+Job: \(.name)
+Status: \(.conclusion)
+Job ID: \(.id)
+Started: \(.started_at)
+Completed: \(.completed_at)
+
+Failed Steps:
+" + (.steps[] | select(.conclusion == "failure") |
+  "  - Step: \(.name)
+    Status: \(.conclusion)
+    Started: \(.started_at)
+    Completed: \(.completed_at)
+    Step Number: \(.number)
+") + "
+----------------------------------------
+"'
+
+            echo ""
+            echo "=========================================="
+            echo "Detailed Step Logs:"
+            echo "=========================================="
+
+            # Get logs for each failed job
+            FAILED_JOB_IDS=$(echo "$JOBS_JSON" | jq -r '.jobs[] | select(.conclusion == "failure") | .id')
+
+            for JOB_ID in $FAILED_JOB_IDS; do
+              JOB_NAME=$(echo "$JOBS_JSON" | jq -r ".jobs[] | select(.id == $JOB_ID) | .name")
+              echo ""
+              echo "========================================"
+              echo "Logs for Job: $JOB_NAME (ID: $JOB_ID)"
+              echo "========================================"
+
+              # Fetch job logs
+              gh api repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs || echo "Failed to fetch logs for job $JOB_ID"
+
+              echo ""
+            done
+
             echo ""
             echo "=========================================="
             echo "Full logs available at:"
@@ -431,8 +472,8 @@ jobs:
           } > failure_report.txt
 
           echo ""
-          echo "Failure report created:"
-          cat failure_report.txt
+          echo "Failure report created with actual logs"
+          echo "Report size: $(du -h failure_report.txt | cut -f1)"
           echo ""
 
       - name: Create bug branch and save logs (for feature branches)
