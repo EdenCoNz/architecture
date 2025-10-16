@@ -356,7 +356,8 @@ jobs:
       startsWith(github.head_ref, 'feature/')
 
     permissions:
-      contents: write
+      contents: write  # Required: commit bug reports to repository and update bug-log.json
+      actions: read    # Required: fetch job information and logs via GitHub Actions API
 
     steps:
       - name: Checkout code
@@ -471,51 +472,250 @@ jobs:
           RUN_ID="${{ github.run_id }}"
           REPO="${{ github.repository }}"
 
-          echo "Fetching logs for job: $FAILED_JOB"
+          echo "=========================================="
+          echo "Fetching logs for failed job: $FAILED_JOB"
+          echo "Run ID: $RUN_ID"
+          echo "Repository: $REPO"
+          echo "=========================================="
+          echo ""
 
-          # Try to get job ID first - store response in temp file to check for errors
+          # Initialize status tracking variables
+          LOG_FETCH_STATUS="success"
+          ERROR_DETAILS=""
+
+          # ==========================================
+          # STEP 1: Fetch jobs list from workflow run
+          # ==========================================
+          echo "Step 1: Fetching jobs list from workflow run..."
           JOBS_RESPONSE=$(mktemp)
+
           if ! gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE" 2>&1; then
-            echo "API call failed to fetch jobs list"
-            echo "failed_step=API Error - Permission Denied" >> $GITHUB_OUTPUT
-            echo "API Error: Unable to fetch job information due to insufficient permissions" > job_logs.txt
+            LOG_FETCH_STATUS="api_permission_error"
+            ERROR_DETAILS="GitHub Actions API returned an error when attempting to fetch jobs list. This typically indicates insufficient permissions."
+
+            echo "❌ API Error: Unable to fetch jobs list"
+            echo "   Cause: API request to /repos/$REPO/actions/runs/$RUN_ID/jobs failed"
+            echo "   Likely Issue: Insufficient 'actions=read' permission"
+            echo "   Resolution: Ensure the workflow has 'actions=read' permission at job level"
+            echo ""
+            echo "failed_step=API Permission Error (Jobs List)" >> $GITHUB_OUTPUT
+            echo "log_fetch_status=api_permission_error" >> $GITHUB_OUTPUT
+
+            # Create fallback log entry with actionable information
+            cat > job_logs.txt <<'FALLBACK_EOF'
+=== LOG FETCH FAILED: API PERMISSION ERROR ===
+
+Error Type: API Permission Denied (Jobs List Endpoint)
+Endpoint: /repos/{owner}/{repo}/actions/runs/{run_id}/jobs
+Required Permission: actions=read
+
+TROUBLESHOOTING STEPS:
+1. Verify the workflow has 'actions=read' permission at the job level
+2. Check if job-level permissions override workflow-level permissions
+3. Review GitHub Actions token permissions in workflow YAML
+4. Ensure the GITHUB_TOKEN has not been restricted by organization policies
+
+RECOMMENDED FIX:
+Add 'actions=read' to the job's permissions block in YAML format:
+  permissions:
+    contents=write
+    actions=read
+
+For more information, see:
+https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication
+FALLBACK_EOF
+
             rm -f "$JOBS_RESPONSE"
             exit 0
           fi
 
-          # Check if response is valid JSON and contains jobs array
+          # ==========================================
+          # STEP 2: Validate API response structure
+          # ==========================================
+          echo "Step 2: Validating API response..."
+
+          # Check if response is valid JSON
+          if ! jq empty "$JOBS_RESPONSE" 2>/dev/null; then
+            LOG_FETCH_STATUS="api_invalid_json"
+            ERROR_DETAILS="GitHub Actions API returned non-JSON response. The response may contain an error message or the API may be experiencing issues."
+
+            echo "❌ API Error: Invalid JSON response"
+            echo "   Cause: Response from GitHub API is not valid JSON"
+            echo "   Likely Issue: API error message or service disruption"
+            echo "   Resolution: Check GitHub Status (https://www.githubstatus.com) and retry"
+            echo ""
+            echo "failed_step=API Error (Invalid JSON Response)" >> $GITHUB_OUTPUT
+            echo "log_fetch_status=api_invalid_json" >> $GITHUB_OUTPUT
+
+            cat > job_logs.txt <<'FALLBACK_EOF'
+=== LOG FETCH FAILED: INVALID API RESPONSE ===
+
+Error Type: Non-JSON API Response
+Endpoint: /repos/{owner}/{repo}/actions/runs/{run_id}/jobs
+
+The GitHub Actions API returned a response that could not be parsed as JSON.
+This may indicate:
+- API service disruption
+- Malformed request
+- Network issues
+- GitHub platform incident
+
+TROUBLESHOOTING STEPS:
+1. Check GitHub Status: https://www.githubstatus.com
+2. Retry the workflow run
+3. Review network connectivity
+4. Check for GitHub API rate limiting
+
+If the issue persists, contact GitHub Support.
+FALLBACK_EOF
+
+            rm -f "$JOBS_RESPONSE"
+            exit 0
+          fi
+
+          # Check if response contains expected 'jobs' array
           if ! jq -e '.jobs' "$JOBS_RESPONSE" > /dev/null 2>&1; then
-            echo "Invalid API response - may be an error message"
-            echo "failed_step=API Error - Invalid Response" >> $GITHUB_OUTPUT
-            echo "API Error: Received invalid response when fetching job information" > job_logs.txt
+            LOG_FETCH_STATUS="api_missing_jobs_array"
+            ERROR_DETAILS="GitHub Actions API response does not contain the expected 'jobs' array. This may indicate an API schema change or error response."
+
+            echo "❌ API Error: Missing 'jobs' array in response"
+            echo "   Cause: API response structure is not as expected"
+            echo "   Likely Issue: API returned error object instead of jobs list"
+            echo ""
+
+            # Try to extract error message from response if available
+            ERROR_MSG=$(jq -r '.message // "No error message provided"' "$JOBS_RESPONSE" 2>/dev/null)
+            echo "   API Message: $ERROR_MSG"
+            echo ""
+            echo "failed_step=API Error (Missing Jobs Array)" >> $GITHUB_OUTPUT
+            echo "log_fetch_status=api_missing_jobs_array" >> $GITHUB_OUTPUT
+
+            cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH FAILED: UNEXPECTED API RESPONSE ===
+
+Error Type: Missing 'jobs' Array in API Response
+Endpoint: /repos/$REPO/actions/runs/$RUN_ID/jobs
+
+The API response did not contain the expected 'jobs' array field.
+
+API Error Message: $ERROR_MSG
+
+TROUBLESHOOTING STEPS:
+1. Verify the workflow run ID is correct: $RUN_ID
+2. Check if the workflow run still exists in GitHub UI
+3. Ensure API permissions are configured correctly
+4. Review GitHub Actions API documentation for schema changes
+
+For API documentation, see:
+https://docs.github.com/en/rest/actions/workflow-runs
+FALLBACK_EOF
+
             rm -f "$JOBS_RESPONSE"
             exit 0
           fi
 
-          # Extract job ID from valid response
+          # Validate jobs array is not empty
+          JOB_COUNT=$(jq '.jobs | length' "$JOBS_RESPONSE" 2>/dev/null || echo "0")
+          if [ "$JOB_COUNT" -eq 0 ]; then
+            LOG_FETCH_STATUS="no_jobs_found"
+            ERROR_DETAILS="The workflow run exists but contains no jobs in the API response."
+
+            echo "⚠️  Warning: Jobs array is empty"
+            echo "   Cause: No jobs found in workflow run"
+            echo "   Possible Reason: Workflow run may still be initializing"
+            echo ""
+            echo "failed_step=Unknown (No Jobs in Run)" >> $GITHUB_OUTPUT
+            echo "log_fetch_status=no_jobs_found" >> $GITHUB_OUTPUT
+
+            cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH FAILED: NO JOBS IN WORKFLOW RUN ===
+
+Error Type: Empty Jobs Array
+Run ID: $RUN_ID
+
+The workflow run exists but contains no jobs. This may occur if:
+- The workflow is still initializing
+- The workflow was cancelled before jobs started
+- There was an error in workflow configuration
+
+TROUBLESHOOTING STEPS:
+1. Check the workflow run in GitHub UI: ${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+2. Verify workflow syntax is correct
+3. Check for workflow configuration errors
+4. Retry the workflow run
+FALLBACK_EOF
+
+            rm -f "$JOBS_RESPONSE"
+            exit 0
+          fi
+
+          echo "✅ API response validated successfully"
+          echo "   Jobs found: $JOB_COUNT"
+          echo ""
+
+          # ==========================================
+          # STEP 3: Extract job ID for failed job
+          # ==========================================
+          echo "Step 3: Extracting job ID for failed job..."
+
           JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE" 2>/dev/null || echo "")
           rm -f "$JOBS_RESPONSE"
 
           if [ -z "$JOB_ID" ]; then
-            echo "Could not find job ID for: $FAILED_JOB"
-            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
-            echo "No logs available - job not found" > job_logs.txt
+            LOG_FETCH_STATUS="job_not_found"
+            ERROR_DETAILS="Could not find job '$FAILED_JOB' in the workflow run. The job name may not match or the job may not have started yet."
+
+            echo "❌ Error: Job not found in workflow run"
+            echo "   Looking for: $FAILED_JOB"
+            echo "   Possible Cause: Job name mismatch or job not started"
+            echo "   Resolution: Verify job name matches the workflow configuration"
+            echo ""
+            echo "failed_step=Unknown (Job Not Found)" >> $GITHUB_OUTPUT
+            echo "log_fetch_status=job_not_found" >> $GITHUB_OUTPUT
+
+            cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH FAILED: JOB NOT FOUND ===
+
+Error Type: Job Name Not Found in Workflow Run
+Job Name: $FAILED_JOB
+Run ID: $RUN_ID
+
+The specified job name was not found in the workflow run. This may occur if:
+- The job name in the workflow file doesn't match the expected name
+- The job was skipped due to conditional logic (if:)
+- The job has not started yet
+- There was a typo in the job name
+
+TROUBLESHOOTING STEPS:
+1. Verify the job name in .github/workflows/frontend-ci.yml matches: $FAILED_JOB
+2. Check if the job has conditional logic that may have skipped it
+3. Review the workflow run in GitHub UI to see which jobs actually executed
+4. Ensure the job was not renamed recently
+
+Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+FALLBACK_EOF
+
             exit 0
           fi
 
-          echo "Found job ID: $JOB_ID"
+          echo "✅ Job ID found: $JOB_ID"
+          echo ""
 
-          # Get the failed step name from job details - store response to validate
+          # ==========================================
+          # STEP 4: Fetch failed step details
+          # ==========================================
+          echo "Step 4: Fetching failed step details..."
+
           STEP_RESPONSE=$(mktemp)
           if ! gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE" 2>&1; then
-            echo "API call failed to fetch step details"
-            FAILED_STEP="API Error - Permission Denied"
+            echo "⚠️  Warning: Could not fetch step details (using fallback)"
+            FAILED_STEP="Unknown (API Error)"
             rm -f "$STEP_RESPONSE"
           else
             # Validate response is valid JSON
             if ! jq -e '.jobs' "$STEP_RESPONSE" > /dev/null 2>&1; then
-              echo "Invalid API response for step details"
-              FAILED_STEP="API Error - Invalid Response"
+              echo "⚠️  Warning: Invalid API response for step details (using fallback)"
+              FAILED_STEP="Unknown (Invalid API Response)"
               rm -f "$STEP_RESPONSE"
             else
               # Extract failed step from valid response
@@ -523,49 +723,265 @@ jobs:
               rm -f "$STEP_RESPONSE"
 
               if [ -z "$FAILED_STEP" ]; then
-                FAILED_STEP="Unknown step"
+                echo "⚠️  Warning: No failed step found (job may have failed during setup)"
+                FAILED_STEP="Job Setup or Initialization"
+              else
+                echo "✅ Failed step identified: $FAILED_STEP"
               fi
             fi
           fi
+          echo ""
 
-          echo "Failed step: $FAILED_STEP"
-          # Sanitize output to prevent bash injection - replace any special characters
-          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
+          # Sanitize output to prevent bash injection
+          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-()' | head -c 200)
           echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
+          echo "log_fetch_status=$LOG_FETCH_STATUS" >> $GITHUB_OUTPUT
 
-          # Download job logs using gh CLI
-          # Note: Logs may not be immediately available, so we handle errors gracefully
+          # ==========================================
+          # STEP 5: Download job logs
+          # ==========================================
+          echo "Step 5: Downloading job logs..."
+
           LOGS_RESPONSE=$(mktemp)
           if gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > "$LOGS_RESPONSE" 2>&1; then
-            # Check if response looks like logs (not JSON error)
-            if head -n 1 "$LOGS_RESPONSE" | grep -q "^{"; then
-              # Looks like JSON error response
-              echo "Received JSON error instead of logs"
-              echo "API Error: Unable to fetch logs due to insufficient permissions" > job_logs.txt
+            # Validate the response looks like logs (not JSON error)
+            if head -n 1 "$LOGS_RESPONSE" 2>/dev/null | grep -q "^{"; then
+              LOG_FETCH_STATUS="logs_permission_error"
+
+              echo "❌ API Error: Received JSON error instead of logs"
+              echo "   Cause: API returned error response when fetching logs"
+              echo "   Likely Issue: Insufficient permissions or logs not yet available"
+              echo ""
+
+              # Try to extract error message
+              ERROR_MSG=$(jq -r '.message // "No error message"' "$LOGS_RESPONSE" 2>/dev/null)
+              echo "   API Message: $ERROR_MSG"
+              echo ""
+
+              cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH FAILED: LOGS API PERMISSION ERROR ===
+
+Error Type: API Permission Denied (Job Logs Endpoint)
+Endpoint: /repos/$REPO/actions/jobs/$JOB_ID/logs
+Required Permission: actions=read
+
+API Error Message: $ERROR_MSG
+
+The GitHub Actions API returned an error when attempting to fetch job logs.
+This typically indicates:
+- Insufficient 'actions=read' permission
+- Logs are not yet available (job still running)
+- Logs have been purged (older workflow runs)
+
+TROUBLESHOOTING STEPS:
+1. Verify 'actions=read' permission is set at job level
+2. Wait for job completion before fetching logs
+3. Check if logs are available in GitHub UI
+4. For older runs, logs may have been purged per retention policy
+
+Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+FALLBACK_EOF
+
+              rm -f "$LOGS_RESPONSE"
             else
-              # Looks like actual logs
-              mv "$LOGS_RESPONSE" job_logs.txt
-              echo "Successfully downloaded logs ($(wc -l < job_logs.txt) lines)"
+              # Validate logs contain actual content
+              LOG_SIZE=$(wc -c < "$LOGS_RESPONSE" 2>/dev/null || echo "0")
+              if [ "$LOG_SIZE" -eq 0 ]; then
+                LOG_FETCH_STATUS="logs_empty"
+
+                echo "⚠️  Warning: Downloaded logs are empty"
+                echo "   Cause: Log file has no content"
+                echo "   Possible Reason: Job failed before producing output"
+                echo ""
+
+                cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH WARNING: EMPTY LOGS ===
+
+The job logs were successfully fetched but contain no content.
+This may occur if:
+- The job failed during initialization before any output was produced
+- The job was cancelled immediately
+- There was an issue with log collection
+
+Job ID: $JOB_ID
+Failed Step: $FAILED_STEP
+
+For more details, view the workflow run in GitHub UI:
+${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+FALLBACK_EOF
+
+                rm -f "$LOGS_RESPONSE"
+              else
+                # Successfully downloaded logs
+                mv "$LOGS_RESPONSE" job_logs.txt
+                LOG_LINES=$(wc -l < job_logs.txt 2>/dev/null || echo "0")
+
+                echo "✅ Successfully downloaded job logs"
+                echo "   Log size: $LOG_SIZE bytes"
+                echo "   Log lines: $LOG_LINES"
+                echo "   Status: Complete"
+                echo ""
+              fi
             fi
           else
-            echo "Could not download full logs, using fallback"
-            # Get step logs from job details API as fallback
+            # Primary log fetch failed, try fallback method
+            LOG_FETCH_STATUS="logs_api_error"
+
+            echo "⚠️  Warning: Could not download full logs via API"
+            echo "   Attempting fallback: Extracting step summary from job details..."
+            echo ""
+
+            # Get step information from job details API as fallback
             FALLBACK_RESPONSE=$(mktemp)
             if gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$FALLBACK_RESPONSE" 2>&1; then
-              # Validate it's valid JSON
+              # Validate response is valid JSON
               if jq -e '.jobs' "$FALLBACK_RESPONSE" > /dev/null 2>&1; then
-                jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | \"Step: \(.name)\nConclusion: \(.conclusion)\nCompleted at: \(.completed_at)\"" "$FALLBACK_RESPONSE" > job_logs.txt 2>/dev/null || echo "Logs not available" > job_logs.txt
+                # Extract step details for failed steps
+                STEP_SUMMARY=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\" or .conclusion == \"cancelled\") | \"\\n=== STEP: \(.name) ===\\nStatus: \(.conclusion)\\nStarted: \(.started_at)\\nCompleted: \(.completed_at)\\nNumber: \(.number)\\n\"" "$FALLBACK_RESPONSE" 2>/dev/null)
+
+                if [ -n "$STEP_SUMMARY" ]; then
+                  echo "✅ Fallback successful: Extracted step summary"
+
+                  cat > job_logs.txt <<FALLBACK_EOF
+=== FALLBACK LOG SUMMARY ===
+
+Full job logs could not be retrieved via API. Below is a summary extracted from job metadata.
+
+Job ID: $JOB_ID
+Job Name: $FAILED_JOB
+Failed Step: $FAILED_STEP
+
+FAILED STEPS SUMMARY:
+$STEP_SUMMARY
+
+NOTE: This is a fallback summary. Full logs may be available in the GitHub UI.
+
+For complete logs, view the workflow run:
+${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+
+TROUBLESHOOTING:
+If you need full logs, ensure:
+1. The 'actions=read' permission is granted at job level
+2. Logs are available (not purged by retention policy)
+3. The job has completed execution
+FALLBACK_EOF
+                else
+                  LOG_FETCH_STATUS="logs_unavailable"
+
+                  echo "⚠️  Warning: No step details available in fallback"
+
+                  cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH FAILED: LOGS UNAVAILABLE ===
+
+Full job logs and step details could not be retrieved.
+
+Job ID: $JOB_ID
+Job Name: $FAILED_JOB
+Run ID: $RUN_ID
+
+This may occur if:
+- The job is still in progress
+- Logs have not been uploaded yet
+- API permissions are insufficient
+- Logs were purged by retention policy
+
+ACTION REQUIRED:
+View the workflow run in GitHub UI for detailed logs and step information:
+${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+
+NEXT STEPS:
+1. Review the workflow run in GitHub UI
+2. Identify the failed step and error message
+3. Debug the issue based on the error output
+4. Retry the workflow after fixing the issue
+FALLBACK_EOF
+                fi
               else
-                echo "Logs not available - API error" > job_logs.txt
+                LOG_FETCH_STATUS="fallback_api_error"
+
+                echo "❌ Fallback failed: Invalid JSON response"
+
+                cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH FAILED: ALL METHODS EXHAUSTED ===
+
+Error Type: API Errors in Primary and Fallback Methods
+Job ID: $JOB_ID
+Job Name: $FAILED_JOB
+
+Both the primary log fetch method and fallback step summary extraction failed.
+This indicates a more serious issue with API access or workflow configuration.
+
+CRITICAL TROUBLESHOOTING STEPS:
+1. Verify 'actions=read' permission is correctly set in workflow YAML
+2. Check GitHub Status: https://www.githubstatus.com
+3. Review organization security policies for API restrictions
+4. Ensure GITHUB_TOKEN has not been revoked or restricted
+5. View workflow run in GitHub UI: ${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+
+If the issue persists after checking the above, contact GitHub Support.
+FALLBACK_EOF
               fi
             else
-              echo "Logs not available - API error" > job_logs.txt
+              LOG_FETCH_STATUS="fallback_failed"
+
+              echo "❌ Fallback failed: API request error"
+
+              cat > job_logs.txt <<FALLBACK_EOF
+=== LOG FETCH FAILED: ALL METHODS EXHAUSTED ===
+
+Error Type: Complete API Failure
+Job ID: $JOB_ID
+Job Name: $FAILED_JOB
+
+All attempts to fetch job logs and step details have failed:
+- Primary logs API: Failed
+- Fallback step summary API: Failed
+
+This indicates a critical issue with GitHub Actions API access.
+
+IMMEDIATE ACTION REQUIRED:
+1. Check GitHub Status: https://www.githubstatus.com
+2. Verify network connectivity
+3. Review workflow permissions configuration
+4. Check for organization-level API restrictions
+
+View workflow run in GitHub UI:
+${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN_ID
+
+Contact GitHub Support if the issue persists.
+FALLBACK_EOF
             fi
             rm -f "$FALLBACK_RESPONSE"
           fi
 
-          # Clean up temp file if it still exists
+          # Clean up temp files
           rm -f "$LOGS_RESPONSE"
+
+          # ==========================================
+          # STEP 6: Final status summary
+          # ==========================================
+          echo "=========================================="
+          echo "Log Fetch Summary"
+          echo "=========================================="
+          echo "Job Name: $FAILED_JOB"
+          echo "Job ID: $JOB_ID"
+          echo "Failed Step: $FAILED_STEP"
+          echo "Status: $LOG_FETCH_STATUS"
+
+          if [ -n "$ERROR_DETAILS" ]; then
+            echo "Error Details: $ERROR_DETAILS"
+          fi
+
+          if [ -f job_logs.txt ]; then
+            LOG_FILE_SIZE=$(wc -c < job_logs.txt)
+            echo "Log File: job_logs.txt ($LOG_FILE_SIZE bytes)"
+          fi
+
+          echo "=========================================="
+          echo ""
+
+          # Always exit 0 to continue workflow even if logs couldn't be fetched
+          exit 0
 
       - name: Create markdown file for bug
         run: |

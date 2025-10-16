@@ -124,7 +124,7 @@ Ensure all stories follow TDD methodology and are independently deployable.
 3. **Update Bug Log**: Update the bug entry in docs/features/bug-log.json:
    - Set `isFixed` to `false` (it will be set to true after implementation)
    - Set `userStoriesCreated` to current ISO timestamp
-   - Set `userStoriesPath` to the path created by the product-owner agent (typically docs/features/bugs/{bugID}/user-stories.md)
+   - Set `userStoriesPath` to the path created by the product-owner agent (typically docs/features/{featureID}/bugs/{bugID}/user-stories.md)
 
 4. **Implement User Stories**: After user stories are created for the bug, automatically call the implement command:
    ```

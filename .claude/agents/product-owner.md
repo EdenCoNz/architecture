@@ -213,7 +213,7 @@ Transform feature requests and bug reports for web applications into actionable 
    - Validation stories come last
 
 9. **Create Files**
-   - Create docs/features/bugs/{bugID}/user-stories.md
+   - Create docs/features/{featureID}/bugs/{bugID}/user-stories.md
    - Include execution order with phases
    - Update docs/features/bug-log.json with:
      - userStoriesCreated: timestamp

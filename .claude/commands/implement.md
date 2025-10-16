@@ -19,9 +19,9 @@ Execute user stories for a specific feature or bug by launching appropriate agen
 - `$TYPE` - The type of implementation ("feature" or "bug")
 - `$ID` - The feature or bug ID number (e.g., "001" for Feature #001 or Bug #001)
 - User stories path (feature): `docs/features/$ID/user-stories.md`
-- User stories path (bug): `docs/features/bugs/$ID/user-stories.md`
+- User stories path (bug): `docs/features/$FEATUREID/bugs/$ID/user-stories.md`
 - Implementation log path (feature): `docs/features/$ID/implementation-log.json`
-- Implementation log path (bug): `docs/features/bugs/$ID/implementation-log.json`
+- Implementation log path (bug): `docs/features/$FEATUREID/bugs/$ID/implementation-log.json`
 - Feature log path: `docs/features/feature-log.json`
 
 ## Instructions
@@ -42,9 +42,11 @@ Execute user stories for a specific feature or bug by launching appropriate agen
    - Set user stories path to `docs/features/$ID/user-stories.md`
    - Set implementation log path to `docs/features/$ID/implementation-log.json`
 2. If `$TYPE` is "bug":
-   - Set base path to `docs/features/bugs/$ID`
-   - Set user stories path to `docs/features/bugs/$ID/user-stories.md`
-   - Set implementation log path to `docs/features/bugs/$ID/implementation-log.json`
+   - Read docs/features/bug-log.json to find the bug with matching ID
+   - Get the featureID from the bug entry
+   - Set base path to `docs/features/$FEATUREID/bugs/$ID`
+   - Set user stories path to `docs/features/$FEATUREID/bugs/$ID/user-stories.md`
+   - Set implementation log path to `docs/features/$FEATUREID/bugs/$ID/implementation-log.json`
 3. If `$TYPE` is neither "feature" nor "bug":
    - Respond with: "Error: Type must be either 'feature' or 'bug'"
    - Stop execution

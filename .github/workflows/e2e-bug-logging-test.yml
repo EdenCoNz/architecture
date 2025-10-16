@@ -1,0 +1,670 @@
+name: E2E Bug Logging Workflow Test
+
+# End-to-end regression test for bug logging workflow
+#
+# Purpose: Validates complete bug logging workflow from test failure through bug report creation
+# User Story: Bug #2, Story #5 - Create End-to-End Regression Test for Bug Logging Workflow
+# Reference: docs/features/bugs/2/user-stories.md
+
+on:
+  workflow_dispatch:  # Manual trigger only - for testing purposes
+    inputs:
+      cleanup-after-test:
+        description: 'Cleanup test files after test completes'
+        required: false
+        type: boolean
+        default: true
+
+# Workflow-level permissions
+permissions:
+  contents: write  # Required to commit/cleanup test files
+  pull-requests: write  # Required for PR comments
+  actions: read  # Required to fetch job logs
+
+# Prevent concurrent test runs
+concurrency:
+  group: e2e-bug-logging-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ========================================================================
+  # Job 1: Setup Test Environment
+  # ========================================================================
+  setup:
+    name: Setup Test Environment
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    outputs:
+      test_feature_id: ${{ steps.setup.outputs.test_feature_id }}
+      test_timestamp: ${{ steps.setup.outputs.test_timestamp }}
+      test_branch_name: ${{ steps.setup.outputs.test_branch_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup test environment
+        id: setup
+        run: |
+          # Generate test IDs
+          TEST_FEATURE_ID="9999"
+          TEST_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          TEST_BRANCH_NAME="feature/${TEST_FEATURE_ID}-e2e-test"
+
+          echo "test_feature_id=$TEST_FEATURE_ID" >> $GITHUB_OUTPUT
+          echo "test_timestamp=$TEST_TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "test_branch_name=$TEST_BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          echo "## Test Environment Setup" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Feature ID: $TEST_FEATURE_ID" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Timestamp: $TEST_TIMESTAMP" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Branch Name: $TEST_BRANCH_NAME" >> $GITHUB_STEP_SUMMARY
+
+  # ========================================================================
+  # Job 2: Simulate Test Failure (triggers bug logging)
+  # ========================================================================
+  simulate-failure:
+    name: Simulate Test Failure
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    needs: [setup]
+
+    steps:
+      - name: Intentional test failure
+        run: |
+          echo "Simulating test failure for E2E bug logging test"
+          echo "Test Feature ID: ${{ needs.setup.outputs.test_feature_id }}"
+          echo "This job is designed to fail and trigger the log-bugs job"
+          exit 1
+
+  # ========================================================================
+  # Job 3: Log Bug (runs when simulate-failure fails)
+  # ========================================================================
+  log-bugs:
+    name: Log Bug Report (E2E Test)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    needs: [setup, simulate-failure]
+    # Runs when simulate-failure job fails
+    if: |
+      always() &&
+      needs.simulate-failure.result == 'failure'
+
+    permissions:
+      contents: write  # Required: commit bug reports to repository and update bug-log.json
+      actions: read    # Required: fetch job information and logs via GitHub Actions API
+
+    outputs:
+      bug_id: ${{ steps.create-bug.outputs.bug_id }}
+      bug_file_created: ${{ steps.verify-bug-file.outputs.file_exists }}
+      bug_log_updated: ${{ steps.verify-bug-log.outputs.log_updated }}
+      logs_fetched: ${{ steps.verify-logs.outputs.logs_fetched }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create bug log entry
+        id: create-bug
+        run: |
+          BUG_FILE="docs/features/bug-log.json"
+          FEATURE_ID="${{ needs.setup.outputs.test_feature_id }}"
+          BRANCH_NAME="${{ needs.setup.outputs.test_branch_name }}"
+          TITLE="E2E Test - Simulated failure for bug logging validation"
+          TODAY=$(date +%Y-%m-%d)
+
+          echo "Creating test bug entry:"
+          echo "  Feature ID: $FEATURE_ID"
+          echo "  Branch: $BRANCH_NAME"
+          echo "  Title: $TITLE"
+
+          # Ensure jq is installed
+          if ! command -v jq &> /dev/null; then
+            echo "Installing jq..."
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+          # Create bug-log.json if it doesn't exist
+          if [ ! -f "$BUG_FILE" ]; then
+            echo "Bug log file not found, creating new file: $BUG_FILE"
+            mkdir -p "$(dirname "$BUG_FILE")"
+            echo '{"bugs":[]}' > "$BUG_FILE"
+          fi
+
+          # Get the next bug ID
+          NEXT_BUG_ID=$(jq '[.bugs[].bugID] | if length > 0 then max + 1 else 1 end' "$BUG_FILE")
+          echo "Next bug ID: $NEXT_BUG_ID"
+
+          # Create new bug entry
+          NEW_BUG=$(jq -n \
+            --arg bugID "$NEXT_BUG_ID" \
+            --arg featureID "$FEATURE_ID" \
+            --arg featureName "$BRANCH_NAME" \
+            --arg title "$TITLE" \
+            --arg reportedDate "$TODAY" \
+            '{
+              bugID: ($bugID | tonumber),
+              featureID: ($featureID | tonumber),
+              featureName: $featureName,
+              title: $title,
+              reportedDate: $reportedDate,
+              isFixed: false,
+              fixedDate: null,
+              e2eTest: true
+            }')
+
+          # Append new bug to the bugs array
+          jq --argjson newBug "$NEW_BUG" '.bugs += [$newBug]' "$BUG_FILE" > "${BUG_FILE}.tmp"
+          mv "${BUG_FILE}.tmp" "$BUG_FILE"
+
+          echo "✅ Bug entry added successfully"
+          echo "bug_id=$NEXT_BUG_ID" >> $GITHUB_OUTPUT
+
+          # Export for next steps
+          echo "NEXT_BUG_ID=$NEXT_BUG_ID" >> $GITHUB_ENV
+          echo "FEATURE_ID=$FEATURE_ID" >> $GITHUB_ENV
+
+      - name: Fetch failed job logs
+        id: fetch-logs
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FAILED_JOB="Simulate Test Failure"
+          RUN_ID="${{ github.run_id }}"
+          REPO="${{ github.repository }}"
+
+          echo "Fetching logs for job: $FAILED_JOB"
+
+          # Get job ID
+          JOBS_RESPONSE=$(mktemp)
+          if ! gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE" 2>&1; then
+            echo "API call failed to fetch jobs list"
+            echo "API Error: Unable to fetch job information" > job_logs.txt
+            rm -f "$JOBS_RESPONSE"
+            exit 0
+          fi
+
+          # Validate JSON response
+          if ! jq -e '.jobs' "$JOBS_RESPONSE" > /dev/null 2>&1; then
+            echo "Invalid API response"
+            echo "API Error: Invalid response when fetching job information" > job_logs.txt
+            rm -f "$JOBS_RESPONSE"
+            exit 0
+          fi
+
+          # Extract job ID
+          JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE" 2>/dev/null || echo "")
+          rm -f "$JOBS_RESPONSE"
+
+          if [ -z "$JOB_ID" ]; then
+            echo "Could not find job ID for: $FAILED_JOB"
+            echo "No logs available - job not found" > job_logs.txt
+            exit 0
+          fi
+
+          echo "Found job ID: $JOB_ID"
+
+          # Get failed step name
+          STEP_RESPONSE=$(mktemp)
+          if gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE" 2>&1; then
+            if jq -e '.jobs' "$STEP_RESPONSE" > /dev/null 2>&1; then
+              FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" 2>/dev/null | head -n 1)
+            else
+              FAILED_STEP="Unknown step"
+            fi
+            rm -f "$STEP_RESPONSE"
+          else
+            FAILED_STEP="Unknown step"
+            rm -f "$STEP_RESPONSE"
+          fi
+
+          if [ -z "$FAILED_STEP" ]; then
+            FAILED_STEP="Unknown step"
+          fi
+
+          echo "Failed step: $FAILED_STEP"
+          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
+          echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
+
+          # Download job logs
+          LOGS_RESPONSE=$(mktemp)
+          if gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > "$LOGS_RESPONSE" 2>&1; then
+            # Check if response is logs or JSON error
+            if head -n 1 "$LOGS_RESPONSE" | grep -q "^{"; then
+              echo "Received JSON error instead of logs"
+              echo "API Error: Unable to fetch logs" > job_logs.txt
+            else
+              mv "$LOGS_RESPONSE" job_logs.txt
+              echo "Successfully downloaded logs ($(wc -l < job_logs.txt) lines)"
+            fi
+          else
+            # Fallback to job details
+            FALLBACK_RESPONSE=$(mktemp)
+            if gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$FALLBACK_RESPONSE" 2>&1; then
+              if jq -e '.jobs' "$FALLBACK_RESPONSE" > /dev/null 2>&1; then
+                jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | \"Step: \(.name)\nConclusion: \(.conclusion)\nCompleted at: \(.completed_at)\"" "$FALLBACK_RESPONSE" > job_logs.txt 2>/dev/null || echo "Logs not available" > job_logs.txt
+              else
+                echo "Logs not available - API error" > job_logs.txt
+              fi
+            else
+              echo "Logs not available - API error" > job_logs.txt
+            fi
+            rm -f "$FALLBACK_RESPONSE"
+          fi
+
+          rm -f "$LOGS_RESPONSE"
+
+      - name: Create markdown bug report
+        id: create-markdown
+        run: |
+          FEATURE_ID="${{ env.FEATURE_ID }}"
+          BUG_ID="${{ env.NEXT_BUG_ID }}"
+          FAILED_JOB="Simulate Test Failure"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+          TITLE="E2E Test - Simulated failure for bug logging validation"
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Handle empty failed_step
+          if [ -z "$FAILED_STEP" ]; then
+            FAILED_STEP="Unknown"
+          fi
+
+          # Create bugs directory
+          BUGS_DIR="docs/features/${FEATURE_ID}/bugs"
+          mkdir -p "$BUGS_DIR"
+
+          BUG_FILE="${BUGS_DIR}/${BUG_ID}.md"
+
+          # Create markdown file
+          echo "# Bug Report: ${TITLE}" > "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Failed Job" >> "$BUG_FILE"
+          echo "${FAILED_JOB}" >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Failed Step" >> "$BUG_FILE"
+          echo "${FAILED_STEP}" >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Raw Logs" >> "$BUG_FILE"
+          echo '```' >> "$BUG_FILE"
+
+          if [ -f job_logs.txt ]; then
+            cat job_logs.txt >> "$BUG_FILE"
+          else
+            echo "No logs available" >> "$BUG_FILE"
+          fi
+
+          echo '```' >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Workflow Run" >> "$BUG_FILE"
+          echo "${WORKFLOW_URL}" >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Test Metadata" >> "$BUG_FILE"
+          echo "- E2E Test: true" >> "$BUG_FILE"
+          echo "- Test Timestamp: ${{ needs.setup.outputs.test_timestamp }}" >> "$BUG_FILE"
+
+          echo "✅ Markdown file created: $BUG_FILE"
+          echo "bug_file=$BUG_FILE" >> $GITHUB_OUTPUT
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit bug files
+        id: commit
+        run: |
+          FEATURE_ID="${{ env.FEATURE_ID }}"
+          BUG_ID="${{ env.NEXT_BUG_ID }}"
+
+          git add docs/features/bug-log.json
+          git add "docs/features/${FEATURE_ID}/bugs/${BUG_ID}.md"
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "committed=false" >> $GITHUB_OUTPUT
+          else
+            git commit -m "$(cat <<'EOF'
+          [E2E Test] Add bug report for simulated failure
+
+          Bug ID: ${{ env.NEXT_BUG_ID }}
+          Feature: ${{ needs.setup.outputs.test_branch_name }}
+          Test Timestamp: ${{ needs.setup.outputs.test_timestamp }}
+
+          This is an automated E2E test of the bug logging workflow.
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+          )"
+
+            git push
+            echo "✅ Bug files committed and pushed"
+            echo "committed=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ========================================================================
+  # Job 4: Verify Bug Logging Results
+  # ========================================================================
+  verify:
+    name: Verify Bug Logging Results
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [setup, simulate-failure, log-bugs]
+    if: always() && needs.log-bugs.result == 'success'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest changes
+        run: |
+          git pull origin ${{ github.ref_name }}
+
+      - name: Install jq
+        run: |
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      - name: Verify bug-log.json updated
+        id: verify-bug-log
+        run: |
+          BUG_FILE="docs/features/bug-log.json"
+          BUG_ID="${{ needs.log-bugs.outputs.bug_id }}"
+          FEATURE_ID="${{ needs.setup.outputs.test_feature_id }}"
+
+          echo "Verifying bug-log.json entry..."
+
+          if [ ! -f "$BUG_FILE" ]; then
+            echo "❌ FAILED: bug-log.json not found"
+            exit 1
+          fi
+
+          # Check if bug entry exists
+          BUG_EXISTS=$(jq ".bugs[] | select(.bugID == $BUG_ID and .featureID == $FEATURE_ID)" "$BUG_FILE")
+
+          if [ -z "$BUG_EXISTS" ]; then
+            echo "❌ FAILED: Bug entry not found in bug-log.json"
+            echo "Expected bug ID: $BUG_ID"
+            echo "Expected feature ID: $FEATURE_ID"
+            exit 1
+          fi
+
+          # Validate bug entry structure
+          TITLE=$(echo "$BUG_EXISTS" | jq -r '.title')
+          REPORTED_DATE=$(echo "$BUG_EXISTS" | jq -r '.reportedDate')
+          IS_FIXED=$(echo "$BUG_EXISTS" | jq -r '.isFixed')
+
+          echo "✅ Bug entry found in bug-log.json"
+          echo "  Bug ID: $BUG_ID"
+          echo "  Feature ID: $FEATURE_ID"
+          echo "  Title: $TITLE"
+          echo "  Reported Date: $REPORTED_DATE"
+          echo "  Is Fixed: $IS_FIXED"
+
+          # Validate required fields
+          if [ -z "$TITLE" ] || [ "$TITLE" = "null" ]; then
+            echo "❌ FAILED: Bug entry missing title"
+            exit 1
+          fi
+
+          if [ -z "$REPORTED_DATE" ] || [ "$REPORTED_DATE" = "null" ]; then
+            echo "❌ FAILED: Bug entry missing reportedDate"
+            exit 1
+          fi
+
+          if [ "$IS_FIXED" != "false" ]; then
+            echo "❌ FAILED: Bug entry isFixed should be false"
+            exit 1
+          fi
+
+          echo "log_updated=true" >> $GITHUB_OUTPUT
+
+      - name: Verify markdown bug report created
+        id: verify-bug-file
+        run: |
+          BUG_ID="${{ needs.log-bugs.outputs.bug_id }}"
+          FEATURE_ID="${{ needs.setup.outputs.test_feature_id }}"
+          BUG_FILE="docs/features/${FEATURE_ID}/bugs/${BUG_ID}.md"
+
+          echo "Verifying markdown bug report..."
+          echo "Expected file: $BUG_FILE"
+
+          if [ ! -f "$BUG_FILE" ]; then
+            echo "❌ FAILED: Markdown bug report not found at $BUG_FILE"
+            exit 1
+          fi
+
+          echo "✅ Markdown bug report exists"
+
+          # Verify file structure
+          if ! grep -q "# Bug Report:" "$BUG_FILE"; then
+            echo "❌ FAILED: Bug report missing title header"
+            exit 1
+          fi
+
+          if ! grep -q "## Failed Job" "$BUG_FILE"; then
+            echo "❌ FAILED: Bug report missing 'Failed Job' section"
+            exit 1
+          fi
+
+          if ! grep -q "## Raw Logs" "$BUG_FILE"; then
+            echo "❌ FAILED: Bug report missing 'Raw Logs' section"
+            exit 1
+          fi
+
+          if ! grep -q "## Workflow Run" "$BUG_FILE"; then
+            echo "❌ FAILED: Bug report missing 'Workflow Run' section"
+            exit 1
+          fi
+
+          echo "✅ Bug report has correct structure"
+          echo "file_exists=true" >> $GITHUB_OUTPUT
+
+      - name: Verify job logs fetched
+        id: verify-logs
+        run: |
+          BUG_ID="${{ needs.log-bugs.outputs.bug_id }}"
+          FEATURE_ID="${{ needs.setup.outputs.test_feature_id }}"
+          BUG_FILE="docs/features/${FEATURE_ID}/bugs/${BUG_ID}.md"
+
+          echo "Verifying job logs were fetched..."
+
+          # Check if logs section contains actual content (not just error messages)
+          if grep -q "API Error" "$BUG_FILE"; then
+            echo "⚠️  WARNING: Bug report contains API errors"
+            echo "This may indicate permission issues"
+            echo "logs_fetched=false" >> $GITHUB_OUTPUT
+          elif grep -q "Logs not available" "$BUG_FILE"; then
+            echo "⚠️  WARNING: Logs not available in bug report"
+            echo "logs_fetched=false" >> $GITHUB_OUTPUT
+          elif grep -q "No logs available" "$BUG_FILE"; then
+            echo "⚠️  WARNING: No logs available in bug report"
+            echo "logs_fetched=false" >> $GITHUB_OUTPUT
+          else
+            # Check if there's actual log content
+            LOG_CONTENT=$(sed -n '/## Raw Logs/,/```$/p' "$BUG_FILE" | tail -n +3 | head -n -1)
+            LOG_SIZE=${#LOG_CONTENT}
+
+            if [ "$LOG_SIZE" -lt 20 ]; then
+              echo "⚠️  WARNING: Log content is very small ($LOG_SIZE bytes)"
+              echo "logs_fetched=false" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Job logs were successfully fetched ($LOG_SIZE bytes)"
+              echo "logs_fetched=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Generate verification summary
+        if: always()
+        run: |
+          echo "## 🔍 E2E Bug Logging Test - Verification Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Bug log verification
+          if [ "${{ steps.verify-bug-log.outputs.log_updated }}" = "true" ]; then
+            echo "- ✅ bug-log.json updated with correct bug entry structure" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ bug-log.json verification failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Bug file verification
+          if [ "${{ steps.verify-bug-file.outputs.file_exists }}" = "true" ]; then
+            echo "- ✅ Markdown bug report created at correct path with expected content" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Markdown bug report verification failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Logs verification
+          if [ "${{ steps.verify-logs.outputs.logs_fetched }}" = "true" ]; then
+            echo "- ✅ Job logs fetched and included in bug report (no permission errors)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️  Job logs verification failed or logs not available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Bug ID: ${{ needs.log-bugs.outputs.bug_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Feature ID: ${{ needs.setup.outputs.test_feature_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Timestamp: ${{ needs.setup.outputs.test_timestamp }}" >> $GITHUB_STEP_SUMMARY
+
+          # Overall result
+          if [ "${{ steps.verify-bug-log.outputs.log_updated }}" = "true" ] && \
+             [ "${{ steps.verify-bug-file.outputs.file_exists }}" = "true" ] && \
+             [ "${{ steps.verify-logs.outputs.logs_fetched }}" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ✅ All Acceptance Criteria PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ❌ Some Acceptance Criteria FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ========================================================================
+  # Job 5: Cleanup Test Files (optional)
+  # ========================================================================
+  cleanup:
+    name: Cleanup Test Files
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [setup, log-bugs, verify]
+    if: |
+      always() &&
+      needs.verify.result == 'success' &&
+      github.event.inputs.cleanup-after-test == 'true'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest changes
+        run: |
+          git pull origin ${{ github.ref_name }}
+
+      - name: Install jq
+        run: |
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      - name: Remove test bug from bug-log.json
+        run: |
+          BUG_FILE="docs/features/bug-log.json"
+          BUG_ID="${{ needs.log-bugs.outputs.bug_id }}"
+
+          echo "Removing test bug entry (ID: $BUG_ID) from bug-log.json..."
+
+          if [ -f "$BUG_FILE" ]; then
+            # Remove the bug entry with e2eTest: true
+            jq ".bugs |= map(select(.bugID != $BUG_ID or .e2eTest != true))" "$BUG_FILE" > "${BUG_FILE}.tmp"
+            mv "${BUG_FILE}.tmp" "$BUG_FILE"
+            echo "✅ Test bug entry removed from bug-log.json"
+          else
+            echo "⚠️  bug-log.json not found, skipping"
+          fi
+
+      - name: Remove test bug markdown file
+        run: |
+          BUG_ID="${{ needs.log-bugs.outputs.bug_id }}"
+          FEATURE_ID="${{ needs.setup.outputs.test_feature_id }}"
+          BUG_FILE="docs/features/${FEATURE_ID}/bugs/${BUG_ID}.md"
+          BUGS_DIR="docs/features/${FEATURE_ID}/bugs"
+          FEATURE_DIR="docs/features/${FEATURE_ID}"
+
+          echo "Removing test bug markdown file..."
+
+          if [ -f "$BUG_FILE" ]; then
+            rm -f "$BUG_FILE"
+            echo "✅ Test bug markdown file removed"
+          else
+            echo "⚠️  Bug file not found, skipping"
+          fi
+
+          # Remove empty directories
+          if [ -d "$BUGS_DIR" ] && [ -z "$(ls -A "$BUGS_DIR")" ]; then
+            rmdir "$BUGS_DIR"
+            echo "✅ Removed empty bugs directory"
+          fi
+
+          if [ -d "$FEATURE_DIR" ] && [ -z "$(ls -A "$FEATURE_DIR")" ]; then
+            rmdir "$FEATURE_DIR"
+            echo "✅ Removed empty feature directory"
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit cleanup
+        run: |
+          git add docs/features/bug-log.json
+          git add -A docs/features/${{ needs.setup.outputs.test_feature_id }}/
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit (cleanup already done or no files found)"
+          else
+            git commit -m "$(cat <<'EOF'
+          [E2E Test] Cleanup test bug files
+
+          Removed test bug entry created during E2E test:
+          - Bug ID: ${{ needs.log-bugs.outputs.bug_id }}
+          - Test Timestamp: ${{ needs.setup.outputs.test_timestamp }}
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+          )"
+
+            git push
+            echo "✅ Cleanup committed and pushed"
+          fi
+
+      - name: Cleanup summary
+        run: |
+          echo "## 🧹 Test Cleanup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Test files have been removed:" >> $GITHUB_STEP_SUMMARY
+          echo "- Bug log entry (ID: ${{ needs.log-bugs.outputs.bug_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- Markdown bug report" >> $GITHUB_STEP_SUMMARY
+          echo "- Empty test directories" >> $GITHUB_STEP_SUMMARY
