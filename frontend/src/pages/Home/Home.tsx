@@ -42,7 +42,7 @@ function Home() {
             Welcome to the Application
           </Typography>
           <Typography variant="h5" component="p" color="text.secondary" sx={{ mb: 4 }}>
-            Your frontend application is now ready with routing configured
+            Your frontend application is now ready with routing configured!
           </Typography>
         </Box>
 
