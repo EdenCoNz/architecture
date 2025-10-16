@@ -12,7 +12,7 @@ This command greets the user with a friendly hello message and fetches a random 
 - MUST greet the user with "Hello!"
 - MUST fetch a random fact from a reliable internet source
 - MUST present the fact in a clear, readable format
-- Keep the response concise and engaging
+- Keep the response concise and engaging.
 
 ## Workflow
 
