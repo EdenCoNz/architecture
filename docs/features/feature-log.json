@@ -46,6 +46,27 @@
       "actions": [],
       "isSummarised": false,
       "summarisedAt": null
+    },
+    {
+      "id": 3,
+      "title": "Dark Mode Toggle",
+      "description": "Add a toggle switch to enable light mode and dark mode for the whole application with full Material UI theme integration, user preference persistence, and system preference detection",
+      "createdDate": "2025-10-16",
+      "userStoriesCreated": "2025-10-16T00:00:00Z",
+      "userStoriesImplemented": null,
+      "totalStories": 6,
+      "completedStories": 0,
+      "assignedAgents": [
+        "ui-ux-designer",
+        "frontend-developer"
+      ],
+      "executionPhases": 5,
+      "parallelPhases": 1,
+      "sequentialPhases": 4,
+      "filesPath": "docs/features/3/user-stories.md",
+      "actions": [],
+      "isSummarised": false,
+      "summarisedAt": null
     }
   ]
 }
