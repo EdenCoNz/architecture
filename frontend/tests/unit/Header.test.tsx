@@ -5,22 +5,32 @@
  * Following TDD best practices with comprehensive test coverage.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '../../src/theme';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { ThemeProvider } from '../../src/contexts/ThemeContext';
+import { createAppTheme } from '../../src/theme';
 import { Header } from '../../src/components/layout/Header';
 
 /**
- * Helper function to render components with Material UI theme
- * Required for proper Material UI component rendering in tests
+ * Helper function to render components with both Material UI theme and ThemeContext
+ * Required for proper Material UI component rendering and theme toggle functionality
  */
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<ThemeProvider theme={theme}>{component}</ThemeProvider>);
+  return render(
+    <ThemeProvider>
+      <MuiThemeProvider theme={createAppTheme('light')}>{component}</MuiThemeProvider>
+    </ThemeProvider>
+  );
 };
 
 describe('Header Component', () => {
+  beforeEach(() => {
+    // Clear localStorage before each test
+    localStorage.clear();
+  });
+
   describe('Rendering', () => {
     it('should render the application title', () => {
       renderWithTheme(<Header />);

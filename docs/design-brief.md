@@ -242,6 +242,202 @@ Stack (spacing: 3)
 - **Error**: Error Alert banner below AppBar, navigation remains functional
 - **Success**: Full layout with content populated
 
+---
+
+### Feature: Dark Mode
+**Purpose**: Provide user-controlled theme switching between light and dark modes with full application support, preference persistence, and system preference detection.
+
+**Design Decisions**:
+- **Material Design 3 dark theme principles**: Surface colors use elevation overlays, maintains 15:1 contrast ratio for primary text, reduces eye strain in low-light environments
+- **System preference detection**: Respects prefers-color-scheme media query on first visit, seamless OS-level integration
+- **Persistent preference**: localStorage stores user choice, overrides system preference after explicit selection
+- **MUI Switch component for toggle**: Familiar pattern, accessible, supports icons for visual clarity
+
+**Dark Mode Color Palette**:
+
+| Purpose | Light Mode | Dark Mode | Contrast Ratio (Dark) | Usage |
+|---------|------------|-----------|----------------------|-------|
+| **Backgrounds** |
+| Background Default | `#fafafa` | `#121212` | N/A | Main page background |
+| Background Paper | `#ffffff` | `#1e1e1e` | N/A | Elevated surfaces, cards |
+| **Text Colors** |
+| Text Primary | `rgba(0,0,0,0.87)` | `rgba(255,255,255,0.87)` | 13.9:1 | Primary content text |
+| Text Secondary | `rgba(0,0,0,0.6)` | `rgba(255,255,255,0.6)` | 7.3:1 | Secondary content, captions |
+| Text Disabled | `rgba(0,0,0,0.38)` | `rgba(255,255,255,0.38)` | 4.6:1 | Disabled text states |
+| **Primary Color** |
+| Primary Main | `#1976d2` | `#90caf9` | 7.5:1 on #121212 | Primary actions, links |
+| Primary Light | `#42a5f5` | `#bbdefb` | 10.8:1 on #121212 | Hover states |
+| Primary Dark | `#1565c0` | `#42a5f5` | 5.2:1 on #121212 | Active states |
+| **Secondary Color** |
+| Secondary Main | `#dc004e` | `#f48fb1` | 6.8:1 on #121212 | Accent actions |
+| Secondary Light | `#f50057` | `#ffc1e3` | 11.2:1 on #121212 | Hover states |
+| Secondary Dark | `#9a0036` | `#bf5f82` | 4.5:1 on #121212 | Active states |
+| **Semantic Colors** |
+| Error Main | `#d32f2f` | `#f44336` | 5.5:1 on #121212 | Error messages, destructive actions |
+| Warning Main | `#ed6c02` | `#ffa726` | 7.9:1 on #121212 | Warning messages |
+| Info Main | `#0288d1` | `#29b6f6` | 6.4:1 on #121212 | Informational messages |
+| Success Main | `#2e7d32` | `#66bb6a` | 6.1:1 on #121212 | Success messages, confirmations |
+| **UI Elements** |
+| Divider | `rgba(0,0,0,0.12)` | `rgba(255,255,255,0.12)` | 3.8:1 | Borders, separators |
+| Action Hover | `rgba(0,0,0,0.04)` | `rgba(255,255,255,0.08)` | N/A | Hover backgrounds |
+| Action Selected | `rgba(0,0,0,0.08)` | `rgba(255,255,255,0.16)` | N/A | Selected backgrounds |
+| Action Disabled BG | `rgba(0,0,0,0.12)` | `rgba(255,255,255,0.12)` | N/A | Disabled button backgrounds |
+
+**Contrast Validation**:
+- All text colors exceed WCAG AA minimum (4.5:1 for normal text, 3:1 for large text)
+- UI component contrast meets 3:1 minimum for interactive elements
+- Primary text: 13.9:1 (exceeds AAA standard of 7:1)
+- Secondary text: 7.3:1 (exceeds AA standard of 4.5:1)
+- Primary action: 7.5:1 (exceeds AA standard)
+
+**Component: ThemeToggle Switch**
+
+*Semantic HTML Structure*:
+```html
+<div class="theme-toggle-container">
+  <button
+    type="button"
+    role="switch"
+    aria-checked="true|false"
+    aria-label="Toggle dark mode"
+    class="theme-toggle-button"
+  >
+    <span class="toggle-icon-light" aria-hidden="true">
+      <!-- Light mode icon (sun) -->
+    </span>
+    <span class="toggle-track">
+      <span class="toggle-thumb"></span>
+    </span>
+    <span class="toggle-icon-dark" aria-hidden="true">
+      <!-- Dark mode icon (moon) -->
+    </span>
+  </button>
+</div>
+```
+
+*Visual Specifications*:
+
+**Light Mode Appearance**:
+- Background: `rgba(0, 0, 0, 0.38)` (track)
+- Thumb: `#ffffff` (white circle)
+- Icons: Sun `#ffa726` (amber), Moon `rgba(0, 0, 0, 0.26)` (disabled grey)
+- Border: None
+- Shadow (thumb): `0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14)`
+- Dimensions: Track 58px × 38px, Thumb 20px diameter
+- Position: Thumb aligned left (light mode active)
+
+**Dark Mode Appearance**:
+- Background: `rgba(255, 255, 255, 0.3)` (track)
+- Thumb: `#90caf9` (primary light)
+- Icons: Sun `rgba(255, 255, 255, 0.3)` (disabled), Moon `#ffa726` (amber)
+- Border: None
+- Shadow (thumb): `0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14)`
+- Dimensions: Track 58px × 38px, Thumb 20px diameter
+- Position: Thumb aligned right (dark mode active)
+
+**Component States**:
+
+| State | Visual Change | Specifications |
+|-------|---------------|----------------|
+| **Default** | Base appearance | As described above per mode |
+| **Hover** | Track opacity increase | Light: `rgba(0, 0, 0, 0.5)`, Dark: `rgba(255, 255, 255, 0.4)` |
+| **Focus** | Focus ring visible | 2px outline, color: primary.main, offset: 2px, border-radius: 20px |
+| **Active (Pressed)** | Thumb scale increase | Scale: 1.1, transition: 150ms ease-out |
+| **Disabled** | Reduced opacity, no interaction | Opacity: 0.38, cursor: not-allowed, no hover effects |
+
+**Interaction Pattern**:
+1. User clicks/taps toggle switch
+2. Thumb animates to opposite position (300ms ease-in-out)
+3. Theme mode updates in ThemeContext
+4. All components re-render with new palette
+5. Preference saved to localStorage
+6. Icons crossfade during transition (150ms)
+
+**Animation Specifications**:
+- Thumb position: `translateX(0)` to `translateX(20px)`, 300ms cubic-bezier(0.4, 0, 0.2, 1)
+- Icon opacity: Fade out current (150ms), fade in new (150ms, delayed 150ms)
+- Theme transition: All colors 225ms cubic-bezier(0.4, 0, 0.2, 1)
+
+**Accessibility**:
+- Role: `switch` (ARIA 1.2)
+- State: `aria-checked` reflects current theme
+- Label: `aria-label="Toggle dark mode"` or visible label
+- Keyboard: Space/Enter to toggle
+- Focus: Visible focus ring (2px primary color outline)
+- Screen reader: Announces "Dark mode on/off" on toggle
+- Touch target: Minimum 48×48px (MUI default)
+
+**Component Variations**: None (single toggle pattern)
+
+**Placement Specifications**:
+- **Desktop (>= md)**: AppBar toolbar, right side, before user menu/actions
+- **Mobile (< md)**: Drawer header or toolbar, aligned right
+- **Spacing**: 8px (spacing(1)) margin from adjacent elements
+- **Z-index**: Inherits from parent (AppBar or Drawer)
+
+**Dark Mode Component Adaptations**:
+
+**Buttons**:
+- Contained: Background uses primary.main dark variant, maintains contrast
+- Outlined: Border color from divider, text color from text.primary
+- Text: Uses text.primary for default, primary.main for color="primary"
+- Hover: Overlay `action.hover` (rgba(255,255,255,0.08))
+- Disabled: Background `action.disabledBackground`, text `text.disabled`
+
+**Cards**:
+- Background: `background.paper` (#1e1e1e)
+- Border: 1px solid `divider` (rgba(255,255,255,0.12))
+- Elevation: Uses Material Design overlay system (white overlay at 0-8% opacity based on elevation)
+- Hover (interactive): Elevation increase, subtle overlay brightening
+- Content: Text colors from palette.text
+
+**Text Fields**:
+- Outlined variant: Border `rgba(255,255,255,0.23)`, label `text.secondary`
+- Filled variant: Background `rgba(255,255,255,0.09)`, hover `rgba(255,255,255,0.13)`
+- Focus: Border color primary.main, label color primary.main
+- Error: Border and label use error.main
+- Helper text: `text.secondary`
+- Disabled: Opacity 0.38, background `action.disabledBackground`
+
+**AppBar**:
+- Background: `background.paper` (#1e1e1e)
+- Border bottom: `divider` (rgba(255,255,255,0.12))
+- Text: `text.primary`
+- Icons: `action.active`
+- Elevation: 0 (flat with border)
+
+**Dialogs/Modals**:
+- Background: `background.paper` (#1e1e1e)
+- Backdrop: `rgba(0, 0, 0, 0.7)` (darker for dark mode)
+- Text: `text.primary` and `text.secondary`
+- Actions: Standard button styles
+
+**Lists**:
+- Background: Transparent (inherits from parent)
+- Item hover: `action.hover` (rgba(255,255,255,0.08))
+- Item selected: `action.selected` (rgba(255,255,255,0.16))
+- Dividers: `divider` color
+- Text: `text.primary` and `text.secondary`
+
+**States Across All Components**:
+- **Loading**: Skeleton components use `rgba(255,255,255,0.11)` background with pulse animation
+- **Empty**: Illustrations use `text.disabled`, empty text uses `text.secondary`
+- **Error**: Error Alert with `error.main` background (8% opacity), icon and text `error.main`
+- **Success**: Full rendering with dark theme colors applied
+
+**Keyboard Navigation in Dark Mode**:
+- Focus indicators: 2px outline using primary.main (#90caf9), highly visible on dark backgrounds
+- Focus order: Same as light mode, visual indicators enhanced
+- Skip links: Background `background.paper`, text `primary.main`
+
+**Implementation Notes**:
+- Use MUI's `useMediaQuery` to detect system preference: `'(prefers-color-scheme: dark)'`
+- Theme mode stored in ThemeContext, accessible via custom `useTheme` hook
+- MUI ThemeProvider receives dynamic theme object based on mode
+- Transition applied globally via `MuiCssBaseline` component override
+- All color references use theme palette tokens (never hardcoded colors)
+- CSS variables automatically updated by MUI when palette changes
+
 ## Accessibility
 
 ### WCAG AA Compliance

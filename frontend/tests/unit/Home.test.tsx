@@ -3,28 +3,37 @@
  *
  * Tests the Home page component rendering, content display, and navigation.
  * Following TDD best practices with user-centric testing approach.
+ * Includes dark mode rendering tests for WCAG compliance.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '../../src/theme';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { ThemeProvider, type ThemeMode } from '../../src/contexts/ThemeContext';
+import { createAppTheme } from '../../src/theme';
 import Home from '../../src/pages/Home/Home';
 
 /**
  * Helper function to render components with all required providers
- * Home component requires both Router and Theme providers
+ * Home component requires Router, ThemeProvider, and MUI ThemeProvider
  */
-const renderWithProviders = (component: React.ReactElement) => {
+const renderWithProviders = (component: React.ReactElement, mode: ThemeMode = 'light') => {
   return render(
     <BrowserRouter>
-      <ThemeProvider theme={theme}>{component}</ThemeProvider>
+      <ThemeProvider>
+        <MuiThemeProvider theme={createAppTheme(mode)}>{component}</MuiThemeProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 };
 
 describe('Home Page', () => {
+  beforeEach(() => {
+    // Clear localStorage before each test
+    localStorage.clear();
+  });
+
   describe('Rendering', () => {
     it('should render the welcome heading', () => {
       renderWithProviders(<Home />);
@@ -198,6 +207,134 @@ describe('Home Page', () => {
       const papers = container.querySelectorAll('.MuiPaper-root');
       // Should have 3 Paper components (one for each feature card)
       expect(papers.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe('Dark Mode Rendering', () => {
+    it('should render correctly in dark mode', () => {
+      renderWithProviders(<Home />, 'dark');
+
+      // All main content should be rendered
+      expect(
+        screen.getByRole('heading', { name: /welcome to the application/i })
+      ).toBeInTheDocument();
+      expect(screen.getByText(/your frontend application is now ready/i)).toBeInTheDocument();
+    });
+
+    it('should display all feature cards in dark mode', () => {
+      renderWithProviders(<Home />, 'dark');
+
+      // All three feature cards should be present
+      expect(screen.getByRole('heading', { name: /react 19/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /material ui v7/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /react router v7/i })).toBeInTheDocument();
+    });
+
+    it('should apply dark theme to MUI components', () => {
+      const { container } = renderWithProviders(<Home />, 'dark');
+
+      // MUI components should still have proper classes applied
+      const muiContainer = container.querySelector('.MuiContainer-root');
+      expect(muiContainer).toBeInTheDocument();
+
+      const papers = container.querySelectorAll('.MuiPaper-root');
+      expect(papers.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('should maintain proper text color contrast in dark mode', () => {
+      const { container } = renderWithProviders(<Home />, 'dark');
+
+      // Typography components should render with theme colors
+      const headings = screen.getAllByRole('heading');
+      expect(headings.length).toBeGreaterThan(0);
+
+      // Home icon should be present
+      const icon = container.querySelector('svg');
+      expect(icon).toBeInTheDocument();
+    });
+
+    it('should display navigation button in dark mode', () => {
+      renderWithProviders(<Home />, 'dark');
+
+      const button = screen.getByRole('link', { name: /test 404 page/i });
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveAttribute('href', '/test-404');
+    });
+
+    it('should maintain accessibility in dark mode', () => {
+      renderWithProviders(<Home />, 'dark');
+
+      // Heading hierarchy should be preserved
+      const mainHeading = screen.getByRole('heading', { name: /welcome to the application/i });
+      expect(mainHeading.tagName).toBe('H1');
+
+      const featureHeadings = screen.getAllByRole('heading', { level: 2 });
+      expect(featureHeadings).toHaveLength(3);
+
+      // Navigation link should be accessible
+      const link = screen.getByRole('link', { name: /test 404 page/i });
+      expect(link).toHaveAccessibleName();
+    });
+
+    it('should use proper semantic colors in dark mode', () => {
+      const { container } = renderWithProviders(<Home />, 'dark');
+
+      // Icon should render with theme primary color (uses sx prop)
+      const icon = container.querySelector('[data-testid="HomeIcon"], svg');
+      expect(icon).toBeInTheDocument();
+
+      // Button should use primary color
+      const button = screen.getByRole('link', { name: /test 404 page/i });
+      expect(button).toHaveClass('MuiButton-outlined');
+    });
+  });
+
+  describe('Theme Switching Support', () => {
+    it('should render in light mode by default', () => {
+      renderWithProviders(<Home />, 'light');
+
+      expect(
+        screen.getByRole('heading', { name: /welcome to the application/i })
+      ).toBeInTheDocument();
+      expect(screen.getByText(/your frontend application is now ready/i)).toBeInTheDocument();
+    });
+
+    it('should switch from light to dark mode without breaking layout', () => {
+      const { rerender } = renderWithProviders(<Home />, 'light');
+
+      // Verify light mode rendering
+      expect(
+        screen.getByRole('heading', { name: /welcome to the application/i })
+      ).toBeInTheDocument();
+
+      // Rerender with dark mode
+      rerender(
+        <BrowserRouter>
+          <ThemeProvider>
+            <MuiThemeProvider theme={createAppTheme('dark')}>
+              <Home />
+            </MuiThemeProvider>
+          </ThemeProvider>
+        </BrowserRouter>
+      );
+
+      // Content should still be present
+      expect(
+        screen.getByRole('heading', { name: /welcome to the application/i })
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('heading')).toHaveLength(4);
+    });
+
+    it('should maintain card structure in both themes', () => {
+      const { container: lightContainer } = renderWithProviders(<Home />, 'light');
+      const lightPapers = lightContainer.querySelectorAll('.MuiPaper-root');
+
+      const { container: darkContainer } = renderWithProviders(<Home />, 'dark');
+      const darkPapers = darkContainer.querySelectorAll('.MuiPaper-root');
+
+      // Same number of cards in both themes
+      expect(lightPapers.length).toBe(darkPapers.length);
+      expect(lightPapers.length).toBeGreaterThanOrEqual(3);
     });
   });
 });

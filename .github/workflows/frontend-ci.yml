@@ -319,3 +319,202 @@ jobs:
             exit 1
           fi
           echo "✅ index.html exists in build artifacts"
+
+  # Job 7: Notify on Failure
+  notify-on-failure:
+    name: Send Failure Notification
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, typecheck, build, security, docker]
+    if: failure()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Parse branch and determine action
+        id: parse
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Current branch: $BRANCH_NAME"
+
+          # Check if branch starts with feature/ or bug/
+          if [[ "$BRANCH_NAME" =~ ^feature/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            BRANCH_TYPE="feature"
+            echo "Branch type: feature"
+            echo "Feature ID: $FEATURE_ID"
+          elif [[ "$BRANCH_NAME" =~ ^bug/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            BRANCH_TYPE="bug"
+            echo "Branch type: bug"
+            echo "Feature ID: $FEATURE_ID"
+          else
+            echo "Branch does not match feature/* or bug/* pattern"
+            echo "Skipping bug branch creation and log storage"
+            BRANCH_TYPE="other"
+            FEATURE_ID=""
+          fi
+
+          echo "branch_type=$BRANCH_TYPE" >> $GITHUB_OUTPUT
+          echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
+          echo "source_branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      - name: Generate bug description
+        id: bug-desc
+        if: steps.parse.outputs.branch_type != 'other'
+        run: |
+          # Use run ID as bug description for easy traceability
+          BUG_DESC="frontend-ci-failure-${{ github.run_id }}"
+
+          echo "Bug description: $BUG_DESC"
+          echo "bug_description=$BUG_DESC" >> $GITHUB_OUTPUT
+
+      - name: Prepare failure logs
+        if: steps.parse.outputs.branch_type != 'other'
+        run: |
+          echo "=========================================="
+          echo "Preparing Failure Report"
+          echo "=========================================="
+
+          # Create comprehensive failure report
+          {
+            echo "=========================================="
+            echo "GitHub Actions Failure Report"
+            echo "=========================================="
+            echo "Repository: ${{ github.repository }}"
+            echo "Workflow: ${{ github.workflow }}"
+            echo "Run ID: ${{ github.run_id }}"
+            echo "Run Number: ${{ github.run_number }}"
+            echo "Trigger: ${{ github.event_name }}"
+            echo "Branch: ${{ github.ref_name }}"
+            echo "Commit: ${{ github.sha }}"
+            echo "Actor: ${{ github.actor }}"
+            echo "Time: $(date -u)"
+            echo "=========================================="
+            echo ""
+            echo "Failed Jobs:"
+            echo "----------------------------------------"
+            echo "One or more jobs failed in the frontend CI/CD pipeline"
+            echo "Check the following jobs for failures:"
+            echo "  - Lint and Format Check"
+            echo "  - TypeScript Type Check"
+            echo "  - Build Application"
+            echo "  - Security Audit"
+            echo "  - Docker Build and Test"
+            echo ""
+            echo "=========================================="
+            echo "Full logs available at:"
+            echo "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "=========================================="
+
+          } > failure_report.txt
+
+          echo ""
+          echo "Failure report created:"
+          cat failure_report.txt
+          echo ""
+
+      - name: Create bug branch and save logs (for feature branches)
+        if: steps.parse.outputs.branch_type == 'feature'
+        env:
+          FEATURE_ID: ${{ steps.parse.outputs.feature_id }}
+          BUG_DESC: ${{ steps.bug-desc.outputs.bug_description }}
+          SOURCE_BRANCH: ${{ steps.parse.outputs.source_branch }}
+        run: |
+          echo "Creating bug branch from feature branch..."
+
+          # Create new bug branch from current branch
+          BUG_BRANCH="bug/${FEATURE_ID}-${BUG_DESC}"
+          echo "Creating branch: $BUG_BRANCH"
+          git checkout -b "$BUG_BRANCH"
+
+          # Create directory structure
+          LOG_DIR="docs/features/${FEATURE_ID}/bugs"
+          mkdir -p "$LOG_DIR"
+
+          # Move failure report to the correct location
+          LOG_FILE="${LOG_DIR}/${BUG_DESC}.txt"
+          mv failure_report.txt "$LOG_FILE"
+
+          echo "Log saved to: $LOG_FILE"
+
+          # Stage and commit
+          git add "$LOG_FILE"
+          git commit -m "Add bug report: ${BUG_DESC}
+
+          Frontend CI/CD pipeline failed on branch ${SOURCE_BRANCH}
+
+          Run ID: ${{ github.run_id }}
+          Commit: ${{ github.sha }}
+
+          Full logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Push the new branch
+          git push origin "$BUG_BRANCH"
+
+          echo "✅ Created and pushed bug branch: $BUG_BRANCH"
+          echo "bug_branch=$BUG_BRANCH" >> $GITHUB_ENV
+
+      - name: Save logs to current branch (for bug branches)
+        if: steps.parse.outputs.branch_type == 'bug'
+        env:
+          FEATURE_ID: ${{ steps.parse.outputs.feature_id }}
+          BUG_DESC: ${{ steps.bug-desc.outputs.bug_description }}
+        run: |
+          echo "Saving logs to current bug branch..."
+
+          # Create directory structure
+          LOG_DIR="docs/features/${FEATURE_ID}/bugs"
+          mkdir -p "$LOG_DIR"
+
+          # Move failure report to the correct location
+          LOG_FILE="${LOG_DIR}/${BUG_DESC}.txt"
+          mv failure_report.txt "$LOG_FILE"
+
+          echo "Log saved to: $LOG_FILE"
+
+          # Stage and commit
+          git add "$LOG_FILE"
+          git commit -m "Add additional bug report: ${BUG_DESC}
+
+          Frontend CI/CD pipeline failed again
+
+          Run ID: ${{ github.run_id }}
+          Commit: ${{ github.sha }}
+
+          Full logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Push to current branch
+          git push origin HEAD
+
+          echo "✅ Saved logs to current branch"
+
+      # - name: Notify remote server via SSH
+      #   if: steps.parse.outputs.branch_type != 'other'
+      #   run: |
+      #     # ============================================
+      #     # SSH SECTION - Add your SSH commands here
+      #     # ============================================
+      #     # Example structure:
+      #     # 1. Setup SSH keys
+      #     # 2. Execute remote notification command
+      #     #
+      #     # Available variables:
+      #     # - ${{ steps.parse.outputs.feature_id }}
+      #     # - ${{ steps.parse.outputs.branch_type }}
+      #     # - ${{ steps.bug-desc.outputs.bug_description }}
+      #     # - ${{ env.bug_branch }} (only for feature branches)
+      #     # ============================================
+      #
+      #     echo "TODO: Add SSH commands to notify remote server"
+      #     echo "Feature ID: ${{ steps.parse.outputs.feature_id }}"
+      #     echo "Branch Type: ${{ steps.parse.outputs.branch_type }}"
+      #     echo "Bug Description: ${{ steps.bug-desc.outputs.bug_description }}"

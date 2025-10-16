@@ -3,10 +3,12 @@
  *
  * Top application bar providing branding, navigation, and global actions.
  * Implements responsive design with mobile-first approach.
+ * Includes theme toggle for light/dark mode switching.
  */
 
 import { AppBar, Toolbar, Typography, IconButton, Box } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import ThemeToggle from '../ThemeToggle';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -42,8 +44,10 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
           Application
         </Typography>
 
-        {/* Additional actions can be added here */}
-        <Box sx={{ display: 'flex', gap: 1 }}>{/* Future: User menu, notifications, etc. */}</Box>
+        {/* Actions area - Theme toggle and future actions */}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <ThemeToggle />
+        </Box>
       </Toolbar>
     </AppBar>
   );

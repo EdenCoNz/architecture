@@ -3,19 +3,34 @@
  *
  * Main application shell providing theme, layout structure, routing, and global providers.
  * Implements Material UI best practices with proper accessibility support.
+ * Integrates ThemeContext for light/dark mode management.
  */
 
-import { ThemeProvider } from '@mui/material/styles';
+import { useMemo } from 'react';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { CssBaseline, Box } from '@mui/material';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import theme from './theme';
+import { createAppTheme } from './theme';
+import { ThemeProvider, useTheme } from './contexts';
 import { Header } from './components/layout';
 import { Home, NotFound } from './pages';
 import './styles/global.css';
 
-function App() {
+/**
+ * AppContent Component
+ *
+ * Inner component that has access to theme context
+ * Separated to allow useTheme hook to work correctly
+ */
+function AppContent() {
+  const { mode } = useTheme();
+
+  // Create theme based on current mode
+  // Memoized to prevent unnecessary theme recreations
+  const theme = useMemo(() => createAppTheme(mode), [mode]);
+
   return (
-    <ThemeProvider theme={theme}>
+    <MuiThemeProvider theme={theme}>
       {/* CssBaseline provides consistent CSS reset across browsers */}
       <CssBaseline />
 
@@ -56,6 +71,20 @@ function App() {
           </Box>
         </Box>
       </BrowserRouter>
+    </MuiThemeProvider>
+  );
+}
+
+/**
+ * App Component
+ *
+ * Root component that wraps the application with ThemeProvider
+ * for theme mode state management
+ */
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
     </ThemeProvider>
   );
 }
