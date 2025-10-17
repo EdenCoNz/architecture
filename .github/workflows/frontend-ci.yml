@@ -357,6 +357,7 @@ jobs:
 
     permissions:
       contents: write
+      actions: read  # Required to fetch job logs and job information
 
     steps:
       - name: Checkout code
