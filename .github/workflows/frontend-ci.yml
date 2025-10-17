@@ -389,7 +389,7 @@ jobs:
           # Check which job failed and set appropriate title
           if [ "${{ needs.test-failure.result }}" == "failure" ]; then
             echo "title=Test failure job failed - simulated test failure" >> $GITHUB_OUTPUT
-            echo "failed_job=test-failure" >> $GITHUB_OUTPUT
+            echo "failed_job=Test Failure Job" >> $GITHUB_OUTPUT
           else
             # Fallback for testing
             echo "title=Unknown job failure" >> $GITHUB_OUTPUT
