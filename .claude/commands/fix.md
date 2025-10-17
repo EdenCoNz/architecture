@@ -128,7 +128,7 @@ Ensure all stories follow TDD methodology and are independently deployable.
 
 4. **Implement User Stories**: After user stories are created for the bug, automatically call the implement command:
    ```
-   /implement {bugID}
+   /implement bug {bugID}
    ```
 
    This will:

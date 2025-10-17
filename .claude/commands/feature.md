@@ -64,7 +64,7 @@ Only proceed with this step if NO missing agents were identified:
 Only proceed with this step if NO missing agents were identified:
 
 1. **Verify feature log entry**: Ensure the feature-log.json includes the new feature with `isSummarised: false`
-2. **Automatically launch implementation**: Use the SlashCommand tool to execute: `/implement {feature_id}`
+2. **Automatically launch implementation**: Use the SlashCommand tool to execute: `/implement feature {feature_id}`
 3. **Do not ask the user for confirmation** - automatically proceed with implementation
 
 Note: All new features should have `isSummarised: false` by default, which allows the /summarise command to process them later.

@@ -1,0 +1,579 @@
+name: Frontend CI/CD
+
+# Trigger on pull requests and pushes to main branch
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggering
+
+# Explicit permissions (least privilege)
+permissions:
+  contents: write  # Needed for log-bugs job to commit changes
+  pull-requests: write
+  checks: write
+  actions: read  # Needed to fetch job logs and job information
+
+# Prevent concurrent runs for same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Lint and Format Check
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check Prettier formatting
+        run: npm run format:check
+
+  # Job 2: Type Check
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type check
+        run: npx tsc -b --noEmit
+
+  # Job 3: Build
+  build:
+    name: Build Application
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    needs: [lint, typecheck]  # Only build if lint and typecheck pass
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: frontend/dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Check build size
+        run: |
+          echo "## Build Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Bundle Size" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          du -sh dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### File Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          find dist -name "*.js" -o -name "*.css" | xargs du -h | sort -rh | head -10 >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 4: Security Audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true  # Don't fail build on audit issues, but report them
+
+      - name: Security audit summary
+        if: always()
+        run: |
+          echo "## Security Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          npm audit --audit-level=moderate || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 5: Docker Build and Test
+  docker:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: [build]  # Run after build job succeeds
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: |
+            frontend:${{ github.sha }}
+            frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start container for testing
+        run: |
+          echo "Starting Docker container for health check testing..."
+          docker run -d --name frontend-test -p 8080:8080 frontend:${{ github.sha }}
+
+          echo "Waiting for container to be ready..."
+          sleep 5
+
+          echo "Container status:"
+          docker ps -a --filter name=frontend-test
+
+      - name: Test health endpoint
+        run: |
+          echo "Testing health endpoint..."
+
+          # Wait up to 30 seconds for health endpoint to respond
+          max_attempts=30
+          attempt=0
+
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost:8080/health; then
+              echo "✅ Health check passed!"
+              echo ""
+              echo "Health endpoint response:"
+              curl -s http://localhost:8080/health
+              exit 0
+            fi
+
+            echo "Attempt $((attempt + 1))/$max_attempts - waiting for health endpoint..."
+            sleep 1
+            attempt=$((attempt + 1))
+          done
+
+          echo "❌ Health check failed after $max_attempts attempts"
+          echo ""
+          echo "Container logs:"
+          docker logs frontend-test
+          exit 1
+
+      - name: Test application root
+        run: |
+          echo "Testing application root endpoint..."
+
+          if curl -f -s http://localhost:8080/ | grep -q "<!DOCTYPE html>"; then
+            echo "✅ Application root responds with HTML"
+          else
+            echo "❌ Application root did not respond with valid HTML"
+            docker logs frontend-test
+            exit 1
+          fi
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          echo "## Docker Container Failure Logs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          docker logs frontend-test >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Could not retrieve logs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Stop and remove test container
+        if: always()
+        run: |
+          docker stop frontend-test || true
+          docker rm frontend-test || true
+
+      - name: Docker build summary
+        if: success()
+        run: |
+          echo "## Docker Build Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker image built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Image tagged with commit SHA: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Image tagged with: \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Container health check passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Application serves HTML correctly" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          docker images frontend:${{ github.sha }} >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Size" >> $GITHUB_STEP_SUMMARY
+          docker images frontend:${{ github.sha }} --format "{{.Size}}" >> $GITHUB_STEP_SUMMARY
+
+  # Job 6: Deployment Readiness (only on main branch)
+  deployment-check:
+    name: Deployment Readiness Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, typecheck, build, security, docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: dist/
+
+      - name: Verify build artifacts
+        run: |
+          echo "## Deployment Readiness" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build artifacts generated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker image built and tested successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Ready for deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifact Contents" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lah dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check index.html exists
+        run: |
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ Error: index.html not found in build artifacts"
+            exit 1
+          fi
+          echo "✅ index.html exists in build artifacts"
+
+  # Job 7: Log bugs to JSON file
+  log-bugs:
+    name: Log Bug Report
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, typecheck, build, security, docker]
+    if: |
+      failure() &&
+      github.event_name == 'pull_request' &&
+      startsWith(github.head_ref, 'feature/')
+
+    permissions:
+      contents: write
+      actions: read  # Required to fetch job logs and job information
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract feature ID from branch name
+        id: feature
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Branch name: $BRANCH_NAME"
+
+          # Extract feature ID from branch name (format: feature/{id})
+          if [[ $BRANCH_NAME =~ ^feature/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            echo "Extracted feature ID: $FEATURE_ID"
+            echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Error: Could not extract feature ID from branch name: $BRANCH_NAME"
+            exit 1
+          fi
+
+      - name: Determine which job failed
+        id: failed-job
+        run: |
+          # Check which job failed and set appropriate title
+          if [ "${{ needs.lint.result }}" == "failure" ]; then
+            echo "title=Lint job failed - code quality issues detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Lint and Format Check" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.typecheck.result }}" == "failure" ]; then
+            echo "title=TypeScript type check failed - type errors detected" >> $GITHUB_OUTPUT
+            echo "failed_job=TypeScript Type Check" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "title=Build job failed - compilation errors detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Build Application" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.security.result }}" == "failure" ]; then
+            echo "title=Security audit failed - vulnerabilities detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Security Audit" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.docker.result }}" == "failure" ]; then
+            echo "title=Docker build or test failed - container issues detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Build and Test Docker Image" >> $GITHUB_OUTPUT
+          else
+            echo "title=Unknown job failure" >> $GITHUB_OUTPUT
+            echo "failed_job=Unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or update bug log entry
+        run: |
+          BUG_FILE="docs/features/bug-log.json"
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          BRANCH_NAME="${{ steps.feature.outputs.branch_name }}"
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          TODAY=$(date +%Y-%m-%d)
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          COMMIT_SHA="${{ github.sha }}"
+
+          echo "Creating bug entry:"
+          echo "  Feature ID: $FEATURE_ID"
+          echo "  Branch: $BRANCH_NAME"
+          echo "  Title: $TITLE"
+          echo "  Date: $TODAY"
+
+          # Ensure jq is installed
+          if ! command -v jq &> /dev/null; then
+            echo "Installing jq..."
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+          # Create bug-log.json if it doesn't exist
+          if [ ! -f "$BUG_FILE" ]; then
+            echo "Bug log file not found, creating new file: $BUG_FILE"
+            mkdir -p "$(dirname "$BUG_FILE")"
+            echo '{"bugs":[]}' > "$BUG_FILE"
+          fi
+
+          # Get the next bug ID (max bugID + 1, or 1 if no bugs exist)
+          NEXT_BUG_ID=$(jq '[.bugs[].bugID] | if length > 0 then max + 1 else 1 end' "$BUG_FILE")
+          echo "Next bug ID: $NEXT_BUG_ID"
+
+          # Create new bug entry
+          NEW_BUG=$(jq -n \
+            --arg bugID "$NEXT_BUG_ID" \
+            --arg featureID "$FEATURE_ID" \
+            --arg featureName "$BRANCH_NAME" \
+            --arg title "$TITLE" \
+            --arg reportedDate "$TODAY" \
+            '{
+              bugID: ($bugID | tonumber),
+              featureID: ($featureID | tonumber),
+              featureName: $featureName,
+              title: $title,
+              reportedDate: $reportedDate,
+              isFixed: false,
+              fixedDate: null
+            }')
+
+          # Append new bug to the bugs array
+          jq --argjson newBug "$NEW_BUG" '.bugs += [$newBug]' "$BUG_FILE" > "${BUG_FILE}.tmp"
+          mv "${BUG_FILE}.tmp" "$BUG_FILE"
+
+          echo "✅ Bug entry added successfully"
+          echo ""
+          echo "Updated bug log:"
+          cat "$BUG_FILE"
+
+          # Export variables for next steps
+          echo "NEXT_BUG_ID=$NEXT_BUG_ID" >> $GITHUB_ENV
+          echo "WORKFLOW_URL=$WORKFLOW_URL" >> $GITHUB_ENV
+          echo "FAILED_JOB=$FAILED_JOB" >> $GITHUB_ENV
+
+      - name: Fetch failed job logs
+        id: fetch-logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          RUN_ID="${{ github.run_id }}"
+          REPO="${{ github.repository }}"
+
+          echo "Fetching logs for job: $FAILED_JOB"
+
+          # Get job ID - fail immediately on error
+          JOBS_RESPONSE=$(mktemp)
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE"
+
+          # Extract job ID - fail if not found
+          JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE")
+          rm -f "$JOBS_RESPONSE"
+
+          if [ -z "$JOB_ID" ]; then
+            echo "❌ Error: Could not find job ID for: $FAILED_JOB"
+            exit 1
+          fi
+
+          echo "Found job ID: $JOB_ID"
+
+          # Get the failed step name - fail immediately on error
+          STEP_RESPONSE=$(mktemp)
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE"
+
+          FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" | head -n 1)
+          rm -f "$STEP_RESPONSE"
+
+          if [ -z "$FAILED_STEP" ]; then
+            echo "❌ Error: Could not determine failed step"
+            exit 1
+          fi
+
+          echo "Failed step: $FAILED_STEP"
+          # Sanitize output to prevent bash injection
+          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
+          echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
+
+          # Download job logs - fail immediately on error
+          gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > job_logs.txt
+
+          echo "✅ Successfully downloaded logs ($(wc -l < job_logs.txt) lines)"
+
+      - name: Create markdown file for bug
+        run: |
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          FAILED_JOB="${{ env.FAILED_JOB }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          BUG_ID="${{ env.NEXT_BUG_ID }}"
+          WORKFLOW_URL="${{ env.WORKFLOW_URL }}"
+
+          # Handle case where failed_step might be empty
+          if [ -z "$FAILED_STEP" ]; then
+            FAILED_STEP="Unknown"
+          fi
+
+          # Create bugs directory if it doesn't exist
+          BUGS_DIR="docs/features/${FEATURE_ID}/bugs"
+          mkdir -p "$BUGS_DIR"
+
+          # Create markdown file path
+          BUG_FILE="${BUGS_DIR}/${BUG_ID}.md"
+
+          # Write the bug report using echo commands
+          echo "# Bug Report: ${TITLE}" > "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Failed Job" >> "$BUG_FILE"
+          echo "${FAILED_JOB}" >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Failed Step" >> "$BUG_FILE"
+          echo "${FAILED_STEP}" >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Raw Logs" >> "$BUG_FILE"
+          echo '```' >> "$BUG_FILE"
+
+          # Append logs if available
+          if [ -f job_logs.txt ]; then
+            cat job_logs.txt >> "$BUG_FILE"
+          else
+            echo "No logs available" >> "$BUG_FILE"
+          fi
+
+          # Close the code block and add workflow URL
+          echo '```' >> "$BUG_FILE"
+          echo "" >> "$BUG_FILE"
+          echo "## Workflow Run" >> "$BUG_FILE"
+          echo "${WORKFLOW_URL}" >> "$BUG_FILE"
+
+          echo "✅ Markdown file created: $BUG_FILE"
+          echo ""
+          echo "Bug report preview:"
+          echo "===================="
+          head -n 20 "$BUG_FILE"
+          echo "..."
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push bug log
+        run: |
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          BUG_ID="${{ env.NEXT_BUG_ID }}"
+
+          # Add both the bug-log.json and the markdown file
+          git add docs/features/bug-log.json
+          git add "docs/features/${FEATURE_ID}/bugs/${BUG_ID}.md"
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "$(cat <<'EOF'
+          Add bug report for ${{ steps.failed-job.outputs.title }}
+
+          Bug ID: ${{ env.NEXT_BUG_ID }}
+          Feature: ${{ steps.feature.outputs.branch_name }}
+          Failed Job: ${{ steps.failed-job.outputs.failed_job }}
+          Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+          )"
+
+            git push
+            echo "✅ Bug log committed and pushed successfully"
+          fi
