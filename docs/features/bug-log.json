@@ -6,6 +6,8 @@
       "featureName": "feature/2-test",
       "title": "Test failure job failed - simulated test failure",
       "reportedDate": "2025-10-17",
+      "userStoriesCreated": "2025-10-17T13:45:00Z",
+      "userStoriesPath": "docs/features/2/bugs/1/user-stories.md",
       "isFixed": false,
       "fixedDate": null
     }
