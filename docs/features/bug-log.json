@@ -1,0 +1,13 @@
+{
+  "bugs": [
+    {
+      "bugID": 1,
+      "featureID": 2,
+      "featureName": "feature/2-test",
+      "title": "Test failure job failed - simulated test failure",
+      "reportedDate": "2025-10-17",
+      "isFixed": false,
+      "fixedDate": null
+    }
+  ]
+}
