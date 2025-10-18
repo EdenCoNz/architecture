@@ -11,7 +11,7 @@ import HomeIcon from '@mui/icons-material/Home';
 
 function Home() {
   return (
-    <Containeeeeer maxWidth="lg">
+    <Container maxWidth="lg">
       <Box
         sx={{
           py: 8,

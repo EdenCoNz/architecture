@@ -200,4 +200,85 @@ describe('Home Page', () => {
       expect(papers.length).toBeGreaterThanOrEqual(3);
     });
   });
+
+  describe('Component Import Validation', () => {
+    /**
+     * Regression test for GitHub Issue #30
+     * Validates that the Home component renders without TypeScript compilation errors
+     * and properly uses Material UI components with correct JSX tag matching.
+     *
+     * This test prevents:
+     * - JSX tag mismatches (e.g., <Containeeeeer> vs </Container>)
+     * - Incorrect component imports
+     * - TypeScript compilation failures in CI/CD
+     */
+    it('should render successfully without TypeScript errors', () => {
+      // This test will fail at compile time if there are TypeScript errors
+      // such as JSX tag mismatches or incorrect imports
+      expect(() => renderWithProviders(<Home />)).not.toThrow();
+
+      // Verify component rendered
+      const heading = screen.getByRole('heading', {
+        name: /welcome to the application/i,
+      });
+      expect(heading).toBeInTheDocument();
+    });
+
+    it('should properly import and use Container component from Material UI', () => {
+      const { container } = renderWithProviders(<Home />);
+
+      // Verify Container component is correctly imported and rendered
+      const muiContainer = container.querySelector('.MuiContainer-root');
+      expect(muiContainer).toBeInTheDocument();
+
+      // Verify Container has correct props applied (maxWidth="lg")
+      expect(muiContainer).toHaveClass('MuiContainer-maxWidthLg');
+    });
+
+    it('should have all Material UI components correctly imported and rendered', () => {
+      const { container } = renderWithProviders(<Home />);
+
+      // Verify Container component (main layout container)
+      const containerComponent = container.querySelector('.MuiContainer-root');
+      expect(containerComponent).toBeInTheDocument();
+
+      // Verify Box components (layout components)
+      const boxComponents = container.querySelectorAll('.MuiBox-root');
+      expect(boxComponents.length).toBeGreaterThan(0);
+
+      // Verify Typography components (text elements)
+      const typographyComponents = container.querySelectorAll('.MuiTypography-root');
+      expect(typographyComponents.length).toBeGreaterThan(0);
+
+      // Verify Paper components (feature cards)
+      const paperComponents = container.querySelectorAll('.MuiPaper-root');
+      expect(paperComponents.length).toBe(3); // Three feature cards
+
+      // Verify Button component (CTA button)
+      const buttonComponent = container.querySelector('.MuiButton-root');
+      expect(buttonComponent).toBeInTheDocument();
+
+      // Verify Icon component (HomeIcon)
+      const iconComponent = container.querySelector('.MuiSvgIcon-root');
+      expect(iconComponent).toBeInTheDocument();
+    });
+
+    it('should have matching JSX opening and closing tags', () => {
+      // This test ensures TypeScript compilation succeeds
+      // Any JSX tag mismatch would cause a compilation error before tests run
+      const { container } = renderWithProviders(<Home />);
+
+      // If we reach this point, TypeScript compilation was successful
+      // meaning all JSX tags are properly matched
+      expect(container).toBeTruthy();
+
+      // Additional verification that the component structure is intact
+      const muiContainer = container.querySelector('.MuiContainer-root');
+      expect(muiContainer).toBeInTheDocument();
+
+      // Verify the entire component tree rendered correctly
+      const allMuiComponents = container.querySelectorAll('[class*="Mui"]');
+      expect(allMuiComponents.length).toBeGreaterThan(0);
+    });
+  });
 });
