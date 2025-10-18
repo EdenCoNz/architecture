@@ -4,7 +4,7 @@ This example shows how to update the devops-engineer agent with intelligent cont
 
 ## Updated Context Loading Section
 
-Replace the existing "Context Loading (CRITICAL)" section with:
+REplace the existing "Context Loading (CRITICAL)" section with:
 
 ```markdown
 ### Context Loading (CRITICAL)
