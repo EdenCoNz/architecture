@@ -2,23 +2,15 @@ name: Frontend CI/CD
 
 # Trigger on pull requests and pushes to main branch
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:  # Allow manual triggering
 
 # Explicit permissions (least privilege)
 permissions:
   contents: read
-  pull-requests: write
   checks: write
+  actions: read  # Needed to fetch job logs and job information
 
 # Prevent concurrent runs for same branch/PR
 concurrency:
@@ -210,45 +202,12 @@ jobs:
           echo "Container status:"
           docker ps -a --filter name=frontend-test
 
-      - name: Test health endpoint
+      - name: Test container endpoints
         run: |
-          echo "Testing health endpoint..."
-
-          # Wait up to 30 seconds for health endpoint to respond
-          max_attempts=30
-          attempt=0
-
-          while [ $attempt -lt $max_attempts ]; do
-            if curl -f http://localhost:8080/health; then
-              echo "✅ Health check passed!"
-              echo ""
-              echo "Health endpoint response:"
-              curl -s http://localhost:8080/health
-              exit 0
-            fi
-
-            echo "Attempt $((attempt + 1))/$max_attempts - waiting for health endpoint..."
-            sleep 1
-            attempt=$((attempt + 1))
-          done
-
-          echo "❌ Health check failed after $max_attempts attempts"
+          echo "Running regression tests on Docker container endpoints..."
           echo ""
-          echo "Container logs:"
-          docker logs frontend-test
-          exit 1
-
-      - name: Test application root
-        run: |
-          echo "Testing application root endpoint..."
-
-          if curl -f -s http://localhost:8080/ | grep -q "<!DOCTYPE html>"; then
-            echo "✅ Application root responds with HTML"
-          else
-            echo "❌ Application root did not respond with valid HTML"
-            docker logs frontend-test
-            exit 1
-          fi
+          cd frontend
+          ./scripts/test-docker-endpoints.sh frontend-test 8080
 
       - name: Container logs on failure
         if: failure()
@@ -319,3 +278,646 @@ jobs:
             exit 1
           fi
           echo "✅ index.html exists in build artifacts"
+
+  # Job 7: Log bugs and create GitHub issues
+  log-bugs:
+    name: Log Bug Report and Create Issue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, typecheck, build, security, docker]
+    if: |
+      failure() &&
+      github.event_name == 'pull_request' &&
+      startsWith(github.head_ref, 'feature/')
+
+    permissions:
+      contents: read
+      issues: write  # Required to create GitHub issues
+      actions: read  # Required to fetch job logs and job information
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract feature ID from branch name
+        id: feature
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Branch name: $BRANCH_NAME"
+
+          # Extract feature ID from branch name (format: feature/{id})
+          if [[ $BRANCH_NAME =~ ^feature/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            echo "Extracted feature ID: $FEATURE_ID"
+            echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "Could not extract feature ID from branch name: $BRANCH_NAME"
+            echo "Using default feature ID: 0"
+            echo "feature_id=0" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine which job failed
+        id: failed-job
+        run: |
+          # Check which job failed and set appropriate title
+          if [ "${{ needs.lint.result }}" == "failure" ]; then
+            echo "title=Lint job failed - code quality issues detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Lint and Format Check" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.typecheck.result }}" == "failure" ]; then
+            echo "title=TypeScript type check failed - type errors detected" >> $GITHUB_OUTPUT
+            echo "failed_job=TypeScript Type Check" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "title=Build job failed - compilation errors detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Build Application" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.security.result }}" == "failure" ]; then
+            echo "title=Security audit failed - vulnerabilities detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Security Audit" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.docker.result }}" == "failure" ]; then
+            echo "title=Docker build or test failed - container issues detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Build and Test Docker Image" >> $GITHUB_OUTPUT
+          else
+            echo "title=Unknown job failure" >> $GITHUB_OUTPUT
+            echo "failed_job=Unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch failed job logs
+        id: fetch-logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          RUN_ID="${{ github.run_id }}"
+          REPO="${{ github.repository }}"
+
+          echo "Fetching logs for job: $FAILED_JOB"
+
+          # Get job ID
+          JOBS_RESPONSE=$(mktemp)
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE" || {
+            echo "Warning: Could not fetch jobs list"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "log_excerpt=Could not retrieve logs" >> $GITHUB_OUTPUT
+            rm -f "$JOBS_RESPONSE"
+            exit 0
+          }
+
+          # Extract job ID
+          JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE")
+          rm -f "$JOBS_RESPONSE"
+
+          if [ -z "$JOB_ID" ]; then
+            echo "Warning: Could not find job ID for: $FAILED_JOB"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "log_excerpt=Could not retrieve job information" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Found job ID: $JOB_ID"
+
+          # Get the failed step name and number
+          STEP_RESPONSE=$(mktemp)
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE" || {
+            echo "Warning: Could not fetch job details"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            rm -f "$STEP_RESPONSE"
+          }
+
+          FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" | head -n 1)
+          FAILED_STEP_NUMBER=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .number" "$STEP_RESPONSE" | head -n 1)
+          rm -f "$STEP_RESPONSE"
+
+          if [ -z "$FAILED_STEP" ]; then
+            FAILED_STEP="Unknown"
+          fi
+
+          echo "Failed step: $FAILED_STEP (Step #$FAILED_STEP_NUMBER)"
+          # Sanitize output
+          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
+          echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
+
+          # Download job logs
+          gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > job_logs.txt || {
+            echo "Warning: Could not download logs"
+            echo "Could not retrieve logs" > job_logs.txt
+          }
+
+          echo "Total log lines: $(wc -l < job_logs.txt)"
+
+          # Extract only the failed step's logs with context
+          # GitHub Actions logs use timestamps and step markers
+          # Format: YYYY-MM-DDTHH:MM:SS.MMMMMMMZ ##[section]Step: Step Name
+
+          # Find the start and end of the failed step section
+          STEP_START_LINE=$(grep -n "##\[group\].*$FAILED_STEP" job_logs.txt | head -n 1 | cut -d: -f1)
+
+          if [ -z "$STEP_START_LINE" ]; then
+            # Fallback: try to find step by searching for common step markers
+            echo "Warning: Could not find step start marker, searching for error context..."
+
+            # Find lines with errors and get context around them
+            ERROR_LINES=$(grep -in "error\|failed\|exception\|Error:" job_logs.txt | tail -5 | cut -d: -f1)
+
+            if [ -n "$ERROR_LINES" ]; then
+              # Get the first error line number
+              FIRST_ERROR=$(echo "$ERROR_LINES" | head -n 1)
+              # Start 30 lines before the first error
+              CONTEXT_START=$((FIRST_ERROR > 30 ? FIRST_ERROR - 30 : 1))
+              # End 30 lines after the last error
+              LAST_ERROR=$(echo "$ERROR_LINES" | tail -n 1)
+              CONTEXT_END=$((LAST_ERROR + 30))
+
+              echo "Extracting error context from lines $CONTEXT_START to $CONTEXT_END"
+              sed -n "${CONTEXT_START},${CONTEXT_END}p" job_logs.txt > log_excerpt.txt
+            else
+              # Ultimate fallback: last 50 lines
+              echo "Warning: No errors found, using last 50 lines of log"
+              tail -50 job_logs.txt > log_excerpt.txt
+            fi
+          else
+            # Find the next step start (or end of file)
+            NEXT_STEP_LINE=$(grep -n "##\[group\]" job_logs.txt | awk -F: -v start="$STEP_START_LINE" '$1 > start {print $1; exit}')
+
+            if [ -z "$NEXT_STEP_LINE" ]; then
+              # This is the last step, go to end of file
+              NEXT_STEP_LINE=$(wc -l < job_logs.txt)
+            fi
+
+            # Add context: 20 lines before step start
+            CONTEXT_START=$((STEP_START_LINE > 20 ? STEP_START_LINE - 20 : 1))
+            # Add context: 20 lines after step end (if available)
+            TOTAL_LINES=$(wc -l < job_logs.txt)
+            CONTEXT_END=$((NEXT_STEP_LINE + 20 > TOTAL_LINES ? TOTAL_LINES : NEXT_STEP_LINE + 20))
+
+            echo "Extracting failed step logs from line $CONTEXT_START to $CONTEXT_END (step at $STEP_START_LINE-$NEXT_STEP_LINE)"
+            sed -n "${CONTEXT_START},${CONTEXT_END}p" job_logs.txt > log_excerpt.txt
+          fi
+
+          EXCERPT_LINES=$(wc -l < log_excerpt.txt)
+          echo "✅ Successfully extracted log excerpt: $EXCERPT_LINES lines (from total $(wc -l < job_logs.txt) lines)"
+
+          # Remove timestamps and add line numbers
+          # GitHub Actions log format: YYYY-MM-DDTHH:MM:SS.MMMMMMMZ <log content>
+          # We remove the timestamp prefix and add sequential line numbers
+          echo "Processing log excerpt: removing timestamps and adding line numbers..."
+
+          # Use sed to remove timestamp prefix (if present) and awk to add line numbers
+          # Timestamp regex pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+Z
+          sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}\.[0-9]*Z //' log_excerpt.txt | \
+            awk '{printf "%4d | %s\n", NR, $0}' > log_excerpt_formatted.txt
+
+          # Replace original excerpt with formatted version
+          mv log_excerpt_formatted.txt log_excerpt.txt
+
+          echo "✅ Log formatting complete: timestamps removed, line numbers added"
+
+          # Store excerpt in environment variable for use in issue
+          echo "LOG_EXCERPT<<EOF" >> $GITHUB_ENV
+          cat log_excerpt.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create bug log entry using template
+        id: create-bug-log
+        run: |
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+
+          # Read the template
+          TEMPLATE_FILE="docs/templates/bug-log-template.md"
+
+          if [ ! -f "$TEMPLATE_FILE" ]; then
+            echo "Error: Template file not found at $TEMPLATE_FILE"
+            exit 1
+          fi
+
+          # Read the extracted log excerpt (not the full logs)
+          if [ -f log_excerpt.txt ]; then
+            LOG_DETAIL=$(cat log_excerpt.txt)
+          else
+            LOG_DETAIL="No log excerpt available"
+          fi
+
+          # Create bug log content from template
+          BUG_LOG_CONTENT=$(cat "$TEMPLATE_FILE")
+
+          # Replace template variables using # as sed delimiter to avoid conflicts with | in Markdown tables
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| title |  |#| title | $TITLE |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureID |  |#| featureID | $FEATURE_ID |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureName |  |#| featureName | $FEATURE_NAME |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| jobName |  |#| jobName | $FAILED_JOB |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| stepName |  |#| stepName | $FAILED_STEP |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| PRURL |  |#| PRURL | $PR_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| commitURL |  |#| commitURL | $COMMIT_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| runURL |  |#| runURL | $WORKFLOW_URL |#")
+
+          # Write the populated template to file
+          echo "$BUG_LOG_CONTENT" > bug_log.md
+
+          # Add log details section with proper spacing (excerpt only, not full logs)
+          echo "" >> bug_log.md
+          echo '```' >> bug_log.md
+          echo "$LOG_DETAIL" >> bug_log.md
+          echo '```' >> bug_log.md
+
+          echo "✅ Bug log created from template"
+          echo ""
+          echo "Bug log preview:"
+          echo "===================="
+          head -n 30 bug_log.md
+          echo "..."
+
+          # Save for issue creation
+          echo "BUG_LOG_FILE=bug_log.md" >> $GITHUB_ENV
+
+      - name: Check for duplicate issues
+        id: duplicate-check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Starting Duplicate Detection Process"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Current Failure Context:"
+          echo "  Feature ID:   $FEATURE_ID"
+          echo "  Job Name:     $FAILED_JOB"
+          echo "  Step Name:    $FAILED_STEP"
+          echo ""
+
+          # Fetch latest open issue
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Step 1: Fetching Latest Issue"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          # Get the latest open issue
+          LATEST_ISSUE=$(gh issue list \
+            --repo "$REPO" \
+            --state open \
+            --limit 1 \
+            --json number,title,body \
+            --jq '.[0]')
+
+          if [ -z "$LATEST_ISSUE" ] || [ "$LATEST_ISSUE" == "null" ]; then
+            echo "ℹ️  No existing issues found"
+            echo "✅ Proceeding to create new issue"
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=no_existing_issues" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          LATEST_ISSUE_NUMBER=$(echo "$LATEST_ISSUE" | jq -r '.number')
+          LATEST_ISSUE_BODY=$(echo "$LATEST_ISSUE" | jq -r '.body')
+
+          echo "✅ Found latest issue: #$LATEST_ISSUE_NUMBER"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Step 2: Preliminary Checks (Fast Comparison)
+          # ═══════════════════════════════════════════════════════════
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Step 2: Preliminary Checks (Fast Comparison)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
+          # Extract metadata from latest issue body using table format
+          # Table format: | field | value |
+          PREV_FEATURE_ID=$(echo "$LATEST_ISSUE_BODY" | grep "| featureID |" | sed 's/.*| featureID | \([^|]*\) |.*/\1/' | tr -d ' ')
+          PREV_JOB_NAME=$(echo "$LATEST_ISSUE_BODY" | grep "| jobName |" | sed 's/.*| jobName | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          PREV_STEP_NAME=$(echo "$LATEST_ISSUE_BODY" | grep "| stepName |" | sed 's/.*| stepName | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          echo "Previous Issue #$LATEST_ISSUE_NUMBER Context:"
+          echo "  Feature ID:   '$PREV_FEATURE_ID'"
+          echo "  Job Name:     '$PREV_JOB_NAME'"
+          echo "  Step Name:    '$PREV_STEP_NAME'"
+          echo ""
+
+          # Compare metadata fields
+          echo "Comparing metadata fields..."
+          PRELIM_CHECKS_PASSED=true
+
+          if [ "$FEATURE_ID" != "$PREV_FEATURE_ID" ]; then
+            echo "❌ Feature ID mismatch: $FEATURE_ID != $PREV_FEATURE_ID"
+            PRELIM_CHECKS_PASSED=false
+          else
+            echo "✅ Feature ID matches: $FEATURE_ID"
+          fi
+
+          if [ "$FAILED_JOB" != "$PREV_JOB_NAME" ]; then
+            echo "❌ Job name mismatch: '$FAILED_JOB' != '$PREV_JOB_NAME'"
+            PRELIM_CHECKS_PASSED=false
+          else
+            echo "✅ Job name matches: '$FAILED_JOB'"
+          fi
+
+          if [ "$FAILED_STEP" != "$PREV_STEP_NAME" ]; then
+            echo "❌ Step name mismatch: '$FAILED_STEP' != '$PREV_STEP_NAME'"
+            PRELIM_CHECKS_PASSED=false
+          else
+            echo "✅ Step name matches: '$FAILED_STEP'"
+          fi
+
+          echo ""
+
+          if [ "$PRELIM_CHECKS_PASSED" = false ]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Preliminary Checks Result: FAILED"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ This is a NEW issue (metadata differs from latest issue)"
+            echo "✅ Proceeding to create new issue"
+            echo ""
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=metadata_mismatch" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Preliminary Checks Result: PASSED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⚠️  Metadata matches - proceeding to log comparison"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Step 3: Deep Log Comparison
+          # ═══════════════════════════════════════════════════════════
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Step 3: Deep Log Comparison"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
+          # Extract log excerpt from previous issue
+          # Format: ## Failed Step Log Excerpt followed by ```...```
+          echo "Extracting log excerpt from issue #$LATEST_ISSUE_NUMBER..."
+
+          # Save issue body to temp file for processing
+          echo "$LATEST_ISSUE_BODY" > prev_issue_body.txt
+
+          # Extract the log section between ## Failed Step Log Excerpt and the closing ```
+          # This handles multi-line log content
+          PREV_LOG_EXCERPT=$(awk '
+            /## Failed Step Log Excerpt/ { found=1; next }
+            found && /^```$/ { if (in_code) exit; in_code=1; next }
+            found && in_code { print }
+          ' prev_issue_body.txt)
+
+          if [ -z "$PREV_LOG_EXCERPT" ]; then
+            echo "⚠️  Warning: Could not extract log excerpt from previous issue"
+            echo "✅ Proceeding to create new issue (unable to compare logs)"
+            echo ""
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=log_extraction_failed" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Save extracted logs to files for comparison
+          echo "$PREV_LOG_EXCERPT" > prev_log.txt
+          cat log_excerpt.txt > current_log.txt
+
+          PREV_LOG_LINES=$(wc -l < prev_log.txt)
+          CURRENT_LOG_LINES=$(wc -l < current_log.txt)
+
+          echo "Previous log excerpt: $PREV_LOG_LINES lines"
+          echo "Current log excerpt:  $CURRENT_LOG_LINES lines"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Log Normalization Function
+          # ═══════════════════════════════════════════════════════════
+          # Normalizes run-specific identifiers to enable semantic duplicate detection
+          # Preserves: line numbers, sequential order, error messages
+          # Replaces: UUIDs, hashes, PIDs, timestamps, ports, etc.
+          normalize_log() {
+            local input_file="$1"
+            local output_file="$2"
+
+            cat "$input_file" | \
+              sed -E 's/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/<UUID>/g' | \
+              sed -E 's/\b[0-9a-f]{40}\b/<HASH>/g' | \
+              sed -E 's/\b[0-9a-f]{12}\b/<CONTAINER_ID>/g' | \
+              sed -E 's/(PID|pid|process|Process)\s*:?\s*[0-9]+/\1: <PID>/g' | \
+              sed -E 's/(build|job|run|Build|Job|Run)\s+#?[0-9]+/\1 <NUMBER>/g' | \
+              sed -E 's|/tmp/[a-zA-Z0-9_-]+|/tmp/<TEMP>|g' | \
+              sed -E 's|/var/tmp/[a-zA-Z0-9_-]+|/var/tmp/<TEMP>|g' | \
+              sed -E 's/[0-9]+(\.[0-9]+)?\s*(ms|s|sec|seconds|minutes|min)\b/<DURATION>\2/g' | \
+              sed -E 's/[0-9]+(\.[0-9]+)?\s*(B|KB|MB|GB|bytes)\b/<SIZE>\2/g' | \
+              sed -E 's/(port|PORT|Port)[\s:]+[0-9]{2,5}\b/\1: <PORT>/g' | \
+              sed -E 's/0x[0-9a-f]+/<ADDR>/g' > "$output_file"
+          }
+
+          # ═══════════════════════════════════════════════════════════
+          # Log Similarity Detection Strategy
+          # ═══════════════════════════════════════════════════════════
+          echo "Analyzing log similarity..."
+          echo ""
+
+          # Strategy 1: Exact match (no normalization)
+          # This catches 100% identical logs BEFORE normalization
+          echo "Strategy 1: Exact match comparison (no normalization)..."
+
+          PREV_HASH_EXACT=$(md5sum prev_log.txt | cut -d' ' -f1)
+          CURRENT_HASH_EXACT=$(md5sum current_log.txt | cut -d' ' -f1)
+
+          echo "  Previous log hash: $PREV_HASH_EXACT"
+          echo "  Current log hash:  $CURRENT_HASH_EXACT"
+
+          if [ "$PREV_HASH_EXACT" = "$CURRENT_HASH_EXACT" ]; then
+            echo "  ✅ Logs are 100% identical (perfect match)"
+            EXACT_MATCH=true
+          else
+            echo "  ❌ Logs differ (proceeding to normalization)"
+            EXACT_MATCH=false
+          fi
+
+          echo ""
+
+          # Strategy 2: Head/Tail comparison with normalization
+          # This catches similar failures with different run-specific IDs
+          echo "Strategy 2: Comparing first and last 10 lines (with normalization)..."
+
+          # Normalize logs for comparison
+          echo "  Normalizing logs (removing run-specific identifiers)..."
+          normalize_log "prev_log.txt" "prev_log_normalized_full.txt"
+          normalize_log "current_log.txt" "current_log_normalized_full.txt"
+          echo "  ✅ Normalization complete"
+
+          # Extract head and tail from normalized logs
+          head -10 prev_log_normalized_full.txt > prev_log_head.txt
+          tail -10 prev_log_normalized_full.txt > prev_log_tail.txt
+          head -10 current_log_normalized_full.txt > current_log_head.txt
+          tail -10 current_log_normalized_full.txt > current_log_tail.txt
+
+          # Compare using diff (0 exit code = identical)
+          HEAD_MATCH=false
+          TAIL_MATCH=false
+
+          if diff -q prev_log_head.txt current_log_head.txt > /dev/null 2>&1; then
+            HEAD_MATCH=true
+            echo "  ✅ First 10 lines match (after normalization)"
+          else
+            echo "  ❌ First 10 lines differ"
+          fi
+
+          if diff -q prev_log_tail.txt current_log_tail.txt > /dev/null 2>&1; then
+            TAIL_MATCH=true
+            echo "  ✅ Last 10 lines match (after normalization)"
+          else
+            echo "  ❌ Last 10 lines differ"
+          fi
+
+          echo ""
+
+          # Strategy 3: Line-by-line similarity percentage with normalization
+          echo "Strategy 3: Line-by-line similarity analysis (with normalization)..."
+
+          # Use normalized logs from Strategy 2
+          cp prev_log_normalized_full.txt prev_log_normalized.txt
+          cp current_log_normalized_full.txt current_log_normalized.txt
+
+          # Count total unique lines in both logs (preserving format)
+          TOTAL_UNIQUE_LINES=$(cat prev_log_normalized.txt current_log_normalized.txt | sort -u | wc -l)
+
+          # Count common lines between both logs (preserving format)
+          COMMON_LINES=$(comm -12 <(sort prev_log_normalized.txt) <(sort current_log_normalized.txt) | wc -l)
+
+          # Calculate similarity percentage
+          if [ "$TOTAL_UNIQUE_LINES" -gt 0 ]; then
+            SIMILARITY_PCT=$((COMMON_LINES * 100 / TOTAL_UNIQUE_LINES))
+          else
+            SIMILARITY_PCT=0
+          fi
+
+          echo "  Total unique lines: $TOTAL_UNIQUE_LINES"
+          echo "  Common lines:       $COMMON_LINES"
+          echo "  Similarity:         $SIMILARITY_PCT%"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Final Duplicate Decision
+          # ═══════════════════════════════════════════════════════════
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Final Duplicate Decision"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Decision Criteria:"
+          echo "  - Exact match:           $EXACT_MATCH"
+          echo "  - Head/tail match:       Head=$HEAD_MATCH, Tail=$TAIL_MATCH"
+          echo "  - Similarity threshold:  $SIMILARITY_PCT% (threshold: 80%)"
+          echo ""
+
+          IS_DUPLICATE=false
+
+          # Decision logic: Consider duplicate if ANY of these conditions are met:
+          # 1. Exact hash match (100% identical logs)
+          # 2. Both head AND tail match (same start and end)
+          # 3. Similarity >= 80%
+
+          if [ "$EXACT_MATCH" = true ]; then
+            echo "🔍 Duplicate detected: Exact log match"
+            IS_DUPLICATE=true
+          elif [ "$HEAD_MATCH" = true ] && [ "$TAIL_MATCH" = true ]; then
+            echo "🔍 Duplicate detected: First and last 10 lines match"
+            IS_DUPLICATE=true
+          elif [ "$SIMILARITY_PCT" -ge 80 ]; then
+            echo "🔍 Duplicate detected: Similarity $SIMILARITY_PCT% >= 80% threshold"
+            IS_DUPLICATE=true
+          else
+            echo "✅ NOT a duplicate: Logs differ significantly"
+            IS_DUPLICATE=false
+          fi
+
+          echo ""
+
+          if [ "$IS_DUPLICATE" = true ]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⏭️  SKIPPING ISSUE CREATION"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "This failure is a duplicate of existing issue #$LATEST_ISSUE_NUMBER"
+            echo "Existing issue URL: ${{ github.server_url }}/${{ github.repository }}/issues/$LATEST_ISSUE_NUMBER"
+            echo ""
+            echo "is_duplicate=true" >> $GITHUB_OUTPUT
+            echo "duplicate_issue_number=$LATEST_ISSUE_NUMBER" >> $GITHUB_OUTPUT
+            echo "skip_reason=duplicate_detected" >> $GITHUB_OUTPUT
+          else
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ PROCEEDING TO CREATE NEW ISSUE"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=logs_differ" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub issue
+        if: steps.duplicate-check.outputs.is_duplicate != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
+
+          # Create the GitHub issue using ONLY the bug log template content
+          ISSUE_URL=$(gh issue create \
+            --title "[$FEATURE_NAME] $TITLE" \
+            --body-file bug_log.md \
+            --assignee "${{ github.event.pull_request.user.login }}")
+
+          echo "✅ GitHub issue created: $ISSUE_URL"
+          echo ""
+          echo "Issue URL: $ISSUE_URL"
+
+          # Save issue URL for summary
+          echo "ISSUE_URL=$ISSUE_URL" >> $GITHUB_ENV
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "## Bug Tracking Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Display duplicate detection results
+          IS_DUPLICATE="${{ steps.duplicate-check.outputs.is_duplicate }}"
+          SKIP_REASON="${{ steps.duplicate-check.outputs.skip_reason }}"
+          DUPLICATE_NUMBER="${{ steps.duplicate-check.outputs.duplicate_issue_number }}"
+
+          if [ "$IS_DUPLICATE" = "true" ]; then
+            echo "⏭️  **Issue Creation Skipped** - Duplicate detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This failure is a duplicate of existing issue [#$DUPLICATE_NUMBER](${{ github.server_url }}/${{ github.repository }}/issues/$DUPLICATE_NUMBER)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Duplicate Detection Details" >> $GITHUB_STEP_SUMMARY
+            echo "- **Metadata Match**: Feature ID, Job Name, and Step Name all matched" >> $GITHUB_STEP_SUMMARY
+            echo "- **Log Comparison**: Logs are substantially similar (see workflow logs for details)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Reason**: \`$SKIP_REASON\`" >> $GITHUB_STEP_SUMMARY
+          elif [ -n "${{ env.ISSUE_URL }}" ]; then
+            echo "✅ **GitHub Issue Created**: ${{ env.ISSUE_URL }}" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Bug log generated** from template" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Duplicate Detection" >> $GITHUB_STEP_SUMMARY
+            echo "- **Check Performed**: Yes" >> $GITHUB_STEP_SUMMARY
+            echo "- **Result**: Not a duplicate (new issue created)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Reason**: \`$SKIP_REASON\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  **Warning**: Issue creation may have failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$SKIP_REASON" ]; then
+              echo "- **Check Status**: \`$SKIP_REASON\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Failure Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Feature**: ${{ steps.feature.outputs.branch_name }} (#${{ steps.feature.outputs.feature_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Job**: ${{ steps.failed-job.outputs.failed_job }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Step**: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
