@@ -569,7 +569,303 @@ jobs:
           # Save for issue creation
           echo "BUG_LOG_FILE=bug_log.md" >> $GITHUB_ENV
 
+      - name: Check for duplicate issues
+        id: duplicate-check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Starting Duplicate Detection Process"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Current Failure Context:"
+          echo "  Feature ID:   $FEATURE_ID"
+          echo "  Job Name:     $FAILED_JOB"
+          echo "  Step Name:    $FAILED_STEP"
+          echo ""
+
+          # Fetch latest open issue with ci-failure label
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Step 1: Fetching Latest CI Failure Issue"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          # Create label if it doesn't exist
+          gh label create "ci-failure" --description "Automated CI/CD pipeline failure" --color "d73a4a" --force 2>/dev/null || true
+
+          # Get the latest open issue with ci-failure label
+          LATEST_ISSUE=$(gh issue list \
+            --repo "$REPO" \
+            --label "ci-failure" \
+            --state open \
+            --limit 1 \
+            --json number,title,body \
+            --jq '.[0]')
+
+          if [ -z "$LATEST_ISSUE" ] || [ "$LATEST_ISSUE" == "null" ]; then
+            echo "ℹ️  No existing ci-failure issues found"
+            echo "✅ Proceeding to create new issue"
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=no_existing_issues" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          LATEST_ISSUE_NUMBER=$(echo "$LATEST_ISSUE" | jq -r '.number')
+          LATEST_ISSUE_BODY=$(echo "$LATEST_ISSUE" | jq -r '.body')
+
+          echo "✅ Found latest issue: #$LATEST_ISSUE_NUMBER"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Step 2: Preliminary Checks (Fast Comparison)
+          # ═══════════════════════════════════════════════════════════
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Step 2: Preliminary Checks (Fast Comparison)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
+          # Extract metadata from latest issue body using table format
+          # Table format: | field | value |
+          PREV_FEATURE_ID=$(echo "$LATEST_ISSUE_BODY" | grep "| featureID |" | sed 's/.*| featureID | \([^|]*\) |.*/\1/' | tr -d ' ')
+          PREV_JOB_NAME=$(echo "$LATEST_ISSUE_BODY" | grep "| jobName |" | sed 's/.*| jobName | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          PREV_STEP_NAME=$(echo "$LATEST_ISSUE_BODY" | grep "| stepName |" | sed 's/.*| stepName | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          echo "Previous Issue #$LATEST_ISSUE_NUMBER Context:"
+          echo "  Feature ID:   '$PREV_FEATURE_ID'"
+          echo "  Job Name:     '$PREV_JOB_NAME'"
+          echo "  Step Name:    '$PREV_STEP_NAME'"
+          echo ""
+
+          # Compare metadata fields
+          echo "Comparing metadata fields..."
+          PRELIM_CHECKS_PASSED=true
+
+          if [ "$FEATURE_ID" != "$PREV_FEATURE_ID" ]; then
+            echo "❌ Feature ID mismatch: $FEATURE_ID != $PREV_FEATURE_ID"
+            PRELIM_CHECKS_PASSED=false
+          else
+            echo "✅ Feature ID matches: $FEATURE_ID"
+          fi
+
+          if [ "$FAILED_JOB" != "$PREV_JOB_NAME" ]; then
+            echo "❌ Job name mismatch: '$FAILED_JOB' != '$PREV_JOB_NAME'"
+            PRELIM_CHECKS_PASSED=false
+          else
+            echo "✅ Job name matches: '$FAILED_JOB'"
+          fi
+
+          if [ "$FAILED_STEP" != "$PREV_STEP_NAME" ]; then
+            echo "❌ Step name mismatch: '$FAILED_STEP' != '$PREV_STEP_NAME'"
+            PRELIM_CHECKS_PASSED=false
+          else
+            echo "✅ Step name matches: '$FAILED_STEP'"
+          fi
+
+          echo ""
+
+          if [ "$PRELIM_CHECKS_PASSED" = false ]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Preliminary Checks Result: FAILED"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ This is a NEW issue (metadata differs from latest issue)"
+            echo "✅ Proceeding to create new issue"
+            echo ""
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=metadata_mismatch" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Preliminary Checks Result: PASSED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⚠️  Metadata matches - proceeding to log comparison"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Step 3: Deep Log Comparison
+          # ═══════════════════════════════════════════════════════════
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Step 3: Deep Log Comparison"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
+          # Extract log excerpt from previous issue
+          # Format: ## Failed Step Log Excerpt followed by ```...```
+          echo "Extracting log excerpt from issue #$LATEST_ISSUE_NUMBER..."
+
+          # Save issue body to temp file for processing
+          echo "$LATEST_ISSUE_BODY" > prev_issue_body.txt
+
+          # Extract the log section between ## Failed Step Log Excerpt and the closing ```
+          # This handles multi-line log content
+          PREV_LOG_EXCERPT=$(awk '
+            /## Failed Step Log Excerpt/ { found=1; next }
+            found && /^```$/ { if (in_code) exit; in_code=1; next }
+            found && in_code { print }
+          ' prev_issue_body.txt)
+
+          if [ -z "$PREV_LOG_EXCERPT" ]; then
+            echo "⚠️  Warning: Could not extract log excerpt from previous issue"
+            echo "✅ Proceeding to create new issue (unable to compare logs)"
+            echo ""
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=log_extraction_failed" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Save extracted logs to files for comparison
+          echo "$PREV_LOG_EXCERPT" > prev_log.txt
+          cat log_excerpt.txt > current_log.txt
+
+          PREV_LOG_LINES=$(wc -l < prev_log.txt)
+          CURRENT_LOG_LINES=$(wc -l < current_log.txt)
+
+          echo "Previous log excerpt: $PREV_LOG_LINES lines"
+          echo "Current log excerpt:  $CURRENT_LOG_LINES lines"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Log Similarity Detection Strategy
+          # ═══════════════════════════════════════════════════════════
+          echo "Analyzing log similarity..."
+          echo ""
+
+          # Strategy 1: Compare first 10 and last 10 lines
+          # This catches most similar failures while ignoring timing/minor differences
+          echo "Strategy 1: Comparing first and last 10 lines..."
+
+          head -10 prev_log.txt > prev_log_head.txt
+          tail -10 prev_log.txt > prev_log_tail.txt
+          head -10 current_log.txt > current_log_head.txt
+          tail -10 current_log.txt > current_log_tail.txt
+
+          # Compare using diff (0 exit code = identical)
+          HEAD_MATCH=false
+          TAIL_MATCH=false
+
+          if diff -q prev_log_head.txt current_log_head.txt > /dev/null 2>&1; then
+            HEAD_MATCH=true
+            echo "  ✅ First 10 lines match"
+          else
+            echo "  ❌ First 10 lines differ"
+          fi
+
+          if diff -q prev_log_tail.txt current_log_tail.txt > /dev/null 2>&1; then
+            TAIL_MATCH=true
+            echo "  ✅ Last 10 lines match"
+          else
+            echo "  ❌ Last 10 lines differ"
+          fi
+
+          echo ""
+
+          # Strategy 2: Hash comparison for exact match detection
+          echo "Strategy 2: Hash comparison (exact match)..."
+
+          PREV_HASH=$(md5sum prev_log.txt | cut -d' ' -f1)
+          CURRENT_HASH=$(md5sum current_log.txt | cut -d' ' -f1)
+
+          echo "  Previous log hash: $PREV_HASH"
+          echo "  Current log hash:  $CURRENT_HASH"
+
+          if [ "$PREV_HASH" = "$CURRENT_HASH" ]; then
+            echo "  ✅ Logs are identical (exact match)"
+            EXACT_MATCH=true
+          else
+            echo "  ❌ Logs differ (not exact match)"
+            EXACT_MATCH=false
+          fi
+
+          echo ""
+
+          # Strategy 3: Line-by-line similarity percentage
+          echo "Strategy 3: Line-by-line similarity analysis..."
+
+          # Count matching lines (ignoring line numbers and whitespace differences)
+          # Remove line numbers (first column before |) and compare
+          sed 's/^[[:space:]]*[0-9]*[[:space:]]*|[[:space:]]*//' prev_log.txt | sort > prev_log_normalized.txt
+          sed 's/^[[:space:]]*[0-9]*[[:space:]]*|[[:space:]]*//' current_log.txt | sort > current_log_normalized.txt
+
+          # Count total unique lines in both logs
+          TOTAL_UNIQUE_LINES=$(cat prev_log_normalized.txt current_log_normalized.txt | sort -u | wc -l)
+
+          # Count common lines between both logs
+          COMMON_LINES=$(comm -12 prev_log_normalized.txt current_log_normalized.txt | wc -l)
+
+          # Calculate similarity percentage
+          if [ "$TOTAL_UNIQUE_LINES" -gt 0 ]; then
+            SIMILARITY_PCT=$((COMMON_LINES * 100 / TOTAL_UNIQUE_LINES))
+          else
+            SIMILARITY_PCT=0
+          fi
+
+          echo "  Total unique lines: $TOTAL_UNIQUE_LINES"
+          echo "  Common lines:       $COMMON_LINES"
+          echo "  Similarity:         $SIMILARITY_PCT%"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # Final Duplicate Decision
+          # ═══════════════════════════════════════════════════════════
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Final Duplicate Decision"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Decision Criteria:"
+          echo "  - Exact match:           $EXACT_MATCH"
+          echo "  - Head/tail match:       Head=$HEAD_MATCH, Tail=$TAIL_MATCH"
+          echo "  - Similarity threshold:  $SIMILARITY_PCT% (threshold: 80%)"
+          echo ""
+
+          IS_DUPLICATE=false
+
+          # Decision logic: Consider duplicate if ANY of these conditions are met:
+          # 1. Exact hash match (100% identical logs)
+          # 2. Both head AND tail match (same start and end)
+          # 3. Similarity >= 80%
+
+          if [ "$EXACT_MATCH" = true ]; then
+            echo "🔍 Duplicate detected: Exact log match"
+            IS_DUPLICATE=true
+          elif [ "$HEAD_MATCH" = true ] && [ "$TAIL_MATCH" = true ]; then
+            echo "🔍 Duplicate detected: First and last 10 lines match"
+            IS_DUPLICATE=true
+          elif [ "$SIMILARITY_PCT" -ge 80 ]; then
+            echo "🔍 Duplicate detected: Similarity $SIMILARITY_PCT% >= 80% threshold"
+            IS_DUPLICATE=true
+          else
+            echo "✅ NOT a duplicate: Logs differ significantly"
+            IS_DUPLICATE=false
+          fi
+
+          echo ""
+
+          if [ "$IS_DUPLICATE" = true ]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⏭️  SKIPPING ISSUE CREATION"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "This failure is a duplicate of existing issue #$LATEST_ISSUE_NUMBER"
+            echo "Existing issue URL: ${{ github.server_url }}/${{ github.repository }}/issues/$LATEST_ISSUE_NUMBER"
+            echo ""
+            echo "is_duplicate=true" >> $GITHUB_OUTPUT
+            echo "duplicate_issue_number=$LATEST_ISSUE_NUMBER" >> $GITHUB_OUTPUT
+            echo "skip_reason=duplicate_detected" >> $GITHUB_OUTPUT
+          else
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ PROCEEDING TO CREATE NEW ISSUE"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "skip_reason=logs_differ" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub issue
+        if: steps.duplicate-check.outputs.is_duplicate != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -580,6 +876,7 @@ jobs:
           ISSUE_URL=$(gh issue create \
             --title "[$FEATURE_NAME] $TITLE" \
             --body-file bug_log.md \
+            --label "ci-failure" \
             --assignee "${{ github.event.pull_request.user.login }}")
 
           echo "✅ GitHub issue created: $ISSUE_URL"
@@ -595,11 +892,34 @@ jobs:
           echo "## Bug Tracking Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ -n "${{ env.ISSUE_URL }}" ]; then
+          # Display duplicate detection results
+          IS_DUPLICATE="${{ steps.duplicate-check.outputs.is_duplicate }}"
+          SKIP_REASON="${{ steps.duplicate-check.outputs.skip_reason }}"
+          DUPLICATE_NUMBER="${{ steps.duplicate-check.outputs.duplicate_issue_number }}"
+
+          if [ "$IS_DUPLICATE" = "true" ]; then
+            echo "⏭️  **Issue Creation Skipped** - Duplicate detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This failure is a duplicate of existing issue [#$DUPLICATE_NUMBER](${{ github.server_url }}/${{ github.repository }}/issues/$DUPLICATE_NUMBER)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Duplicate Detection Details" >> $GITHUB_STEP_SUMMARY
+            echo "- **Metadata Match**: Feature ID, Job Name, and Step Name all matched" >> $GITHUB_STEP_SUMMARY
+            echo "- **Log Comparison**: Logs are substantially similar (see workflow logs for details)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Reason**: \`$SKIP_REASON\`" >> $GITHUB_STEP_SUMMARY
+          elif [ -n "${{ env.ISSUE_URL }}" ]; then
             echo "✅ **GitHub Issue Created**: ${{ env.ISSUE_URL }}" >> $GITHUB_STEP_SUMMARY
             echo "✅ **Bug log generated** from template" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Duplicate Detection" >> $GITHUB_STEP_SUMMARY
+            echo "- **Check Performed**: Yes" >> $GITHUB_STEP_SUMMARY
+            echo "- **Result**: Not a duplicate (new issue created)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Reason**: \`$SKIP_REASON\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "Warning: Issue creation may have failed" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️  **Warning**: Issue creation may have failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$SKIP_REASON" ]; then
+              echo "- **Check Status**: \`$SKIP_REASON\`" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
