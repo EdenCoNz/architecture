@@ -457,6 +457,8 @@ jobs:
           FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
           TITLE="${{ steps.failed-job.outputs.title }}"
           WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
           FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
           FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
 
@@ -479,17 +481,19 @@ jobs:
           BUG_LOG_CONTENT=$(cat "$TEMPLATE_FILE")
 
           # Replace template variables using # as sed delimiter to avoid conflicts with | in Markdown tables
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureID | 1 |#| featureID | $FEATURE_ID |#")
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureName |  |#| featureName | $FEATURE_NAME |#")
           BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| title |  |#| title | $TITLE |#")
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| runURL |  |#| runURL | $WORKFLOW_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureID |  |#| featureID | $FEATURE_ID |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureName |  |#| featureName | $FEATURE_NAME |#")
           BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| jobName |  |#| jobName | $FAILED_JOB |#")
           BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| stepName |  |#| stepName | $FAILED_STEP |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| PRURL |  |#| PRURL | $PR_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| commitURL |  |#| commitURL | $COMMIT_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| runURL |  |#| runURL | $WORKFLOW_URL |#")
 
-          # For logDetail, we'll add it after the table
+          # Write the populated template to file
           echo "$BUG_LOG_CONTENT" > bug_log.md
-          echo "" >> bug_log.md
-          echo "## Log Details" >> bug_log.md
+
+          # Add log details section with proper spacing
           echo "" >> bug_log.md
           echo '```' >> bug_log.md
           echo "$LOG_DETAIL" >> bug_log.md
@@ -510,51 +514,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TITLE="${{ steps.failed-job.outputs.title }}"
-          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
           FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
-          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
-          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
-          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          # Create issue body with bug details
-          cat > issue_body.md <<'ISSUE_EOF'
-          ## CI/CD Failure Report
-
-          **Feature**: ${{ steps.feature.outputs.branch_name }} (#${{ steps.feature.outputs.feature_id }})
-          **Pull Request**: #${{ github.event.pull_request.number }}
-          **Failed Job**: ${{ steps.failed-job.outputs.failed_job }}
-          **Failed Step**: ${{ steps.fetch-logs.outputs.failed_step }}
-
-          ---
-
-          ### Failure Details
-
-          ```
-          ${{ env.LOG_EXCERPT }}
-          ```
-
-          ---
-
-          ### Links
-
-          - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [Pull Request](#${{ github.event.pull_request.number }})
-          - [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-
-          ---
-
-          ### Bug Log Template
-
-          ISSUE_EOF
-
-          # Append the bug log template content
-          cat bug_log.md >> issue_body.md
-
-          # Create the GitHub issue
+          # Create the GitHub issue using ONLY the bug log template content
           ISSUE_URL=$(gh issue create \
             --title "[$FEATURE_NAME] $TITLE" \
-            --body-file issue_body.md \
+            --body-file bug_log.md \
             --assignee "${{ github.event.pull_request.user.login }}")
 
           echo "✅ GitHub issue created: $ISSUE_URL"

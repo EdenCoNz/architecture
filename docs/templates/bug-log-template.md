@@ -2,10 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| featureID | 1 |
-| featureName |  |
 | title |  |
-| runURL |  |
+| featureID |  |
+| featureName |  |
 | jobName |  |
 | stepName |  |
-| logDetail |  |
+| PRURL |  |
+| commitURL |  |
+| runURL |  |
+
+## Log Details
