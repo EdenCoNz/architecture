@@ -202,45 +202,12 @@ jobs:
           echo "Container status:"
           docker ps -a --filter name=frontend-test
 
-      - name: Test health endpoint
+      - name: Test container endpoints
         run: |
-          echo "Testing health endpoint..."
-
-          # Wait up to 30 seconds for health endpoint to respond
-          max_attempts=30
-          attempt=0
-
-          while [ $attempt -lt $max_attempts ]; do
-            if curl -f http://localhost:8080/health; then
-              echo "✅ Health check passed!"
-              echo ""
-              echo "Health endpoint response:"
-              curl -s http://localhost:8080/health
-              exit 0
-            fi
-
-            echo "Attempt $((attempt + 1))/$max_attempts - waiting for health endpoint..."
-            sleep 1
-            attempt=$((attempt + 1))
-          done
-
-          echo "❌ Health check failed after $max_attempts attempts"
+          echo "Running regression tests on Docker container endpoints..."
           echo ""
-          echo "Container logs:"
-          docker logs frontend-test
-          exit 1
-
-      - name: Test application root
-        run: |
-          echo "Testing application root endpoint..."
-
-          if curl -f -s http://localhost:8080/ | grep -q "<!DOCTYPE html>"; then
-            echo "✅ Application root responds with HTML"
-          else
-            echo "❌ Application root did not respond with valid HTML"
-            docker logs frontend-test
-            exit 1
-          fi
+          cd frontend
+          ./scripts/test-docker-endpoints.sh frontend-test 8080
 
       - name: Container logs on failure
         if: failure()

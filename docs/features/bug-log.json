@@ -1,0 +1,28 @@
+{
+  "bugs": [
+    {
+      "bugID": "github-issue-10",
+      "featureID": "2",
+      "title": "Docker build or test failed - container issues detected",
+      "severity": "high",
+      "status": "open",
+      "createdAt": "2025-10-18T01:42:46Z",
+      "userStoriesCreated": "2025-10-18T13:56:00Z",
+      "userStoriesPath": "docs/features/2/bugs/github-issue-10/user-stories.md",
+      "userStoriesImplemented": null,
+      "githubIssue": {
+        "number": 10,
+        "url": "https://github.com/EdenCoNz/architecture/issues/10"
+      },
+      "cicd": {
+        "runURL": "https://github.com/EdenCoNz/architecture/actions/runs/18608895471",
+        "prURL": "https://github.com/EdenCoNz/architecture/pull/8",
+        "commitURL": "https://github.com/EdenCoNz/architecture/commit/56c6ea8fd05ab18e711773624681715302c55cc1",
+        "jobName": "Build and Test Docker Image",
+        "stepName": "Test application root",
+        "failureTimestamp": "2025-10-18T01:42:46Z"
+      },
+      "logDetail": "Health check endpoint /health passed, but application root / failed to return valid HTML. Container is running but not serving the React application correctly."
+    }
+  ]
+}
