@@ -5,7 +5,7 @@ name: Example - Call Reusable Test Workflow
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'bau/**' ]
   pull_request:
     branches: [ main ]
 
