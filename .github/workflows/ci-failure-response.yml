@@ -1,0 +1,198 @@
+name: CI Failure Response
+
+# Trigger on issue creation
+on:
+  issues:
+    types: [opened]
+
+# Explicit permissions
+permissions:
+  contents: read
+  issues: write  # Required to read/update issues
+  actions: read  # Required if procedure needs to access workflow runs
+
+jobs:
+  process-ci-failure:
+    name: Process CI Failure Issue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    # Only run for issues created by CI workflows (identified by title pattern)
+    if: |
+      startsWith(github.event.issue.title, '[feature/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Parse issue metadata
+        id: parse-issue
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Parsing Issue Metadata"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Issue: #${{ github.event.issue.number }}"
+          echo "Title: ${{ github.event.issue.title }}"
+          echo ""
+
+          # Save issue body to file for parsing
+          cat > issue_body.txt <<'EOF'
+          ${{ github.event.issue.body }}
+          EOF
+
+          # Extract metadata from the bug log template table format
+          # Table format: | field | value |
+
+          FEATURE_ID=$(grep "| featureID |" issue_body.txt | sed 's/.*| featureID | \([^|]*\) |.*/\1/' | tr -d ' ')
+          FEATURE_NAME=$(grep "| featureName |" issue_body.txt | sed 's/.*| featureName | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          JOB_NAME=$(grep "| jobName |" issue_body.txt | sed 's/.*| jobName | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          STEP_NAME=$(grep "| stepName |" issue_body.txt | sed 's/.*| stepName | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          PR_URL=$(grep "| PRURL |" issue_body.txt | sed 's/.*| PRURL | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          COMMIT_URL=$(grep "| commitURL |" issue_body.txt | sed 's/.*| commitURL | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          RUN_URL=$(grep "| runURL |" issue_body.txt | sed 's/.*| runURL | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          TITLE=$(grep "| title |" issue_body.txt | sed 's/.*| title | \([^|]*\) |.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          echo "Extracted metadata:"
+          echo "  Feature ID:   $FEATURE_ID"
+          echo "  Feature Name: $FEATURE_NAME"
+          echo "  Job Name:     $JOB_NAME"
+          echo "  Step Name:    $STEP_NAME"
+          echo "  Title:        $TITLE"
+          echo "  PR URL:       $PR_URL"
+          echo "  Commit URL:   $COMMIT_URL"
+          echo "  Run URL:      $RUN_URL"
+          echo ""
+
+          # Validate that we extracted data
+          if [ -z "$FEATURE_ID" ] || [ -z "$JOB_NAME" ]; then
+            echo "⚠️  Warning: Could not extract all required metadata"
+            echo "This may not be a CI-generated issue or the format has changed"
+            exit 1
+          fi
+
+          # Export to GITHUB_OUTPUT for use in subsequent steps
+          echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
+          echo "feature_name=$FEATURE_NAME" >> $GITHUB_OUTPUT
+          echo "job_name=$JOB_NAME" >> $GITHUB_OUTPUT
+          echo "step_name=$STEP_NAME" >> $GITHUB_OUTPUT
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+          echo "commit_url=$COMMIT_URL" >> $GITHUB_OUTPUT
+          echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
+
+          # Determine component (frontend/backend) from job name
+          COMPONENT="unknown"
+          if [[ "$JOB_NAME" == *"Frontend"* ]] || [[ "$JOB_NAME" == *"frontend"* ]]; then
+            COMPONENT="frontend"
+          elif [[ "$JOB_NAME" == *"Backend"* ]] || [[ "$JOB_NAME" == *"backend"* ]]; then
+            COMPONENT="backend"
+          fi
+          echo "component=$COMPONENT" >> $GITHUB_OUTPUT
+          echo "  Component:    $COMPONENT"
+          echo ""
+
+          echo "✅ Metadata parsed successfully"
+
+      - name: Add processing label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Adding 'ci-failure' label to issue #${{ github.event.issue.number }}..."
+          gh issue edit ${{ github.event.issue.number }} \
+            --add-label "ci-failure" \
+            --repo ${{ github.repository }}
+          echo "✅ Label added"
+
+      # ═══════════════════════════════════════════════════════════
+      # POST-PROCESSING PROCEDURE
+      # ═══════════════════════════════════════════════════════════
+      # This is where you implement your custom procedure that runs
+      # after the issue is created. You have access to all the parsed
+      # metadata from the previous step.
+      #
+      # Available variables:
+      #   ${{ steps.parse-issue.outputs.feature_id }}
+      #   ${{ steps.parse-issue.outputs.feature_name }}
+      #   ${{ steps.parse-issue.outputs.job_name }}
+      #   ${{ steps.parse-issue.outputs.step_name }}
+      #   ${{ steps.parse-issue.outputs.title }}
+      #   ${{ steps.parse-issue.outputs.pr_url }}
+      #   ${{ steps.parse-issue.outputs.commit_url }}
+      #   ${{ steps.parse-issue.outputs.run_url }}
+      #   ${{ steps.parse-issue.outputs.component }}  # 'frontend' or 'backend'
+      #   ${{ github.event.issue.number }}
+      #   ${{ github.event.issue.html_url }}
+      # ═══════════════════════════════════════════════════════════
+
+      - name: Run post-processing procedure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Running Post-Processing Procedure"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Issue Context:"
+          echo "  Issue Number: #${{ github.event.issue.number }}"
+          echo "  Feature ID:   ${{ steps.parse-issue.outputs.feature_id }}"
+          echo "  Component:    ${{ steps.parse-issue.outputs.component }}"
+          echo "  Failed Job:   ${{ steps.parse-issue.outputs.job_name }}"
+          echo ""
+
+          # ═══════════════════════════════════════════════════════════
+          # TODO: Implement your custom procedure here
+          # ═══════════════════════════════════════════════════════════
+          #
+          # Examples of what you might do:
+          #
+          # 1. Add a comment with additional context:
+          #    gh issue comment ${{ github.event.issue.number }} \
+          #      --body "Automated analysis: ..." \
+          #      --repo ${{ github.repository }}
+          #
+          # 2. Trigger another workflow:
+          #    gh workflow run analyze-failure.yml \
+          #      -f issue_number=${{ github.event.issue.number }} \
+          #      -f feature_id=${{ steps.parse-issue.outputs.feature_id }}
+          #
+          # 3. Call an external API:
+          #    curl -X POST https://your-api.com/notify \
+          #      -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
+          #      -d '{"issue": "${{ github.event.issue.number }}"}'
+          #
+          # 4. Update issue with analysis:
+          #    # Fetch logs, run analysis, update issue with findings
+          #
+          # 5. Assign to specific team members based on component:
+          #    if [ "${{ steps.parse-issue.outputs.component }}" = "frontend" ]; then
+          #      gh issue edit ${{ github.event.issue.number }} \
+          #        --add-assignee frontend-team-member
+          #    fi
+          #
+          # ═══════════════════════════════════════════════════════════
+
+          echo "Placeholder: Add your post-processing logic here"
+          echo ""
+          echo "✅ Post-processing procedure completed"
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "## CI Failure Response Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Issue Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: [#${{ github.event.issue.number }}](${{ github.event.issue.html_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Feature**: ${{ steps.parse-issue.outputs.feature_name }} (#${{ steps.parse-issue.outputs.feature_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Component**: ${{ steps.parse-issue.outputs.component }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Job**: ${{ steps.parse-issue.outputs.job_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Step**: ${{ steps.parse-issue.outputs.step_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Issue metadata parsed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 'ci-failure' label added to issue" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Post-processing procedure executed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Pull Request](${{ steps.parse-issue.outputs.pr_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Failed Workflow Run](${{ steps.parse-issue.outputs.run_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Commit](${{ steps.parse-issue.outputs.commit_url }})" >> $GITHUB_STEP_SUMMARY
