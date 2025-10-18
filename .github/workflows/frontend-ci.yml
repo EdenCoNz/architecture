@@ -285,14 +285,7 @@ jobs:
     name: Log Bug Report and Create Issue
     needs: [lint, typecheck, build, security, docker]
     if: |
-      failure() &&
-      (github.event_name == 'pull_request' || github.event_name == 'push') &&
-      (
-        startsWith(github.head_ref, 'feature/') ||
-        startsWith(github.head_ref, 'bau/') ||
-        startsWith(github.ref_name, 'feature/') ||
-        startsWith(github.ref_name, 'bau/')
-      )
+      failure()
     uses: EdenCoNz/cicd-template/.github/workflows/bug-logger.yml@main
     with:
       job_results: ${{ toJSON(needs) }}
