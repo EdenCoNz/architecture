@@ -294,6 +294,21 @@ jobs:
 - `security-events`: read, write
 - `statuses`: read, write
 
+**IMPORTANT: GitHub Issue Label Policy**
+
+When creating or managing GitHub issues in workflows:
+- **NEVER use the `--label` flag** with `gh issue create` or `gh issue edit`
+- **NEVER create labels** using `gh label create`
+- **NEVER query issues by label** using `--label` flag in `gh issue list`
+- Issues should be created and managed **WITHOUT any label assignments**
+- Query for issues using other criteria (state, author, assignee, etc.)
+
+This policy applies to:
+- Bug logging and tracking workflows
+- Issue automation workflows
+- Duplicate detection logic
+- Any CI/CD workflow that creates or manages issues
+
 **Best Practice Pattern:**
 
 ```yaml

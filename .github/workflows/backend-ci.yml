@@ -678,7 +678,6 @@ jobs:
           ISSUE_URL=$(gh issue create \
             --title "[$FEATURE_NAME] $TITLE" \
             --body-file bug_log.md \
-            --label "ci-failure,backend" \
             --assignee "${{ github.event.pull_request.user.login }}")
 
           echo "✅ GitHub issue created: $ISSUE_URL"
