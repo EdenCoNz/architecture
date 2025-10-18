@@ -1,0 +1,145 @@
+# Context Index
+# Maps keywords, topics, and tags to specific context files
+# This allows intelligent, selective context loading based on task requirements
+
+version: 1.0
+
+# Context file definitions
+context_files:
+  # DevOps Context
+  - path: context/devops/github-actions.md
+    id: github-actions
+    tags: [devops, ci-cd, github-actions, workflows, automation, pipeline, ci, cd, yaml]
+    agents: [devops-engineer]
+    description: GitHub Actions CI/CD workflows, best practices, and patterns
+    keywords:
+      - github actions
+      - workflow
+      - ci/cd
+      - pipeline
+      - continuous integration
+      - continuous deployment
+      - automation
+      - .github/workflows
+
+  - path: context/devops/docker.md
+    id: docker
+    tags: [devops, docker, containers, containerization, dockerfile, compose]
+    agents: [devops-engineer]
+    description: Docker containerization, Dockerfile best practices, Docker Compose
+    keywords:
+      - docker
+      - dockerfile
+      - container
+      - containerize
+      - docker-compose
+      - image
+      - multi-stage
+
+  # Frontend Context
+  - path: context/frontend/react-typescript-best-practices-2024-2025.md
+    id: react-typescript
+    tags: [frontend, react, typescript, components, hooks]
+    agents: [frontend-developer]
+    description: React and TypeScript best practices, patterns, and architecture
+    keywords:
+      - react
+      - typescript
+      - tsx
+      - component
+      - hooks
+      - state management
+
+  - path: context/frontend/material-ui-best-practices.md
+    id: material-ui
+    tags: [frontend, react, mui, material-ui, design-system, theming]
+    agents: [frontend-developer]
+    description: Material UI (MUI) theming, components, and styling approaches
+    keywords:
+      - material ui
+      - mui
+      - theme
+      - sx prop
+      - styled
+
+  # Backend Context
+  - path: context/backend/django-drf-mysql-best-practices.md
+    id: django-drf
+    tags: [backend, django, drf, api, rest, mysql, database]
+    agents: [backend-developer]
+    description: Django REST Framework and MySQL best practices
+    keywords:
+      - django
+      - drf
+      - rest framework
+      - api
+      - mysql
+      - database
+      - serializer
+      - viewset
+
+  # Testing Context
+  - path: context/testing/frontend-testing-research-2025.md
+    id: frontend-testing
+    tags: [testing, frontend, jest, react-testing-library, e2e]
+    agents: [frontend-developer]
+    description: Frontend testing strategies, Jest, React Testing Library
+    keywords:
+      - frontend test
+      - jest
+      - react testing library
+      - e2e
+      - cypress
+
+  - path: context/testing/django-drf-testing-best-practices-2025.md
+    id: backend-testing
+    tags: [testing, backend, django, pytest, api-testing]
+    agents: [backend-developer]
+    description: Django and DRF testing best practices with pytest
+    keywords:
+      - django test
+      - pytest
+      - api test
+      - backend test
+
+# Agent default context mappings
+agent_defaults:
+  devops-engineer:
+    - github-actions
+    - docker
+
+  frontend-developer:
+    - react-typescript
+    - material-ui
+
+  backend-developer:
+    - django-drf
+
+  ui-ux-designer:
+    - material-ui
+
+# Task-based context rules
+# Define which context files to load based on task patterns
+context_rules:
+  # If task mentions both GitHub Actions AND Docker, load both
+  - pattern: "(github.actions|workflow|ci.cd).*(docker|container)"
+    context_ids: [github-actions, docker]
+
+  - pattern: "(docker|container).*(github.actions|workflow|ci.cd)"
+    context_ids: [docker, github-actions]
+
+  # GitHub Actions only
+  - pattern: "github.actions|workflow|pipeline|\.github/workflows"
+    context_ids: [github-actions]
+
+  # Docker only
+  - pattern: "docker(file)?|container(?!.*github)"
+    context_ids: [docker]
+
+  # Material UI with React
+  - pattern: "(material.ui|mui).*(react|component)"
+    context_ids: [react-typescript, material-ui]
+
+  # Django API
+  - pattern: "django|drf|rest.framework|api.*endpoint"
+    context_ids: [django-drf]

@@ -150,16 +150,13 @@ After all stories are completed and feature log is updated:
    Files modified:
    - {file1}
    - {file2}
-
-   🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-   Co-Authored-By: Claude <noreply@anthropic.com>
    ```
    Note: {type} should be lowercase ("feature" or "bug")
-4. **Stage and commit**: Use Bash tool to:
-   - Stage all modified files
-   - Create commit with the detailed message using HEREDOC format
-5. **Push to remote**: Use Bash tool to push the current branch to remote with `-u` flag
+4. **Commit and push**: Use the SlashCommand tool to execute:
+   ```
+   /commit "{commit message}" push
+   ```
+   Note: Use `-u` flag in a separate git push command only if this is the first push to the remote branch
 
 ## Report
 

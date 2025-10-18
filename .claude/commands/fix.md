@@ -138,34 +138,17 @@ Ensure all stories follow TDD methodology and are independently deployable.
 
    Wait for the implement command to complete before proceeding to the next bug.
 
-### Step 7: Commit Changes
+### Step 7: Commit and Push Changes
 
-After ALL bugs have been processed:
+After ALL bugs have been processed, use the SlashCommand tool to execute:
 
-1. **Stage Changes**: Stage all modified and new files:
-   - docs/features/bug-log.json
-   - Any new docs/features/bugs/* directories created
-
-2. **Create Commit**: Create a commit with the message format:
 ```
-Fix planning for bugs: {comma-separated list of bug IDs}
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
+/commit "Fix planning for bugs: {comma-separated list of bug IDs}" push
 ```
 
-Example: "Fix planning for bugs: 1, 3, 5"
+Example: `/commit "Fix planning for bugs: 1, 3, 5" push`
 
-### Step 8: Push to Remote
-
-Push the commit to the remote repository:
-
-```bash
-git push
-```
-
-If there are any errors during push, report them to the user.
+If there are any errors during commit or push, report them to the user.
 
 ## Report
 
