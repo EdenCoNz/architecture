@@ -30,8 +30,8 @@ Execute user stories for a specific feature or bug by launching appropriate agen
 - Skip stories that are already completed (found in implementation logs)
 - Execute ALL user stories regardless of agent type (ui-ux-designer, frontend-developer, backend-developer, devops-engineer, etc.)
 - Respect execution order: sequential phases run one-by-one, parallel phases run simultaneously
-- **IMPORTANT**: Analyze each story for keywords and pass explicit context to agents (see Step 4)
-- Each agent MUST record their work in the implementation log
+- **IMPORTANT**: Call /implement-us for each story (it handles context loading and agent orchestration)
+- Each story will be implemented by /implement-us which records work in implementation log
 - Update feature log only when ALL stories are completed
 
 ## Workflow
@@ -66,89 +66,45 @@ Execute user stories for a specific feature or bug by launching appropriate agen
 2. Parse the Execution Order section
 3. Identify all phases and their execution mode (sequential/parallel)
 
-### Step 3: Execute User Stories
+### Step 3: Execute User Stories Using /implement-us
 
 For each phase in the execution order:
 
 1. Skip stories that are already completed (check implementation-log.json)
-2. Execute ALL stories in the phase regardless of agent type
+2. Execute ALL stories in the phase using the `/implement-us` command
 3. For sequential phases:
-   - Launch agents one by one in the specified order
+   - Call `/implement-us $TYPE $ID {story-number}` one by one in the specified order
    - Wait for each to complete before starting the next
 4. For parallel phases:
-   - Launch all agents in the phase simultaneously
-   - Use multiple Task tool calls in a single message
+   - Call `/implement-us $TYPE $ID {story-number}` for all stories simultaneously
+   - Use multiple SlashCommand tool calls in a single message
 
-### Step 4: Determine Context and Pass to Agents
-
-For each user story, determine required context before launching agent:
-
-1. **Analyze Story Keywords**
-   - Extract technology keywords from story title and description
-   - Examples: "Material UI", "MUI", "Docker", "GitHub Actions", "React", "Django", "DRF", "API", "workflow", "CI/CD"
-
-2. **Determine Required Context Files**
-   Consult `context/context-index.yml` to map keywords to context files:
-
-   **Common mappings:**
-   - "Material UI" OR "MUI" OR "theme" → `context/frontend/material-ui-best-practices.md`
-   - "React" OR "component" OR "hooks" → `context/frontend/react-typescript-best-practices-2024-2025.md`
-   - "Django" OR "DRF" OR "API" OR "serializer" → `context/backend/django-drf-mysql-best-practices.md`
-   - "GitHub Actions" OR "workflow" OR "CI/CD" OR "pipeline" → `context/devops/github-actions.md`
-   - "Docker" OR "container" OR "Dockerfile" → `context/devops/docker.md`
-
-   **Multi-domain scenarios:**
-   - If story contains BOTH "React" AND "Material UI" keywords → Load both frontend context files
-   - If story contains BOTH "Docker" AND "GitHub Actions" keywords → Load both devops context files
-
-3. **Pass Explicit Context to Agent**
-
-For each agent (regardless of type), provide:
-
+**Example for Sequential Phase:**
 ```
-Context: {context-file-1}
-Context: {context-file-2}
-(only include if multiple context files matched)
-
-$TYPE ID: $ID
-
-Implement the following user story from {user-stories-path}:
-
-[Story Title]
-[Story Description]
-
-Acceptance Criteria:
-[List all acceptance criteria]
-
-Execute this implementation following best practices from the loaded context and ensure all acceptance criteria are met.
-
-IMPORTANT: After completing this user story, you MUST:
-
-1. Record your work in {implementation-log-path}:
-   - Story number and title
-   - Timestamp of completion
-   - All files created or modified (use RELATIVE paths from project root, e.g., "frontend/src/App.tsx" NOT "/home/user/project/frontend/src/App.tsx")
-   - All actions taken (tool calls, decisions made)
-   - Any issues encountered and how they were resolved
-   - Status (completed/partial/blocked)
-   - If the file already exists, append to it. If it doesn't exist, create it as a JSON array.
-
-2. If this is a design story (ui-ux-designer agent) and you updated the design brief:
-   - Update docs/features/feature-log.json
-   - Find the feature entry with matching featureID
-   - Append to the "actions" array:
-     ```json
-     {
-       "actionType": "design",
-       "completedAt": "{YYYY-MM-DDTHH:mm:ssZ}",
-       "designBriefUpdated": true
-     }
-     ```
+For Phase 1 (Sequential) with stories 1, 2, 3:
+- Call: /implement-us feature 1 1
+- Wait for completion
+- Call: /implement-us feature 1 2
+- Wait for completion
+- Call: /implement-us feature 1 3
 ```
 
-Note: Replace {user-stories-path} and {implementation-log-path} with the actual paths determined in Step 0.
+**Example for Parallel Phase:**
+```
+For Phase 2 (Parallel) with stories 4, 5:
+- Call both simultaneously in one message:
+  - /implement-us feature 1 4
+  - /implement-us feature 1 5
+```
 
-### Step 5: Verify Completion and Update Feature Log
+**Note:** The `/implement-us` command handles:
+- Story parsing and validation
+- Agent identification
+- Context loading (agent defaults + keyword-based)
+- Agent orchestration
+- Implementation log recording
+
+### Step 4: Verify Completion and Update Feature Log
 
 After all phases complete:
 
@@ -162,7 +118,7 @@ After all phases complete:
 
 Note: The `isSummarised` property tracks whether this feature has been summarised by the /summarise command to reduce context for future agents.
 
-### Step 6: Commit Implementation and Push
+### Step 5: Commit Implementation and Push
 
 After all stories are completed and feature log is updated:
 

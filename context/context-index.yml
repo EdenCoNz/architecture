@@ -120,26 +120,92 @@ agent_defaults:
 
 # Task-based context rules
 # Define which context files to load based on task patterns
+# These rules are applied in addition to agent defaults when analyzing user stories
 context_rules:
-  # If task mentions both GitHub Actions AND Docker, load both
-  - pattern: "(github.actions|workflow|ci.cd).*(docker|container)"
+  # DevOps - Multi-domain scenarios
+  - pattern: "(github.?actions?|workflow|ci.?cd|pipeline|continuous.integration).*(docker|dockerfile|container|image)"
     context_ids: [github-actions, docker]
+    description: "CI/CD pipeline with Docker containerization"
 
-  - pattern: "(docker|container).*(github.actions|workflow|ci.cd)"
+  - pattern: "(docker|dockerfile|container|image).*(github.?actions?|workflow|ci.?cd|pipeline)"
     context_ids: [docker, github-actions]
+    description: "Docker builds in GitHub Actions"
 
-  # GitHub Actions only
-  - pattern: "github.actions|workflow|pipeline|\.github/workflows"
+  # DevOps - Single domain
+  - pattern: "github.?actions?|workflow|\.github/workflows|ci.?cd.?pipeline|continuous.integration|continuous.deployment"
     context_ids: [github-actions]
+    description: "GitHub Actions workflows and automation"
 
-  # Docker only
-  - pattern: "docker(file)?|container(?!.*github)"
+  - pattern: "docker(file)?|container(?!.*github)|multi.?stage|docker.?compose"
     context_ids: [docker]
+    description: "Docker containerization only"
 
-  # Material UI with React
-  - pattern: "(material.ui|mui).*(react|component)"
+  # Frontend - Multi-domain scenarios
+  - pattern: "(material.?ui|mui|theme|theming).*(react|component|tsx|hooks|state)"
     context_ids: [react-typescript, material-ui]
+    description: "Material UI with React components"
 
-  # Django API
-  - pattern: "django|drf|rest.framework|api.*endpoint"
+  - pattern: "(react|component|tsx|hooks).*(material.?ui|mui|theme)"
+    context_ids: [react-typescript, material-ui]
+    description: "React components with Material UI"
+
+  - pattern: "(react|component|tsx).*(test|testing|jest|vitest|rtl|react.?testing.?library)"
+    context_ids: [react-typescript, frontend-testing]
+    description: "React component testing"
+
+  # Frontend - Single domain
+  - pattern: "material.?ui|mui(?!.*react)|theme|theming|sx.?prop|styled.?component"
+    context_ids: [material-ui]
+    description: "Material UI theming and styling"
+
+  - pattern: "react|typescript|tsx|component(?!.*(mui|material))|hooks|state.?management"
+    context_ids: [react-typescript]
+    description: "React and TypeScript development"
+
+  # Backend - API development
+  - pattern: "django|drf|rest.?framework|api(?!.*frontend)|endpoint|serializer|viewset|mysql|database"
     context_ids: [django-drf]
+    description: "Django REST Framework API development"
+
+  - pattern: "(django|api|backend).*(test|testing|pytest)"
+    context_ids: [django-drf, backend-testing]
+    description: "Backend API testing"
+
+  # Testing - Specific patterns
+  - pattern: "test|testing|unit.?test|integration.?test|e2e|end.?to.?end"
+    context_ids: []
+    load_agent_testing_context: true
+    description: "Load agent-specific testing context (frontend-testing or backend-testing)"
+
+  # Design - UI/UX patterns
+  - pattern: "design.?system|design.?brief|ui.?ux|user.?flow|wireframe|mockup|design.?token|color.?palette|typography"
+    context_ids: [material-ui]
+    description: "Design system and UI/UX work"
+
+# Story-level context hints
+# These can be referenced in user stories to explicitly load context
+story_context_hints:
+  # Use in story descriptions like: "Context: full-stack-auth"
+  full-stack-auth:
+    context_ids: [react-typescript, material-ui, django-drf]
+    description: "Full stack authentication (React + Django)"
+
+  ci-cd-deployment:
+    context_ids: [github-actions, docker]
+    description: "Complete CI/CD with Docker deployment"
+
+  frontend-feature:
+    context_ids: [react-typescript, material-ui]
+    description: "Frontend feature with Material UI"
+
+  backend-api:
+    context_ids: [django-drf]
+    description: "Backend API development"
+
+  tested-frontend:
+    context_ids: [react-typescript, material-ui, frontend-testing]
+    description: "Frontend with testing setup"
+
+  tested-backend:
+    context_ids: [django-drf, backend-testing]
+    description: "Backend with testing setup"

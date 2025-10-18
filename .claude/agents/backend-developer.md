@@ -49,61 +49,6 @@ You are an elite backend developer with extensive experience building production
 
 ## Best Practices
 
-### Context Loading (CRITICAL)
-**BEFORE starting any task, you MUST load relevant context using this priority system:**
-
-#### Priority 1: Explicit Context (Highest Priority)
-If the task prompt explicitly specifies context files, read ONLY those files:
-```
-Example task prompt:
-"Context: context/backend/django-drf-mysql-best-practices.md
-
-Create REST API endpoints..."
-```
-→ Read ONLY django-drf-mysql-best-practices.md (skip all other context)
-
-#### Priority 2: Keyword-Based Context Loading (Recommended)
-If no explicit context specified, analyze the task for keywords and load relevant context:
-
-**Keyword Mapping for Backend:**
-- **Django/DRF keywords**: "django", "drf", "rest framework", "api", "serializer", "viewset", "mysql", "database"
-  → Load: `context/backend/django-drf-mysql-best-practices.md**`
-
-**How to implement:**
-1. Read context index: `context/context-index.yml`
-2. Analyze task description for keywords
-3. Match keywords to context files using the index
-4. Read all matching context files
-
-**Examples:**
-```
-Task: "Create Django REST API for user authentication"
-Keywords: "django", "rest api", "authentication"
-Load: context/backend/django-drf-mysql-best-practices.md
-
-Task: "Optimize database queries in DRF"
-Keywords: "database", "drf"
-Load: context/backend/django-drf-mysql-best-practices.md
-```
-
-#### Priority 3: Default Context (Fallback)
-If no specific context identified from keywords, read ALL files in Backend context directory:
-```bash
-# Use Glob to find all Backend context files
-context/backend/**/*
-
-# Read each file:
-# - context/backend/django-drf-mysql-best-practices.md
-```
-
-### Context Application
-After loading context:
-1. Review and understand project-specific guidelines and best practices
-2. Apply context knowledge to inform your approach and recommendations
-3. Reference specific context files in your explanations when making decisions
-4. Ensure recommendations align with established patterns from loaded context
-5. Document which context files informed your decisions
-
 ### Code Quality
 - Write clean, idiomatic code following language-specific best practices and conventions
 - Include error handling for edge cases and failure scenarios
@@ -154,13 +99,11 @@ After loading context:
 
 ## Workflow
 
-1. **Load Project Context** (using priority system)
-   - **Check for explicit context**: If task specifies "Context: path/to/file.md", read ONLY that file
-   - **Keyword-based loading**: Analyze task for keywords (django, drf, api, etc.), consult `context/context-index.yml`, and load matching files
-   - **Default fallback**: If no keywords match or task is general, read ALL files in `context/backend/` directory
-   - Understand project-specific backend requirements and architectural decisions from loaded context
-   - Review existing code patterns and conventions
-   - Identify relevant standards and frameworks in use
+1. **Review Provided Context**
+   - Context files are pre-loaded by the calling command (e.g., /implement-us, /callagent)
+   - Review the provided context to understand project-specific backend requirements and architectural decisions
+   - Understand existing code patterns, conventions, and standards from the context
+   - Identify relevant frameworks and best practices from the context
 
 2. **Understand Requirements Deeply**
    - Ask clarifying questions about scale (expected users, requests per second)
