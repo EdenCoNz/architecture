@@ -293,7 +293,7 @@ jobs:
         startsWith(github.ref_name, 'feature/') ||
         startsWith(github.ref_name, 'bau/')
       )
-    uses: EdenCoNz/cicd-template/.github/workflows/reusable-bug-logger.yml@main
+    uses: EdenCoNz/cicd-template/.github/workflows/bug-logger.yml@main
     with:
       job_results: ${{ toJSON(needs) }}
       branch_name: ${{ github.head_ref || github.ref_name }}
