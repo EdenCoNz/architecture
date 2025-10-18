@@ -30,6 +30,7 @@ Execute user stories for a specific feature or bug by launching appropriate agen
 - Skip stories that are already completed (found in implementation logs)
 - Execute ALL user stories regardless of agent type (ui-ux-designer, frontend-developer, backend-developer, devops-engineer, etc.)
 - Respect execution order: sequential phases run one-by-one, parallel phases run simultaneously
+- **IMPORTANT**: Analyze each story for keywords and pass explicit context to agents (see Step 4)
 - Each agent MUST record their work in the implementation log
 - Update feature log only when ALL stories are completed
 
@@ -76,11 +77,37 @@ For each phase in the execution order:
    - Launch all agents in the phase simultaneously
    - Use multiple Task tool calls in a single message
 
-### Step 4: Pass Story Context to Agents
+### Step 4: Determine Context and Pass to Agents
+
+For each user story, determine required context before launching agent:
+
+1. **Analyze Story Keywords**
+   - Extract technology keywords from story title and description
+   - Examples: "Material UI", "MUI", "Docker", "GitHub Actions", "React", "Django", "DRF", "API", "workflow", "CI/CD"
+
+2. **Determine Required Context Files**
+   Consult `context/context-index.yml` to map keywords to context files:
+
+   **Common mappings:**
+   - "Material UI" OR "MUI" OR "theme" → `context/frontend/material-ui-best-practices.md`
+   - "React" OR "component" OR "hooks" → `context/frontend/react-typescript-best-practices-2024-2025.md`
+   - "Django" OR "DRF" OR "API" OR "serializer" → `context/backend/django-drf-mysql-best-practices.md`
+   - "GitHub Actions" OR "workflow" OR "CI/CD" OR "pipeline" → `context/devops/github-actions.md`
+   - "Docker" OR "container" OR "Dockerfile" → `context/devops/docker.md`
+
+   **Multi-domain scenarios:**
+   - If story contains BOTH "React" AND "Material UI" keywords → Load both frontend context files
+   - If story contains BOTH "Docker" AND "GitHub Actions" keywords → Load both devops context files
+
+3. **Pass Explicit Context to Agent**
 
 For each agent (regardless of type), provide:
 
 ```
+Context: {context-file-1}
+Context: {context-file-2}
+(only include if multiple context files matched)
+
 $TYPE ID: $ID
 
 Implement the following user story from {user-stories-path}:
@@ -91,7 +118,7 @@ Implement the following user story from {user-stories-path}:
 Acceptance Criteria:
 [List all acceptance criteria]
 
-Execute this implementation following best practices and ensure all acceptance criteria are met.
+Execute this implementation following best practices from the loaded context and ensure all acceptance criteria are met.
 
 IMPORTANT: After completing this user story, you MUST:
 
