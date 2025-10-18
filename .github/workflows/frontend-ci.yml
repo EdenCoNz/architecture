@@ -729,19 +729,70 @@ jobs:
           echo ""
 
           # ═══════════════════════════════════════════════════════════
+          # Log Normalization Function
+          # ═══════════════════════════════════════════════════════════
+          # Normalizes run-specific identifiers to enable semantic duplicate detection
+          # Preserves: line numbers, sequential order, error messages
+          # Replaces: UUIDs, hashes, PIDs, timestamps, ports, etc.
+          normalize_log() {
+            local input_file="$1"
+            local output_file="$2"
+
+            cat "$input_file" | \
+              sed -E 's/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/<UUID>/g' | \
+              sed -E 's/\b[0-9a-f]{40}\b/<HASH>/g' | \
+              sed -E 's/\b[0-9a-f]{12}\b/<CONTAINER_ID>/g' | \
+              sed -E 's/(PID|pid|process|Process)\s*:?\s*[0-9]+/\1: <PID>/g' | \
+              sed -E 's/(build|job|run|Build|Job|Run)\s+#?[0-9]+/\1 <NUMBER>/g' | \
+              sed -E 's|/tmp/[a-zA-Z0-9_-]+|/tmp/<TEMP>|g' | \
+              sed -E 's|/var/tmp/[a-zA-Z0-9_-]+|/var/tmp/<TEMP>|g' | \
+              sed -E 's/[0-9]+(\.[0-9]+)?\s*(ms|s|sec|seconds|minutes|min)\b/<DURATION>\2/g' | \
+              sed -E 's/[0-9]+(\.[0-9]+)?\s*(B|KB|MB|GB|bytes)\b/<SIZE>\2/g' | \
+              sed -E 's/(port|PORT|Port)[\s:]+[0-9]{2,5}\b/\1: <PORT>/g' | \
+              sed -E 's/0x[0-9a-f]+/<ADDR>/g' > "$output_file"
+          }
+
+          # ═══════════════════════════════════════════════════════════
           # Log Similarity Detection Strategy
           # ═══════════════════════════════════════════════════════════
           echo "Analyzing log similarity..."
           echo ""
 
-          # Strategy 1: Compare first 10 and last 10 lines
-          # This catches most similar failures while ignoring timing/minor differences
-          echo "Strategy 1: Comparing first and last 10 lines..."
+          # Strategy 1: Exact match (no normalization)
+          # This catches 100% identical logs BEFORE normalization
+          echo "Strategy 1: Exact match comparison (no normalization)..."
 
-          head -10 prev_log.txt > prev_log_head.txt
-          tail -10 prev_log.txt > prev_log_tail.txt
-          head -10 current_log.txt > current_log_head.txt
-          tail -10 current_log.txt > current_log_tail.txt
+          PREV_HASH_EXACT=$(md5sum prev_log.txt | cut -d' ' -f1)
+          CURRENT_HASH_EXACT=$(md5sum current_log.txt | cut -d' ' -f1)
+
+          echo "  Previous log hash: $PREV_HASH_EXACT"
+          echo "  Current log hash:  $CURRENT_HASH_EXACT"
+
+          if [ "$PREV_HASH_EXACT" = "$CURRENT_HASH_EXACT" ]; then
+            echo "  ✅ Logs are 100% identical (perfect match)"
+            EXACT_MATCH=true
+          else
+            echo "  ❌ Logs differ (proceeding to normalization)"
+            EXACT_MATCH=false
+          fi
+
+          echo ""
+
+          # Strategy 2: Head/Tail comparison with normalization
+          # This catches similar failures with different run-specific IDs
+          echo "Strategy 2: Comparing first and last 10 lines (with normalization)..."
+
+          # Normalize logs for comparison
+          echo "  Normalizing logs (removing run-specific identifiers)..."
+          normalize_log "prev_log.txt" "prev_log_normalized_full.txt"
+          normalize_log "current_log.txt" "current_log_normalized_full.txt"
+          echo "  ✅ Normalization complete"
+
+          # Extract head and tail from normalized logs
+          head -10 prev_log_normalized_full.txt > prev_log_head.txt
+          tail -10 prev_log_normalized_full.txt > prev_log_tail.txt
+          head -10 current_log_normalized_full.txt > current_log_head.txt
+          tail -10 current_log_normalized_full.txt > current_log_tail.txt
 
           # Compare using diff (0 exit code = identical)
           HEAD_MATCH=false
@@ -749,47 +800,26 @@ jobs:
 
           if diff -q prev_log_head.txt current_log_head.txt > /dev/null 2>&1; then
             HEAD_MATCH=true
-            echo "  ✅ First 10 lines match"
+            echo "  ✅ First 10 lines match (after normalization)"
           else
             echo "  ❌ First 10 lines differ"
           fi
 
           if diff -q prev_log_tail.txt current_log_tail.txt > /dev/null 2>&1; then
             TAIL_MATCH=true
-            echo "  ✅ Last 10 lines match"
+            echo "  ✅ Last 10 lines match (after normalization)"
           else
             echo "  ❌ Last 10 lines differ"
           fi
 
           echo ""
 
-          # Strategy 2: Hash comparison for exact match detection
-          echo "Strategy 2: Hash comparison (exact match)..."
+          # Strategy 3: Line-by-line similarity percentage with normalization
+          echo "Strategy 3: Line-by-line similarity analysis (with normalization)..."
 
-          PREV_HASH=$(md5sum prev_log.txt | cut -d' ' -f1)
-          CURRENT_HASH=$(md5sum current_log.txt | cut -d' ' -f1)
-
-          echo "  Previous log hash: $PREV_HASH"
-          echo "  Current log hash:  $CURRENT_HASH"
-
-          if [ "$PREV_HASH" = "$CURRENT_HASH" ]; then
-            echo "  ✅ Logs are identical (exact match)"
-            EXACT_MATCH=true
-          else
-            echo "  ❌ Logs differ (not exact match)"
-            EXACT_MATCH=false
-          fi
-
-          echo ""
-
-          # Strategy 3: Line-by-line similarity percentage
-          echo "Strategy 3: Line-by-line similarity analysis..."
-
-          # Compare logs while preserving line numbers and sequential order
-          # Keep the full line format: "   1 | log content"
-          # No sorting - compare as they appear in the excerpts
-          cp prev_log.txt prev_log_normalized.txt
-          cp current_log.txt current_log_normalized.txt
+          # Use normalized logs from Strategy 2
+          cp prev_log_normalized_full.txt prev_log_normalized.txt
+          cp current_log_normalized_full.txt current_log_normalized.txt
 
           # Count total unique lines in both logs (preserving format)
           TOTAL_UNIQUE_LINES=$(cat prev_log_normalized.txt current_log_normalized.txt | sort -u | wc -l)

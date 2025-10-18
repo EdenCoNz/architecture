@@ -52,30 +52,93 @@ fi
 
 ### Stage 3: Deep Log Comparison
 
-When metadata matches, the workflow performs detailed log analysis using **three strategies**:
+When metadata matches, the workflow performs detailed log analysis using **three strategies** with **intelligent normalization**:
 
-#### Strategy 1: Head/Tail Comparison
+#### Log Normalization: Semantic Duplicate Detection
 
-Compares the first 10 and last 10 lines of logs:
+Before comparison (in Strategies 2 and 3), logs are **normalized** to remove run-specific identifiers while preserving the underlying error pattern. This enables **semantic duplicate detection** rather than just literal comparison.
+
+**What is Preserved:**
+- Line numbers (format: `   1 | content`)
+- Sequential order (no sorting during normalization)
+- Error messages and codes
+- Stack traces and file paths
+- Command outputs
+
+**What is Normalized (Replaced with Placeholders):**
+
+| Pattern | Example | Replaced With | Regex Pattern |
+|---------|---------|--------------|---------------|
+| **UUIDs** | `f47ac10b-58cc-4372-a567-0e02b2c3d479` | `<UUID>` | `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}` |
+| **Git SHAs/Hashes** | `a3f5d8c9e2b1f4a6d7c8b9e0f1a2b3c4` | `<HASH>` | `\b[0-9a-f]{40}\b` |
+| **Container IDs** | `f3d8a9b2c1e4` | `<CONTAINER_ID>` | `\b[0-9a-f]{12}\b` |
+| **Process IDs** | `PID: 54321`, `process 98765` | `PID: <PID>` | `(PID\|pid\|process\|Process)\s*:?\s*[0-9]+` |
+| **Build/Job Numbers** | `build #123`, `job 456` | `build <NUMBER>` | `(build\|job\|run)\s+#?[0-9]+` |
+| **Temporary Paths** | `/tmp/gh-actions-abc123` | `/tmp/<TEMP>` | `/tmp/[a-zA-Z0-9_-]+` |
+| **Durations** | `5.2s`, `120ms`, `3 minutes` | `<DURATION>s` | `[0-9]+(\.[0-9]+)?\s*(ms\|s\|sec\|seconds\|minutes\|min)` |
+| **File Sizes** | `1.5MB`, `2048 bytes` | `<SIZE>MB` | `[0-9]+(\.[0-9]+)?\s*(B\|KB\|MB\|GB\|bytes)` |
+| **Port Numbers** | `port 8080`, `PORT: 3000` | `port: <PORT>` | `(port\|PORT)[\s:]+[0-9]{2,5}` |
+| **Memory Addresses** | `0x7fff5fbffb40` | `<ADDR>` | `0x[0-9a-f]+` |
+
+**Normalization Function:**
 
 ```bash
-head -10 prev_log.txt > prev_log_head.txt
-tail -10 prev_log.txt > prev_log_tail.txt
-head -10 current_log.txt > current_log_head.txt
-tail -10 current_log.txt > current_log_tail.txt
+normalize_log() {
+  local input_file="$1"
+  local output_file="$2"
 
-diff -q prev_log_head.txt current_log_head.txt  # Check first 10 lines
-diff -q prev_log_tail.txt current_log_tail.txt  # Check last 10 lines
+  cat "$input_file" | \
+    sed -E 's/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/<UUID>/g' | \
+    sed -E 's/\b[0-9a-f]{40}\b/<HASH>/g' | \
+    sed -E 's/\b[0-9a-f]{12}\b/<CONTAINER_ID>/g' | \
+    sed -E 's/(PID|pid|process|Process)\s*:?\s*[0-9]+/\1: <PID>/g' | \
+    sed -E 's/(build|job|run|Build|Job|Run)\s+#?[0-9]+/\1 <NUMBER>/g' | \
+    sed -E 's|/tmp/[a-zA-Z0-9_-]+|/tmp/<TEMP>|g' | \
+    sed -E 's|/var/tmp/[a-zA-Z0-9_-]+|/var/tmp/<TEMP>|g' | \
+    sed -E 's/[0-9]+(\.[0-9]+)?\s*(ms|s|sec|seconds|minutes|min)\b/<DURATION>\2/g' | \
+    sed -E 's/[0-9]+(\.[0-9]+)?\s*(B|KB|MB|GB|bytes)\b/<SIZE>\2/g' | \
+    sed -E 's/(port|PORT|Port)[\s:]+[0-9]{2,5}\b/\1: <PORT>/g' | \
+    sed -E 's/0x[0-9a-f]+/<ADDR>/g' > "$output_file"
+}
 ```
 
-**Why this works:**
-- Catches identical error patterns (same start and end)
-- Ignores minor timing/timestamp differences in the middle
-- Fast and effective for most duplicate scenarios
+**Example: Before vs After Normalization**
 
-#### Strategy 2: Hash Comparison (Exact Match)
+```diff
+# Before normalization (Run 1):
+   1 | Error in build abc123: Module not found
+   2 | Process ID: 54321
+   3 | Docker container: f3d8a9b2c1e4
+   4 | Duration: 5.2s
+   5 | Port 8080 already in use
 
-Computes MD5 hashes of the complete logs:
+# After normalization (Run 1):
+   1 | Error in build <NUMBER>: Module not found
+   2 | Process ID: <PID>
+   3 | Docker container: <CONTAINER_ID>
+   4 | Duration: <DURATION>s
+   5 | Port <PORT> already in use
+
+# Before normalization (Run 2):
+   1 | Error in build def456: Module not found
+   2 | Process ID: 98765
+   3 | Docker container: a1b2c3d4e5f6
+   4 | Duration: 4.8s
+   5 | Port 8080 already in use
+
+# After normalization (Run 2):
+   1 | Error in build <NUMBER>: Module not found
+   2 | Process ID: <PID>
+   3 | Docker container: <CONTAINER_ID>
+   4 | Duration: <DURATION>s
+   5 | Port <PORT> already in use
+
+# Result: Both runs normalize to IDENTICAL content → Duplicate detected ✓
+```
+
+#### Strategy 1: Exact Match (No Normalization)
+
+Computes MD5 hashes of the **original** logs (before normalization):
 
 ```bash
 PREV_HASH=$(md5sum prev_log.txt | cut -d' ' -f1)
@@ -83,33 +146,61 @@ CURRENT_HASH=$(md5sum current_log.txt | cut -d' ' -f1)
 ```
 
 **Why this works:**
-- Detects **100% identical logs**
+- Detects **100% identical logs** (byte-for-byte match)
 - Most reliable indicator of exact duplicate failure
 - Extremely fast (hash computation is efficient)
+- **No normalization needed** - catches perfect duplicates immediately
 
-#### Strategy 3: Line-by-Line Similarity Analysis
+#### Strategy 2: Head/Tail Comparison (With Normalization)
 
-Calculates the percentage of shared content between logs:
+Compares the first 10 and last 10 lines of **normalized** logs:
 
 ```bash
-# Normalize logs (remove line numbers, sort lines)
-sed 's/^[[:space:]]*[0-9]*[[:space:]]*|[[:space:]]*//' prev_log.txt | sort > prev_log_normalized.txt
-sed 's/^[[:space:]]*[0-9]*[[:space:]]*|[[:space:]]*//' current_log.txt | sort > current_log_normalized.txt
+# Normalize logs
+normalize_log "prev_log.txt" "prev_log_normalized_full.txt"
+normalize_log "current_log.txt" "current_log_normalized_full.txt"
+
+# Extract head and tail
+head -10 prev_log_normalized_full.txt > prev_log_head.txt
+tail -10 prev_log_normalized_full.txt > prev_log_tail.txt
+head -10 current_log_normalized_full.txt > current_log_head.txt
+tail -10 current_log_normalized_full.txt > current_log_tail.txt
+
+# Compare using diff
+diff -q prev_log_head.txt current_log_head.txt  # Check first 10 lines
+diff -q prev_log_tail.txt current_log_tail.txt  # Check last 10 lines
+```
+
+**Why this works:**
+- Catches **semantic duplicates** with different run-specific IDs
+- Ignores timing/timestamp/PID differences
+- Fast and effective for most duplicate scenarios
+- **Normalization enables semantic comparison** instead of literal comparison
+
+#### Strategy 3: Line-by-Line Similarity Analysis (With Normalization)
+
+Calculates the percentage of shared content between **normalized** logs:
+
+```bash
+# Use normalized logs from Strategy 2
+cp prev_log_normalized_full.txt prev_log_normalized.txt
+cp current_log_normalized_full.txt current_log_normalized.txt
 
 # Count total unique lines in both logs
 TOTAL_UNIQUE_LINES=$(cat prev_log_normalized.txt current_log_normalized.txt | sort -u | wc -l)
 
 # Count common lines between logs
-COMMON_LINES=$(comm -12 prev_log_normalized.txt current_log_normalized.txt | wc -l)
+COMMON_LINES=$(comm -12 <(sort prev_log_normalized.txt) <(sort current_log_normalized.txt) | wc -l)
 
 # Calculate similarity percentage
 SIMILARITY_PCT=$((COMMON_LINES * 100 / TOTAL_UNIQUE_LINES))
 ```
 
 **Why this works:**
-- Handles logs with minor variations (timestamps, PIDs, etc.)
+- Handles logs with minor variations after normalization
 - Provides a **similarity score** (0-100%)
-- Catches duplicate failures even when logs aren't byte-for-byte identical
+- Catches duplicate failures even when logs have different run-specific data
+- **Normalization removes noise** to focus on the actual error pattern
 
 ### Stage 4: Final Duplicate Decision
 
@@ -185,16 +276,18 @@ Current log excerpt:  156 lines
 
 Analyzing log similarity...
 
-Strategy 1: Comparing first and last 10 lines...
-  ✅ First 10 lines match
-  ✅ Last 10 lines match
-
-Strategy 2: Hash comparison (exact match)...
+Strategy 1: Exact match comparison (no normalization)...
   Previous log hash: a3f5d8c9e2b1f4a6
-  Current log hash:  a3f5d8c9e2b1f4a6
-  ✅ Logs are identical (exact match)
+  Current log hash:  d7e8f9a0b1c2d3e4
+  ❌ Logs differ (proceeding to normalization)
 
-Strategy 3: Line-by-line similarity analysis...
+Strategy 2: Comparing first and last 10 lines (with normalization)...
+  Normalizing logs (removing run-specific identifiers)...
+  ✅ Normalization complete
+  ✅ First 10 lines match (after normalization)
+  ✅ Last 10 lines match (after normalization)
+
+Strategy 3: Line-by-line similarity analysis (with normalization)...
   Total unique lines: 156
   Common lines:       156
   Similarity:         100%
@@ -301,7 +394,9 @@ The workflow outputs different `skip_reason` values to explain why a decision wa
 - All CI failure issues are automatically labeled for easy filtering
 - Labels are used to query for latest issue
 
-## Tuning the Detection Threshold
+## Tuning the Detection System
+
+### Tuning the Similarity Threshold
 
 The similarity threshold is currently set to **80%**. You can adjust this in the workflow:
 
@@ -320,6 +415,155 @@ elif [ "$SIMILARITY_PCT" -ge 70 ]; then
 - **80%** (default): Good balance for most projects
 - **90%**: Use if you want to be conservative (prefer creating issues)
 - **70%**: Use if you have very noisy CI failures and want aggressive deduplication
+
+### Tuning the Normalization Patterns
+
+The normalization function can be customized to match your specific CI/CD environment:
+
+#### Adding New Normalization Patterns
+
+If your logs contain other run-specific identifiers, add them to the `normalize_log()` function:
+
+```bash
+normalize_log() {
+  local input_file="$1"
+  local output_file="$2"
+
+  cat "$input_file" | \
+    # ... existing patterns ...
+    sed -E 's/0x[0-9a-f]+/<ADDR>/g' | \
+    # Add your custom pattern here:
+    sed -E 's/your-pattern-here/<YOUR_PLACEHOLDER>/g' > "$output_file"
+}
+```
+
+**Example: Normalize Kubernetes Pod Names**
+
+```bash
+# Pattern: my-app-7f6d8c9b-xyz12
+sed -E 's/[a-z0-9-]+-[0-9a-f]{8,10}-[a-z0-9]{5}\b/<K8S_POD>/g'
+```
+
+**Example: Normalize AWS Request IDs**
+
+```bash
+# Pattern: req-a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6
+sed -E 's/req-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/<AWS_REQ_ID>/g'
+```
+
+**Example: Normalize NPM Package Versions**
+
+```bash
+# Pattern: package@1.2.3 or package@^1.2.3
+sed -E 's/(@)[0-9]+\.[0-9]+\.[0-9]+/\1<VERSION>/g'
+```
+
+#### Removing or Modifying Patterns
+
+If a normalization pattern is too aggressive (causing false positives), you can:
+
+1. **Remove the pattern entirely:**
+   - Comment out or delete the specific `sed` line
+
+2. **Make the pattern more specific:**
+   - Add word boundaries: `\b[0-9a-f]{40}\b` instead of `[0-9a-f]{40}`
+   - Add context: `container[- ]?[0-9a-f]{12}` instead of `[0-9a-f]{12}`
+
+3. **Make the pattern less aggressive:**
+   - Increase minimum length: `[0-9a-f]{16}` instead of `[0-9a-f]{12}`
+   - Require prefix: `0x[0-9a-f]{8}` instead of `[0-9a-f]{8}`
+
+#### Testing Normalization Patterns
+
+To test if normalization is working correctly:
+
+1. **View normalized logs in workflow output:**
+   ```bash
+   # Add this after normalization in the workflow
+   echo "=== Normalized Previous Log (first 20 lines) ==="
+   head -20 prev_log_normalized_full.txt
+   echo ""
+   echo "=== Normalized Current Log (first 20 lines) ==="
+   head -20 current_log_normalized_full.txt
+   ```
+
+2. **Test patterns locally:**
+   ```bash
+   # Create test input
+   echo "Error in build abc123: Module not found" > test.txt
+
+   # Apply normalization
+   sed -E 's/(build|job|run)\s+#?[0-9]+/\1 <NUMBER>/g' test.txt
+
+   # Expected output: "Error in build <NUMBER>: Module not found"
+   ```
+
+3. **Check for over-normalization:**
+   - If different errors are being marked as duplicates incorrectly
+   - Review the normalized logs to see if too much information is being removed
+   - Make patterns more specific to preserve distinguishing details
+
+#### Common Patterns Library
+
+Here are additional patterns you might want to add:
+
+```bash
+# Timestamps (ISO 8601)
+sed -E 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z?/<TIMESTAMP>/g'
+
+# IP Addresses (IPv4)
+sed -E 's/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/<IP>/g'
+
+# URLs (full or partial)
+sed -E 's|https?://[a-zA-Z0-9._/-]+|<URL>|g'
+
+# Email Addresses
+sed -E 's/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/<EMAIL>/g'
+
+# JWT Tokens (simplified)
+sed -E 's/eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+/<JWT>/g'
+
+# Semantic Versions
+sed -E 's/\b([0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?)\b/<SEMVER>/g'
+
+# Date (YYYY-MM-DD)
+sed -E 's/\b[0-9]{4}-[0-9]{2}-[0-9]{2}\b/<DATE>/g'
+
+# Time (HH:MM:SS)
+sed -E 's/\b[0-9]{2}:[0-9]{2}:[0-9]{2}\b/<TIME>/g'
+
+# Line numbers in stack traces (e.g., "at file.js:123:45")
+sed -E 's/:[0-9]+:[0-9]+\b/:LINE:COL/g'
+```
+
+#### Performance Considerations
+
+- Each `sed` command adds overhead to the normalization process
+- The current implementation uses **piped sed commands** for readability
+- For better performance with many patterns, consider:
+  ```bash
+  # Single sed with multiple expressions (faster)
+  sed -E -e 's/pattern1/<P1>/g' \
+         -e 's/pattern2/<P2>/g' \
+         -e 's/pattern3/<P3>/g'
+  ```
+
+#### Validation After Tuning
+
+After modifying normalization patterns:
+
+1. **Check that duplicates are still detected:**
+   - Trigger the same failure twice
+   - Verify duplicate detection works correctly
+
+2. **Check that different issues are not conflated:**
+   - Trigger two different failures on the same feature
+   - Verify both create separate issues
+
+3. **Review workflow logs:**
+   - Examine the "Analyzing log similarity" section
+   - Verify similarity percentages make sense
+   - Look for unexpected matches or misses
 
 ## Edge Cases and Limitations
 
