@@ -8,8 +8,7 @@ on:
 
 # Explicit permissions (least privilege)
 permissions:
-  contents: write  # Needed for log-bugs job to commit changes
-  pull-requests: write
+  contents: read
   checks: write
   actions: read  # Needed to fetch job logs and job information
 
@@ -410,7 +409,7 @@ jobs:
 
           echo "Found job ID: $JOB_ID"
 
-          # Get the failed step name
+          # Get the failed step name and number
           STEP_RESPONSE=$(mktemp)
           gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE" || {
             echo "Warning: Could not fetch job details"
@@ -419,13 +418,14 @@ jobs:
           }
 
           FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" | head -n 1)
+          FAILED_STEP_NUMBER=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .number" "$STEP_RESPONSE" | head -n 1)
           rm -f "$STEP_RESPONSE"
 
           if [ -z "$FAILED_STEP" ]; then
             FAILED_STEP="Unknown"
           fi
 
-          echo "Failed step: $FAILED_STEP"
+          echo "Failed step: $FAILED_STEP (Step #$FAILED_STEP_NUMBER)"
           # Sanitize output
           SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
           echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
@@ -436,18 +436,78 @@ jobs:
             echo "Could not retrieve logs" > job_logs.txt
           }
 
-          # Extract relevant error lines (last 20 lines containing "error" or "failed")
-          LOG_EXCERPT=$(grep -iE "(error|failed|exception)" job_logs.txt | tail -20 || tail -20 job_logs.txt)
+          echo "Total log lines: $(wc -l < job_logs.txt)"
 
-          # Save excerpt to file for GitHub issue
-          echo "$LOG_EXCERPT" > log_excerpt.txt
+          # Extract only the failed step's logs with context
+          # GitHub Actions logs use timestamps and step markers
+          # Format: YYYY-MM-DDTHH:MM:SS.MMMMMMMZ ##[section]Step: Step Name
 
-          echo "✅ Successfully processed logs ($(wc -l < job_logs.txt) lines)"
+          # Find the start and end of the failed step section
+          STEP_START_LINE=$(grep -n "##\[group\].*$FAILED_STEP" job_logs.txt | head -n 1 | cut -d: -f1)
 
-          # Set output for use in issue body (escaped for JSON)
-          # Store in environment variable to avoid issues with multiline output
+          if [ -z "$STEP_START_LINE" ]; then
+            # Fallback: try to find step by searching for common step markers
+            echo "Warning: Could not find step start marker, searching for error context..."
+
+            # Find lines with errors and get context around them
+            ERROR_LINES=$(grep -in "error\|failed\|exception\|Error:" job_logs.txt | tail -5 | cut -d: -f1)
+
+            if [ -n "$ERROR_LINES" ]; then
+              # Get the first error line number
+              FIRST_ERROR=$(echo "$ERROR_LINES" | head -n 1)
+              # Start 30 lines before the first error
+              CONTEXT_START=$((FIRST_ERROR > 30 ? FIRST_ERROR - 30 : 1))
+              # End 30 lines after the last error
+              LAST_ERROR=$(echo "$ERROR_LINES" | tail -n 1)
+              CONTEXT_END=$((LAST_ERROR + 30))
+
+              echo "Extracting error context from lines $CONTEXT_START to $CONTEXT_END"
+              sed -n "${CONTEXT_START},${CONTEXT_END}p" job_logs.txt > log_excerpt.txt
+            else
+              # Ultimate fallback: last 50 lines
+              echo "Warning: No errors found, using last 50 lines of log"
+              tail -50 job_logs.txt > log_excerpt.txt
+            fi
+          else
+            # Find the next step start (or end of file)
+            NEXT_STEP_LINE=$(grep -n "##\[group\]" job_logs.txt | awk -F: -v start="$STEP_START_LINE" '$1 > start {print $1; exit}')
+
+            if [ -z "$NEXT_STEP_LINE" ]; then
+              # This is the last step, go to end of file
+              NEXT_STEP_LINE=$(wc -l < job_logs.txt)
+            fi
+
+            # Add context: 20 lines before step start
+            CONTEXT_START=$((STEP_START_LINE > 20 ? STEP_START_LINE - 20 : 1))
+            # Add context: 20 lines after step end (if available)
+            TOTAL_LINES=$(wc -l < job_logs.txt)
+            CONTEXT_END=$((NEXT_STEP_LINE + 20 > TOTAL_LINES ? TOTAL_LINES : NEXT_STEP_LINE + 20))
+
+            echo "Extracting failed step logs from line $CONTEXT_START to $CONTEXT_END (step at $STEP_START_LINE-$NEXT_STEP_LINE)"
+            sed -n "${CONTEXT_START},${CONTEXT_END}p" job_logs.txt > log_excerpt.txt
+          fi
+
+          EXCERPT_LINES=$(wc -l < log_excerpt.txt)
+          echo "✅ Successfully extracted log excerpt: $EXCERPT_LINES lines (from total $(wc -l < job_logs.txt) lines)"
+
+          # Remove timestamps and add line numbers
+          # GitHub Actions log format: YYYY-MM-DDTHH:MM:SS.MMMMMMMZ <log content>
+          # We remove the timestamp prefix and add sequential line numbers
+          echo "Processing log excerpt: removing timestamps and adding line numbers..."
+
+          # Use sed to remove timestamp prefix (if present) and awk to add line numbers
+          # Timestamp regex pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+Z
+          sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}\.[0-9]*Z //' log_excerpt.txt | \
+            awk '{printf "%4d | %s\n", NR, $0}' > log_excerpt_formatted.txt
+
+          # Replace original excerpt with formatted version
+          mv log_excerpt_formatted.txt log_excerpt.txt
+
+          echo "✅ Log formatting complete: timestamps removed, line numbers added"
+
+          # Store excerpt in environment variable for use in issue
           echo "LOG_EXCERPT<<EOF" >> $GITHUB_ENV
-          echo "$LOG_EXCERPT" >> $GITHUB_ENV
+          cat log_excerpt.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Create bug log entry using template
@@ -470,11 +530,11 @@ jobs:
             exit 1
           fi
 
-          # Read full logs
-          if [ -f job_logs.txt ]; then
-            LOG_DETAIL=$(cat job_logs.txt)
+          # Read the extracted log excerpt (not the full logs)
+          if [ -f log_excerpt.txt ]; then
+            LOG_DETAIL=$(cat log_excerpt.txt)
           else
-            LOG_DETAIL="No logs available"
+            LOG_DETAIL="No log excerpt available"
           fi
 
           # Create bug log content from template
@@ -493,7 +553,7 @@ jobs:
           # Write the populated template to file
           echo "$BUG_LOG_CONTENT" > bug_log.md
 
-          # Add log details section with proper spacing
+          # Add log details section with proper spacing (excerpt only, not full logs)
           echo "" >> bug_log.md
           echo '```' >> bug_log.md
           echo "$LOG_DETAIL" >> bug_log.md
@@ -529,30 +589,6 @@ jobs:
           # Save issue URL for summary
           echo "ISSUE_URL=$ISSUE_URL" >> $GITHUB_ENV
 
-      - name: Add comment to PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-
-          cat > pr_comment.md <<'COMMENT_EOF'
-          ## CI/CD Failure Detected
-
-          A CI/CD job has failed for this pull request. A bug report has been automatically created.
-
-          **Failed Job**: ${{ steps.failed-job.outputs.failed_job }}
-          **Failed Step**: ${{ steps.fetch-logs.outputs.failed_step }}
-
-          **GitHub Issue**: ${{ env.ISSUE_URL }}
-          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          Please review the issue for detailed logs and resolution steps.
-          COMMENT_EOF
-
-          gh pr comment "$PR_NUMBER" --body-file pr_comment.md
-
-          echo "✅ Comment added to PR #$PR_NUMBER"
-
       - name: Workflow summary
         if: always()
         run: |
@@ -562,7 +598,6 @@ jobs:
           if [ -n "${{ env.ISSUE_URL }}" ]; then
             echo "✅ **GitHub Issue Created**: ${{ env.ISSUE_URL }}" >> $GITHUB_STEP_SUMMARY
             echo "✅ **Bug log generated** from template" >> $GITHUB_STEP_SUMMARY
-            echo "✅ **PR comment added** with failure details" >> $GITHUB_STEP_SUMMARY
           else
             echo "Warning: Issue creation may have failed" >> $GITHUB_STEP_SUMMARY
           fi
