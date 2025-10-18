@@ -13,6 +13,7 @@ jobs:
   # Example 1: Node.js project
   test-nodejs:
     uses: EdenCoNz/cicd-template/.github/workflows/reusable-test.yml@main
+    secrets: inherit
     with:
       language: 'node'
       node-version: '20'
