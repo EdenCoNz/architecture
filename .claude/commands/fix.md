@@ -1,15 +1,14 @@
 ---
-description: Process and fix bugs from bug-log.json [bugid] or GitHub [gha]
+description: Process and fix bugs from GitHub issues
 ---
 
 ## Purpose
 
-Process bug reports from either docs/features/bug-log.json or GitHub issues. When "gha" parameter is provided, fetch the oldest open issue from GitHub and create user stories using the product-owner agent. Otherwise, process bugs from bug-log.json as usual.
+Fetch the oldest open issue from GitHub and create user stories using the product-owner agent to address CI/CD failures.
 
 ## Arguments
 
-- `bugid` (optional): The ID of a specific bug to process from bug-log.json
-- `gha` (optional): When set to "gha", fetches the oldest open issue from GitHub repository
+- `gha`: Required parameter to trigger GitHub issue processing
 
 ## Instructions
 
@@ -17,28 +16,19 @@ You MUST follow the workflow steps in sequential order. Do NOT ask the user for 
 
 ## Workflow
 
-### Step 0: Determine Mode
-
-Check the first argument:
-- If argument is "gha": Follow the GitHub Issues Workflow (Steps A1-A5)
-- If argument is a number or not provided: Follow the Bug Log Workflow (Steps B1-B7)
-
----
-
-## GitHub Issues Workflow (when parameter is "gha")
-
-### Step A1: Fetch Oldest GitHub Issue
+### Step 1: Fetch Oldest GitHub Issue
 
 Use the Bash tool to get the oldest open issue from the GitHub repository:
 
 ```bash
-gh issue list --state open --json number,title,body,createdAt,labels --limit 100 | jq 'sort_by(.createdAt) | .[0]'
+gh issue list --state open --json number,title,body,createdAt,labels --limit 100 | python3 -c "import json, sys; issues = json.load(sys.stdin); oldest = min(issues, key=lambda x: x['createdAt']) if issues else None; print(json.dumps(oldest, indent=2)) if oldest else print('{}')"
 ```
 
 This command:
 - Lists all open issues
-- Sorts by creation date (oldest first)
+- Sorts by creation date using Python (oldest first)
 - Returns the first (oldest) issue
+- Does not require jq to be installed
 
 If no issues are found, report to the user and stop.
 
@@ -49,7 +39,7 @@ Parse the JSON output to extract:
 - Labels (if any)
 - Creation date
 
-### Step A2: Parse Issue Template Data
+### Step 2: Parse Issue Template Data
 
 The issue body follows the bug-log-template structure from docs/templates/bug-log-template.md.
 
@@ -66,7 +56,7 @@ Parse the issue body to extract:
 
 If any required fields (title, featureID, featureName) are missing, report error and stop.
 
-### Step A3: Launch Product Owner Agent
+### Step 3: Launch Product Owner Agent
 
 Use the Task tool to launch the product-owner agent with these instructions:
 
@@ -102,95 +92,82 @@ Write the user stories to: docs/features/{featureID}/bugs/github-issue-{issue_nu
 
 Wait for the agent to complete and return its output.
 
-### Step A4: Report
+### Step 4: Update Bug Log
 
-Provide a summary that includes:
+Update or create docs/features/bug-log.json to track this GitHub issue:
+
+1. Read docs/features/bug-log.json (create with empty structure if doesn't exist)
+2. Add or update the bug entry:
+   ```json
+   {
+     "id": "github-issue-{issue_number}",
+     "featureID": "{featureID}",
+     "featureName": "{featureName}",
+     "title": "{title}",
+     "severity": "high",
+     "isFixed": false,
+     "createdAt": "{YYYY-MM-DDTHH:mm:ssZ}",
+     "githubIssueNumber": {issue_number},
+     "jobName": "{jobName}",
+     "stepName": "{stepName}",
+     "PRURL": "{PRURL}",
+     "commitURL": "{commitURL}",
+     "runURL": "{runURL}",
+     "userStoriesCreated": "{YYYY-MM-DDTHH:mm:ssZ}",
+     "userStoriesPath": "docs/features/{featureID}/bugs/github-issue-{issue_number}/user-stories.md"
+   }
+   ```
+3. Write the updated bug-log.json
+
+### Step 5: Implement User Stories
+
+After updating the bug log, automatically implement the user stories:
+
+Use the SlashCommand tool to execute:
+```
+/implement bug github-issue-{issue_number}
+```
+
+This will:
+- Read the user stories created by the product-owner
+- Execute all stories in the defined execution order
+- Launch appropriate specialized agents for each story
+- Record implementation progress in implementation-log.json
+- Commit and push changes when complete
+
+Wait for the implementation to complete.
+
+### Step 6: Close GitHub Issue
+
+If all user stories were successfully implemented:
+
+1. Use the Bash tool to close the GitHub issue:
+   ```bash
+   gh issue close {issue_number} --comment "Fixed in commit {commit_url}. All user stories completed and tested."
+   ```
+
+2. Update bug-log.json to mark the bug as fixed:
+   - Set `isFixed: true`
+   - Set `fixedAt: "{YYYY-MM-DDTHH:mm:ssZ}"`
+
+If implementation was partial or blocked, skip this step and report the status.
+
+### Step 7: Report
+
+Provide a comprehensive summary that includes:
 - GitHub issue number and title
 - Feature ID associated
 - User stories path created
+- Number of user stories implemented
+- Implementation status (completed/partial/blocked)
+- GitHub issue status (closed/still open)
 - Any errors or issues encountered
-
----
-
-## Bug Log Workflow (when parameter is bugid or not provided)
-
-### Step B1: Pull Latest Changes (Conditional)
-
-**If bugid argument is provided**:
-- Skip this step entirely
-- Assume the current branch has the latest changes
-- Proceed directly to Step B2
-
-**If bugid argument is NOT provided**:
-Pull the latest changes from the current branch:
-
-```bash
-git pull
-```
-
-If there are any conflicts or errors during pull, report to the user and stop.
-
-### Step B2: Read Bug Log
-
-Read the bug log file:
-- Path: docs/features/bug-log.json
-- If the file doesn't exist, create it with an empty bugs array
-- Parse the JSON structure
-
-### Step B3: Identify Unfixed Bugs
-
-**If bugid argument is provided**:
-- Find the specific bug with matching ID
-- If the bug doesn't exist, report error and stop
-- If the bug's isFixed is already true, report that the bug is already fixed and stop
-- Proceed with only this bug
-
-**If bugid argument is NOT provided**:
-- Identify all bugs where isFixed is not set to true
-
-For each unfixed bug, note:
-- Bug ID
-- featureID
-- featureName (branch name)
-- Bug title
-- Severity
-
-### Step B4: Check and Switch to Feature Branch (Conditional)
-
-**If bugid argument is provided**:
-- Skip this step entirely
-- Assume we're already on the correct branch
-
-**If bugid argument is NOT provided**:
-For each unfixed bug, check if we're on the correct branch and switch if needed.
-
-### Step B5: Read Bug Details
-
-For each unfixed bug, read from: docs/features/{featureID}/bugs/{bugID}.md
-
-### Step B6: Process Each Unfixed Bug
-
-For EACH unfixed bug:
-
-1. Launch Product Owner Agent with bug details
-2. Wait for completion
-3. Update bug entry in bug-log.json
-4. Implement user stories using: `/implement bug {bugID}`
-
-### Step B7: Commit and Push Changes
-
-After ALL bugs processed:
-
-```
-/commit "Fix planning for bugs: {comma-separated list of bug IDs}" push
-```
-
----
 
 ## Error Handling
 
 - If gh command fails, ensure GitHub CLI is installed and authenticated
-- If bug-log.json doesn't exist, create it with empty structure
 - If feature ID cannot be determined from GitHub issue, ask user
-- If product-owner agent fails, report which bug/issue failed
-- If commit/push fails, report the error
+- If product-owner agent fails, report which issue failed and stop
+- If bug-log.json cannot be created/updated, report error and stop
+- If /implement command fails, report error with details and do not close GitHub issue
+- If implementation is partial or blocked, do not close GitHub issue
