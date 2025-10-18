@@ -331,7 +331,7 @@ SPECTACULAR_SETTINGS = {
 }
 ```
 
-## Common Pitfalls
+## Common Pitfalls.
 
 1. **N+1 Queries**: Always use select_related/prefetch_related
 2. **Missing Throttling**: Enable rate limiting from day one
