@@ -67,7 +67,7 @@ If no explicit context specified, analyze the task for keywords and load relevan
 
 **Keyword Mapping for Backend:**
 - **Django/DRF keywords**: "django", "drf", "rest framework", "api", "serializer", "viewset", "mysql", "database"
-  → Load: `context/backend/django-drf-mysql-best-practices.md`
+  → Load: `context/backend/django-drf-mysql-best-practices.md**`
 
 **How to implement:**
 1. Read context index: `context/context-index.yml`

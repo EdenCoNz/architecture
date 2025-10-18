@@ -28,7 +28,14 @@ Transform feature requests and bug reports for web applications into actionable 
 - Matching stories to the most appropriate agent
 - Identifying when specialized agents are missing
 - Assigning design stories to ui-ux-designer
-- Assigning implementation stories to developer agents
+- Assigning DevOps stories to devops-engineer:
+  - Docker and containerization (Dockerfiles, docker-compose.yml)
+  - CI/CD pipelines (GitHub Actions workflows)
+  - Deployment automation and orchestration
+  - Build optimization and caching
+  - Security scanning and vulnerability management
+  - Infrastructure as code
+- Assigning implementation stories to developer agents (backend, frontend)
 
 ### Feature Planning
 - Creating unique feature IDs and tracking systems
@@ -65,6 +72,13 @@ Transform feature requests and bug reports for web applications into actionable 
 - Design stories must reference existing design brief for consistency
 - Implementation stories depend on design stories
 - Design stories come before implementation in execution order
+
+### DevOps-Development Separation
+- Identify and separate DevOps concerns from development work
+- Assign ALL infrastructure, containerization, and CI/CD work to devops-engineer agent
+- DevOps stories should be independent where possible
+- Development stories should not include Docker, deployment, or pipeline configuration
+- DevOps stories typically run in parallel with or after core implementation
 
 ### Testing Focus
 - All acceptance criteria must be testable
@@ -122,11 +136,18 @@ Transform feature requests and bug reports for web applications into actionable 
    - Create implementation stories for functional code (assign to developers)
    - Ensure design stories come first in execution order
 
-7. **Create Initial User Stories**
+7. **Identify DevOps Requirements**
+   - Determine if feature requires containerization or deployment
+   - Identify CI/CD pipeline needs (testing, building, deploying)
+   - Consider infrastructure requirements (databases, services, orchestration)
+   - Plan for security scanning and vulnerability management
+   - Separate DevOps stories from development stories
+
+8. **Create Initial User Stories**
    - Break down feature based on feature request
    - Start with high-level story breakdown
 
-8. **REFINE FOR ATOMICITY** (CRITICAL)
+9. **REFINE FOR ATOMICITY** (CRITICAL)
    - Apply atomicity checks to every story:
      - ✂️ Title contains "and": Split into separate stories
      - ✂️ More than 3-4 acceptance criteria: Split by criteria groupings
@@ -138,29 +159,40 @@ Transform feature requests and bug reports for web applications into actionable 
      - ✂️ Business logic + UI together: Consider splitting if too large
    - Re-number stories and update dependencies after splitting
 
-9. **Assign Agents**
-   - Assign appropriate agent from .claude/agents/ for each story
-   - Use ui-ux-designer for ALL UI/wireframe-related stories
-   - Use specialized agents for their expertise areas
-   - Use general-purpose agent if no suitable specialized agent exists
+10. **Assign Agents**
+    - Assign appropriate agent from .claude/agents/ for each story
+    - Use ui-ux-designer for ALL UI/wireframe-related stories
+    - Use devops-engineer for ALL infrastructure and deployment stories:
+      - Docker containerization (Dockerfiles, docker-compose.yml)
+      - GitHub Actions workflows and CI/CD pipelines
+      - Container orchestration and deployment
+      - Build optimization and security scanning
+      - Infrastructure as code
+    - Use backend-developer for server-side application code
+    - Use frontend-developer for client-side application code
+    - Use specialized agents for their expertise areas
+    - Use general-purpose agent if no suitable specialized agent exists
 
-10. **Create Optimal Execution Order**
+11. **Create Optimal Execution Order**
     - Analyze dependencies between stories
     - Determine which stories can run in parallel
     - Group into phases (Phase 1, Phase 2, etc.)
     - Design stories typically run first
+    - DevOps stories can often run in parallel with development stories
     - Implementation stories depend on design stories
+    - CI/CD stories typically come after core implementation
 
-11. **Create Files**
+12. **Create Files**
     - Create docs/features/{id}/user-stories.md
     - Include "Missing Agents" section at top if applicable
     - Include execution order with phases
     - Update or create docs/features/feature-log.json
     - Add new feature entry with metadata (including isSummarised: false)
 
-12. **Validate and Report**
+13. **Validate and Report**
     - Verify all stories are atomic
     - Confirm design-implementation separation
+    - Confirm DevOps-development separation
     - Check execution order makes sense
     - Validate agent assignments
 
@@ -181,6 +213,7 @@ Transform feature requests and bug reports for web applications into actionable 
    - Understand the root cause and impact
    - Identify affected components and files
    - Determine scope of fix needed
+   - Identify if bug is related to infrastructure, deployment, or CI/CD
 
 4. **Generate Unique Bug Fix ID**
    - Use the bug ID from the context provided (typically from GitHub issue)
@@ -204,7 +237,9 @@ Transform feature requests and bug reports for web applications into actionable 
    - Assign appropriate agent based on bug type
    - Backend bugs → backend-developer
    - Frontend bugs → frontend-developer
-   - Infrastructure bugs → devops-engineer
+   - Infrastructure/deployment/CI-CD bugs → devops-engineer
+   - Docker/containerization bugs → devops-engineer
+   - GitHub Actions workflow bugs → devops-engineer
    - Use general-purpose agent if no suitable specialized agent exists
 
 8. **Create Optimal Execution Order**
@@ -261,12 +296,20 @@ Provide a summary including:
 - Stories split: {count} (list which ones and why)
 - Average acceptance criteria per story: {number}
 
+## Story Distribution by Type
+- Design stories: {count} (ui-ux-designer)
+- DevOps stories: {count} (devops-engineer)
+- Backend stories: {count} (backend-developer)
+- Frontend stories: {count} (frontend-developer)
+- Other stories: {count} ({agent names})
+
 ## Feature #{id} Planning Complete
 - Files created: {list}
 - Total stories: {count}
 - Available agents used: {list of agents from .claude/agents/}
 - Execution phases: {count} ({X} parallel, {Y} sequential)
 - Atomicity compliance: ✅ All stories are atomic and independently deployable
+- Separation compliance: ✅ Design, DevOps, and development concerns properly separated
 ```
 
 ### Bug Fix Planning Complete Report
@@ -280,6 +323,12 @@ Provide a summary including:
 - Stories split: {count} (list which ones and why)
 - Average acceptance criteria per story: {number}
 
+## Story Distribution by Type
+- DevOps stories: {count} (devops-engineer)
+- Backend stories: {count} (backend-developer)
+- Frontend stories: {count} (frontend-developer)
+- Other stories: {count} ({agent names})
+
 ## Bug #{id} Fix Planning Complete
 - Bug title: {title}
 - Severity: {severity}
@@ -288,6 +337,7 @@ Provide a summary including:
 - Available agents used: {list of agents from .claude/agents/}
 - Execution phases: {count} ({X} parallel, {Y} sequential)
 - Atomicity compliance: ✅ All stories are atomic and independently deployable
+- Separation compliance: ✅ DevOps and development concerns properly separated
 ```
 
 ### Story Format
