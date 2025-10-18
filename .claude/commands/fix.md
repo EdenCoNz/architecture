@@ -1,14 +1,15 @@
 ---
-description: Process and fix bugs from bug-log.json [bugid]
+description: Process and fix bugs from bug-log.json [bugid] or GitHub [gha]
 ---
 
 ## Purpose
 
-Process bug reports from docs/features/bug-log.json, create user stories for unfixed bugs using the product-owner agent, and automatically commit and push the changes. This command orchestrates the entire bug fix planning workflow from identifying unfixed bugs to committing the user stories to the repository.
+Process bug reports from either docs/features/bug-log.json or GitHub issues. When "gha" parameter is provided, fetch the oldest open issue from GitHub and create user stories using the product-owner agent. Otherwise, process bugs from bug-log.json as usual.
 
 ## Arguments
 
-- `bugid` (optional): The ID of a specific bug to process. If provided, only that bug will be processed and git pull will be skipped (assuming you already have the latest changes).
+- `bugid` (optional): The ID of a specific bug to process from bug-log.json
+- `gha` (optional): When set to "gha", fetches the oldest open issue from GitHub repository
 
 ## Instructions
 
@@ -16,15 +17,112 @@ You MUST follow the workflow steps in sequential order. Do NOT ask the user for 
 
 ## Workflow
 
-### Step 1: Pull Latest Changes (Conditional)
+### Step 0: Determine Mode
+
+Check the first argument:
+- If argument is "gha": Follow the GitHub Issues Workflow (Steps A1-A5)
+- If argument is a number or not provided: Follow the Bug Log Workflow (Steps B1-B7)
+
+---
+
+## GitHub Issues Workflow (when parameter is "gha")
+
+### Step A1: Fetch Oldest GitHub Issue
+
+Use the Bash tool to get the oldest open issue from the GitHub repository:
+
+```bash
+gh issue list --state open --json number,title,body,createdAt,labels --limit 100 | jq 'sort_by(.createdAt) | .[0]'
+```
+
+This command:
+- Lists all open issues
+- Sorts by creation date (oldest first)
+- Returns the first (oldest) issue
+
+If no issues are found, report to the user and stop.
+
+Parse the JSON output to extract:
+- Issue number
+- Issue title
+- Issue body
+- Labels (if any)
+- Creation date
+
+### Step A2: Parse Issue Template Data
+
+The issue body follows the bug-log-template structure from docs/templates/bug-log-template.md.
+
+Parse the issue body to extract:
+- title (from the table)
+- featureID (from the table)
+- featureName (from the table)
+- jobName (from the table)
+- stepName (from the table)
+- PRURL (from the table)
+- commitURL (from the table)
+- runURL (from the table)
+- Failed Step Log Excerpt (from the section below the table)
+
+If any required fields (title, featureID, featureName) are missing, report error and stop.
+
+### Step A3: Launch Product Owner Agent
+
+Use the Task tool to launch the product-owner agent with these instructions:
+
+```
+Analyze this GitHub Actions CI/CD failure and create comprehensive user stories to fix it:
+
+Feature ID: {featureID}
+Feature Name: {featureName}
+GitHub Issue: #{issue_number}
+Title: {title}
+
+## CI/CD Context
+- Job Name: {jobName}
+- Step Name: {stepName}
+- PR URL: {PRURL}
+- Commit URL: {commitURL}
+- Run URL: {runURL}
+
+## Failed Step Log
+{Failed Step Log Excerpt}
+
+You MUST follow the "For Bug Fixes" workflow in your instructions. Create atomic user stories that address:
+1. Investigation of the CI/CD failure
+2. Root cause analysis
+3. Implementation of the fix
+4. Regression tests to prevent similar failures
+5. Validation that the fix resolves the issue
+
+Ensure all stories follow TDD methodology and are independently deployable.
+
+Write the user stories to: docs/features/{featureID}/bugs/github-issue-{issue_number}/user-stories.md
+```
+
+Wait for the agent to complete and return its output.
+
+### Step A4: Report
+
+Provide a summary that includes:
+- GitHub issue number and title
+- Feature ID associated
+- User stories path created
+- Any errors or issues encountered
+
+---
+
+## Bug Log Workflow (when parameter is bugid or not provided)
+
+### Step B1: Pull Latest Changes (Conditional)
 
 **If bugid argument is provided**:
 - Skip this step entirely
 - Assume the current branch has the latest changes
-- Proceed directly to Step 2
+- Proceed directly to Step B2
 
 **If bugid argument is NOT provided**:
-Pull the latest changes from the current branch to ensure we have the most up-to-date bug-log.json:
+Pull the latest changes from the current branch:
 
 ```bash
 git pull
@@ -32,143 +130,67 @@ git pull
 
 If there are any conflicts or errors during pull, report to the user and stop.
 
-### Step 2: Read Bug Log
+### Step B2: Read Bug Log
 
 Read the bug log file:
 - Path: docs/features/bug-log.json
-- If the file doesn't exist, create it with an empty bugs array and report to the user that no bugs exist
+- If the file doesn't exist, create it with an empty bugs array
 - Parse the JSON structure
 
-### Step 3: Identify Unfixed Bugs
+### Step B3: Identify Unfixed Bugs
 
 **If bugid argument is provided**:
-- Find the specific bug with matching ID in the bugs array
+- Find the specific bug with matching ID
 - If the bug doesn't exist, report error and stop
-- If the bug's `isFixed` is already `true`, report that the bug is already fixed and stop
+- If the bug's isFixed is already true, report that the bug is already fixed and stop
 - Proceed with only this bug
 
 **If bugid argument is NOT provided**:
-- Iterate through the bugs array and identify all bugs where `isFixed` is not set to `true` (this includes `false`, `null`, or missing values)
+- Identify all bugs where isFixed is not set to true
 
-For each unfixed bug:
-- Note the bug ID
-- Note the featureID
-- Note the featureName (branch name)
-- Note the bug title
-- Note the severity
+For each unfixed bug, note:
+- Bug ID
+- featureID
+- featureName (branch name)
+- Bug title
+- Severity
 
-### Step 4: Check and Switch to Feature Branch (Conditional)
+### Step B4: Check and Switch to Feature Branch (Conditional)
 
 **If bugid argument is provided**:
 - Skip this step entirely
 - Assume we're already on the correct branch
-- Proceed directly to Step 5
 
 **If bugid argument is NOT provided**:
-For each unfixed bug, check if we're on the correct branch:
+For each unfixed bug, check if we're on the correct branch and switch if needed.
 
-1. **Get current branch**:
-```bash
-git branch --show-current
-```
+### Step B5: Read Bug Details
 
-2. **Check if current branch matches featureName**:
-   - If current branch matches the bug's featureName, continue to next bug
-   - If current branch does NOT match, switch to the feature branch:
-     ```bash
-     git checkout {featureName}
-     ```
-   - If checkout fails (branch doesn't exist), report error and skip this bug
+For each unfixed bug, read from: docs/features/{featureID}/bugs/{bugID}.md
 
-3. **Pull latest changes after switching**:
-```bash
-git pull
-```
+### Step B6: Process Each Unfixed Bug
 
-If there are any conflicts or errors during pull, stop processing this bug and report to the user.
+For EACH unfixed bug:
 
-### Step 5: Read Bug Details
+1. Launch Product Owner Agent with bug details
+2. Wait for completion
+3. Update bug entry in bug-log.json
+4. Implement user stories using: `/implement bug {bugID}`
 
-For each unfixed bug, read the bug details from the markdown file:
+### Step B7: Commit and Push Changes
 
-1. **Construct the bug details path**: docs/features/{featureID}/bugs/{bugID}.md
-2. **Read the file**: Use the Read tool to get the complete bug details
-3. **If file doesn't exist**: Report error and skip this bug
-
-### Step 6: Process Each Unfixed Bug
-
-For EACH unfixed bug identified, do the following sequentially:
-
-1. **Launch Product Owner Agent**: Use the Task tool to launch the product-owner agent with these instructions:
-
-```
-Analyze this bug report and create comprehensive user stories to fix it:
-
-Bug ID: {bug_id}
-Feature ID: {featureID}
-Title: {bug_title}
-Severity: {bug_severity}
-Details: {content from docs/features/{featureID}/bugs/{bugID}.md}
-
-You MUST follow the "For Bug Fixes" workflow in your instructions. Create atomic user stories that address:
-1. Investigation (if needed)
-2. Implementation of the fix
-3. Regression tests
-4. Validation
-
-Ensure all stories follow TDD methodology and are independently deployable.
-```
-
-2. **Wait for Agent Completion**: Wait for the product-owner agent to complete and return its output
-
-3. **Update Bug Log**: Update the bug entry in docs/features/bug-log.json:
-   - Set `isFixed` to `false` (it will be set to true after implementation)
-   - Set `userStoriesCreated` to current ISO timestamp
-   - Set `userStoriesPath` to the path created by the product-owner agent (typically docs/features/{featureID}/bugs/{bugID}/user-stories.md)
-
-4. **Implement User Stories**: After user stories are created for the bug, automatically call the implement command:
-   ```
-   /implement bug {bugID}
-   ```
-
-   This will:
-   - Implement the user stories created for this bug
-   - Run tests and builds as specified in the implement workflow
-   - Commit and push the implementation changes
-
-   Wait for the implement command to complete before proceeding to the next bug.
-
-### Step 7: Commit and Push Changes
-
-After ALL bugs have been processed, use the SlashCommand tool to execute:
+After ALL bugs processed:
 
 ```
 /commit "Fix planning for bugs: {comma-separated list of bug IDs}" push
 ```
 
-Example: `/commit "Fix planning for bugs: 1, 3, 5" push`
-
-If there are any errors during commit or push, report them to the user.
-
-## Report
-
-Provide a summary that includes:
-- Number of unfixed bugs found: {count}
-- List of bug IDs processed: {list}
-- User stories created for each bug
-- Commit created: Yes/No
-- Push successful: Yes/No
-- Any errors or issues encountered
-
-If no unfixed bugs were found, report: "No unfixed bugs found in bug-log.json"
+---
 
 ## Error Handling
 
+- If gh command fails, ensure GitHub CLI is installed and authenticated
 - If bug-log.json doesn't exist, create it with empty structure
-- If bug-log.json is malformed, report the error and stop
-- If git checkout fails (branch doesn't exist), skip that bug and continue with next
-- If git pull fails, skip that bug and continue with next
-- If bug details file (docs/features/{featureID}/bugs/{bugID}.md) doesn't exist, skip that bug and continue with next
-- If product-owner agent fails, report which bug failed and continue with next bug
-- If commit fails, report the error
-- If push fails, report the error but note that changes are committed locally
+- If feature ID cannot be determined from GitHub issue, ask user
+- If product-owner agent fails, report which bug/issue failed
+- If commit/push fails, report the error
