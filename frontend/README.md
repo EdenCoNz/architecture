@@ -899,6 +899,78 @@ describe('Button', () => {
 - **Integration tests**: Critical user flows
 - **Accessibility tests**: All interactive components
 
+### Docker Container Testing
+
+Test Docker container endpoints to ensure the application is correctly served in production containers.
+
+#### Running Container Tests Locally
+
+1. **Build the production Docker image**:
+
+```bash
+cd frontend
+docker build -t frontend:latest .
+```
+
+2. **Start the container**:
+
+```bash
+docker run -d --name frontend-test -p 8080:8080 frontend:latest
+```
+
+3. **Run the endpoint tests**:
+
+```bash
+./scripts/test-docker-endpoints.sh frontend-test 8080
+```
+
+4. **Clean up**:
+
+```bash
+docker stop frontend-test
+docker rm frontend-test
+```
+
+#### What the Tests Validate
+
+The test script (`scripts/test-docker-endpoints.sh`) performs regression testing on Docker container endpoints:
+
+- **Health endpoint** (`/health`):
+  - Returns HTTP 200 status code
+  - Response body contains "healthy" text
+  - Endpoint becomes available within 30 seconds
+
+- **Application root** (`/`):
+  - Returns HTTP 200 status code
+  - Response contains valid HTML with DOCTYPE declaration
+  - HTML includes React app root div with `id="root"`
+
+#### Test Script Usage
+
+```bash
+# Default usage (container: frontend-test, port: 8080)
+./scripts/test-docker-endpoints.sh
+
+# Custom container name and port
+./scripts/test-docker-endpoints.sh my-container 3000
+
+# View help and troubleshooting
+./scripts/test-docker-endpoints.sh --help
+```
+
+#### Exit Codes
+
+- `0` - All tests passed
+- `1` - Health endpoint test failed
+- `2` - Root endpoint test failed (DOCTYPE check)
+- `3` - Root endpoint test failed (React div check)
+- `4` - Container not running
+- `5` - Invalid arguments or missing dependencies
+
+#### CI/CD Integration
+
+The test script is automatically executed in the GitHub Actions CI/CD pipeline as part of the "Build and Test Docker Image" job. Any endpoint failures will cause the pipeline to fail, preventing deployment of broken containers.
+
 ## Building for Production
 
 ### Create Production Build
