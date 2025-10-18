@@ -1,0 +1,52 @@
+# Example workflow showing how to call the reusable workflow from another repository
+# This file is for reference only - copy to your own repository and adjust as needed
+
+name: Example - Call Reusable Test Workflow
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Example 1: Node.js project
+  test-nodejs:
+    uses: EdenCoNz/cicd-template/.github/workflows/reusable-test.yml@main
+    with:
+      language: 'node'
+      node-version: '20'
+      setup-command: 'npm ci'
+      test-command: 'npm test'
+      working-directory: '.'
+
+  # Example 2: Python project
+  test-python:
+    uses: YOUR-USERNAME/cicd-template/.github/workflows/reusable-test.yml@main
+    with:
+      language: 'python'
+      python-version: '3.11'
+      setup-command: 'pip install -r requirements.txt'
+      test-command: 'pytest'
+      working-directory: '.'
+
+  # Example 3: Go project
+  test-go:
+    uses: YOUR-USERNAME/cicd-template/.github/workflows/reusable-test.yml@main
+    with:
+      language: 'go'
+      setup-command: 'go mod download'
+      test-command: 'go test ./...'
+      working-directory: '.'
+
+  # Example 4: Generic project with custom commands
+  test-generic:
+    uses: YOUR-USERNAME/cicd-template/.github/workflows/reusable-test.yml@main
+    with:
+      language: 'generic'
+      runner: 'ubuntu-latest'
+      setup-command: 'make setup'
+      test-command: 'make test'
+      working-directory: '.'
+    secrets:
+      token: ${{ secrets.MY_SECRET_TOKEN }}
