@@ -313,9 +313,9 @@ jobs:
           fi
           echo "✅ index.html exists in build artifacts"
 
-  # Job 7: Log bugs to JSON file
+  # Job 7: Log bugs and create GitHub issues
   log-bugs:
-    name: Log Bug Report
+    name: Log Bug Report and Create Issue
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     needs: [lint, typecheck, build, security, docker]
@@ -325,15 +325,13 @@ jobs:
       startsWith(github.head_ref, 'feature/')
 
     permissions:
-      contents: write
+      contents: read
+      issues: write  # Required to create GitHub issues
       actions: read  # Required to fetch job logs and job information
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract feature ID from branch name
         id: feature
@@ -348,8 +346,10 @@ jobs:
             echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
             echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           else
-            echo "❌ Error: Could not extract feature ID from branch name: $BRANCH_NAME"
-            exit 1
+            echo "Could not extract feature ID from branch name: $BRANCH_NAME"
+            echo "Using default feature ID: 0"
+            echo "feature_id=0" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           fi
 
       - name: Determine which job failed
@@ -376,72 +376,6 @@ jobs:
             echo "failed_job=Unknown" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create or update bug log entry
-        run: |
-          BUG_FILE="docs/features/bug-log.json"
-          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
-          BRANCH_NAME="${{ steps.feature.outputs.branch_name }}"
-          TITLE="${{ steps.failed-job.outputs.title }}"
-          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
-          TODAY=$(date +%Y-%m-%d)
-          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          COMMIT_SHA="${{ github.sha }}"
-
-          echo "Creating bug entry:"
-          echo "  Feature ID: $FEATURE_ID"
-          echo "  Branch: $BRANCH_NAME"
-          echo "  Title: $TITLE"
-          echo "  Date: $TODAY"
-
-          # Ensure jq is installed
-          if ! command -v jq &> /dev/null; then
-            echo "Installing jq..."
-            sudo apt-get update && sudo apt-get install -y jq
-          fi
-
-          # Create bug-log.json if it doesn't exist
-          if [ ! -f "$BUG_FILE" ]; then
-            echo "Bug log file not found, creating new file: $BUG_FILE"
-            mkdir -p "$(dirname "$BUG_FILE")"
-            echo '{"bugs":[]}' > "$BUG_FILE"
-          fi
-
-          # Get the next bug ID (max bugID + 1, or 1 if no bugs exist)
-          NEXT_BUG_ID=$(jq '[.bugs[].bugID] | if length > 0 then max + 1 else 1 end' "$BUG_FILE")
-          echo "Next bug ID: $NEXT_BUG_ID"
-
-          # Create new bug entry
-          NEW_BUG=$(jq -n \
-            --arg bugID "$NEXT_BUG_ID" \
-            --arg featureID "$FEATURE_ID" \
-            --arg featureName "$BRANCH_NAME" \
-            --arg title "$TITLE" \
-            --arg reportedDate "$TODAY" \
-            '{
-              bugID: ($bugID | tonumber),
-              featureID: ($featureID | tonumber),
-              featureName: $featureName,
-              title: $title,
-              reportedDate: $reportedDate,
-              isFixed: false,
-              fixedDate: null
-            }')
-
-          # Append new bug to the bugs array
-          jq --argjson newBug "$NEW_BUG" '.bugs += [$newBug]' "$BUG_FILE" > "${BUG_FILE}.tmp"
-          mv "${BUG_FILE}.tmp" "$BUG_FILE"
-
-          echo "✅ Bug entry added successfully"
-          echo ""
-          echo "Updated bug log:"
-          cat "$BUG_FILE"
-
-          # Export variables for next steps
-          echo "NEXT_BUG_ID=$NEXT_BUG_ID" >> $GITHUB_ENV
-          echo "WORKFLOW_URL=$WORKFLOW_URL" >> $GITHUB_ENV
-          echo "FAILED_JOB=$FAILED_JOB" >> $GITHUB_ENV
-
       - name: Fetch failed job logs
         id: fetch-logs
         env:
@@ -453,127 +387,225 @@ jobs:
 
           echo "Fetching logs for job: $FAILED_JOB"
 
-          # Get job ID - fail immediately on error
+          # Get job ID
           JOBS_RESPONSE=$(mktemp)
-          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE"
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE" || {
+            echo "Warning: Could not fetch jobs list"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "log_excerpt=Could not retrieve logs" >> $GITHUB_OUTPUT
+            rm -f "$JOBS_RESPONSE"
+            exit 0
+          }
 
-          # Extract job ID - fail if not found
+          # Extract job ID
           JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE")
           rm -f "$JOBS_RESPONSE"
 
           if [ -z "$JOB_ID" ]; then
-            echo "❌ Error: Could not find job ID for: $FAILED_JOB"
-            exit 1
+            echo "Warning: Could not find job ID for: $FAILED_JOB"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "log_excerpt=Could not retrieve job information" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
           echo "Found job ID: $JOB_ID"
 
-          # Get the failed step name - fail immediately on error
+          # Get the failed step name
           STEP_RESPONSE=$(mktemp)
-          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE"
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE" || {
+            echo "Warning: Could not fetch job details"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            rm -f "$STEP_RESPONSE"
+          }
 
           FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" | head -n 1)
           rm -f "$STEP_RESPONSE"
 
           if [ -z "$FAILED_STEP" ]; then
-            echo "❌ Error: Could not determine failed step"
-            exit 1
-          fi
-
-          echo "Failed step: $FAILED_STEP"
-          # Sanitize output to prevent bash injection
-          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
-          echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
-
-          # Download job logs - fail immediately on error
-          gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > job_logs.txt
-
-          echo "✅ Successfully downloaded logs ($(wc -l < job_logs.txt) lines)"
-
-      - name: Create markdown file for bug
-        run: |
-          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
-          FAILED_JOB="${{ env.FAILED_JOB }}"
-          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
-          TITLE="${{ steps.failed-job.outputs.title }}"
-          BUG_ID="${{ env.NEXT_BUG_ID }}"
-          WORKFLOW_URL="${{ env.WORKFLOW_URL }}"
-
-          # Handle case where failed_step might be empty
-          if [ -z "$FAILED_STEP" ]; then
             FAILED_STEP="Unknown"
           fi
 
-          # Create bugs directory if it doesn't exist
-          BUGS_DIR="docs/features/${FEATURE_ID}/bugs"
-          mkdir -p "$BUGS_DIR"
+          echo "Failed step: $FAILED_STEP"
+          # Sanitize output
+          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
+          echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
 
-          # Create markdown file path
-          BUG_FILE="${BUGS_DIR}/${BUG_ID}.md"
+          # Download job logs
+          gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > job_logs.txt || {
+            echo "Warning: Could not download logs"
+            echo "Could not retrieve logs" > job_logs.txt
+          }
 
-          # Write the bug report using echo commands
-          echo "# Bug Report: ${TITLE}" > "$BUG_FILE"
-          echo "" >> "$BUG_FILE"
-          echo "## Failed Job" >> "$BUG_FILE"
-          echo "${FAILED_JOB}" >> "$BUG_FILE"
-          echo "" >> "$BUG_FILE"
-          echo "## Failed Step" >> "$BUG_FILE"
-          echo "${FAILED_STEP}" >> "$BUG_FILE"
-          echo "" >> "$BUG_FILE"
-          echo "## Raw Logs" >> "$BUG_FILE"
-          echo '```' >> "$BUG_FILE"
+          # Extract relevant error lines (last 20 lines containing "error" or "failed")
+          LOG_EXCERPT=$(grep -iE "(error|failed|exception)" job_logs.txt | tail -20 || tail -20 job_logs.txt)
 
-          # Append logs if available
-          if [ -f job_logs.txt ]; then
-            cat job_logs.txt >> "$BUG_FILE"
-          else
-            echo "No logs available" >> "$BUG_FILE"
-          fi
+          # Save excerpt to file for GitHub issue
+          echo "$LOG_EXCERPT" > log_excerpt.txt
 
-          # Close the code block and add workflow URL
-          echo '```' >> "$BUG_FILE"
-          echo "" >> "$BUG_FILE"
-          echo "## Workflow Run" >> "$BUG_FILE"
-          echo "${WORKFLOW_URL}" >> "$BUG_FILE"
+          echo "✅ Successfully processed logs ($(wc -l < job_logs.txt) lines)"
 
-          echo "✅ Markdown file created: $BUG_FILE"
-          echo ""
-          echo "Bug report preview:"
-          echo "===================="
-          head -n 20 "$BUG_FILE"
-          echo "..."
+          # Set output for use in issue body (escaped for JSON)
+          # Store in environment variable to avoid issues with multiline output
+          echo "LOG_EXCERPT<<EOF" >> $GITHUB_ENV
+          echo "$LOG_EXCERPT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Commit and push bug log
+      - name: Create bug log entry using template
+        id: create-bug-log
         run: |
           FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
-          BUG_ID="${{ env.NEXT_BUG_ID }}"
+          FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
 
-          # Add both the bug-log.json and the markdown file
-          git add docs/features/bug-log.json
-          git add "docs/features/${FEATURE_ID}/bugs/${BUG_ID}.md"
+          # Read the template
+          TEMPLATE_FILE="docs/templates/bug-log-template.md"
 
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "$(cat <<'EOF'
-          Add bug report for ${{ steps.failed-job.outputs.title }}
-
-          Bug ID: ${{ env.NEXT_BUG_ID }}
-          Feature: ${{ steps.feature.outputs.branch_name }}
-          Failed Job: ${{ steps.failed-job.outputs.failed_job }}
-          Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-          Co-Authored-By: Claude <noreply@anthropic.com>
-          EOF
-          )"
-
-            git push
-            echo "✅ Bug log committed and pushed successfully"
+          if [ ! -f "$TEMPLATE_FILE" ]; then
+            echo "Error: Template file not found at $TEMPLATE_FILE"
+            exit 1
           fi
+
+          # Read full logs
+          if [ -f job_logs.txt ]; then
+            LOG_DETAIL=$(cat job_logs.txt)
+          else
+            LOG_DETAIL="No logs available"
+          fi
+
+          # Create bug log content from template
+          BUG_LOG_CONTENT=$(cat "$TEMPLATE_FILE")
+
+          # Replace template variables
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| featureID | 1 |/| featureID | $FEATURE_ID |/")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| featureName |  |/| featureName | $FEATURE_NAME |/")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| title |  |/| title | $TITLE |/")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s|| runURL |  ||runURL | $WORKFLOW_URL |")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| jobName |  |/| jobName | $FAILED_JOB |/")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| stepName |  |/| stepName | $FAILED_STEP |/")
+
+          # For logDetail, we'll add it after the table
+          echo "$BUG_LOG_CONTENT" > bug_log.md
+          echo "" >> bug_log.md
+          echo "## Log Details" >> bug_log.md
+          echo "" >> bug_log.md
+          echo '```' >> bug_log.md
+          echo "$LOG_DETAIL" >> bug_log.md
+          echo '```' >> bug_log.md
+
+          echo "✅ Bug log created from template"
+          echo ""
+          echo "Bug log preview:"
+          echo "===================="
+          head -n 30 bug_log.md
+          echo "..."
+
+          # Save for issue creation
+          echo "BUG_LOG_FILE=bug_log.md" >> $GITHUB_ENV
+
+      - name: Create GitHub issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          # Create issue body with bug details
+          cat > issue_body.md <<'ISSUE_EOF'
+          ## CI/CD Failure Report
+
+          **Feature**: ${{ steps.feature.outputs.branch_name }} (#${{ steps.feature.outputs.feature_id }})
+          **Pull Request**: #${{ github.event.pull_request.number }}
+          **Failed Job**: ${{ steps.failed-job.outputs.failed_job }}
+          **Failed Step**: ${{ steps.fetch-logs.outputs.failed_step }}
+
+          ---
+
+          ### Failure Details
+
+          ```
+          ${{ env.LOG_EXCERPT }}
+          ```
+
+          ---
+
+          ### Links
+
+          - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Pull Request](#${{ github.event.pull_request.number }})
+          - [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+
+          ---
+
+          ### Bug Log Template
+
+          ISSUE_EOF
+
+          # Append the bug log template content
+          cat bug_log.md >> issue_body.md
+
+          # Create the GitHub issue
+          ISSUE_URL=$(gh issue create \
+            --title "[$FEATURE_NAME] $TITLE" \
+            --body-file issue_body.md \
+            --label "bug,ci-failure,feature-$FEATURE_ID" \
+            --assignee "${{ github.event.pull_request.user.login }}")
+
+          echo "✅ GitHub issue created: $ISSUE_URL"
+          echo ""
+          echo "Issue URL: $ISSUE_URL"
+
+          # Save issue URL for summary
+          echo "ISSUE_URL=$ISSUE_URL" >> $GITHUB_ENV
+
+      - name: Add comment to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          cat > pr_comment.md <<'COMMENT_EOF'
+          ## CI/CD Failure Detected
+
+          A CI/CD job has failed for this pull request. A bug report has been automatically created.
+
+          **Failed Job**: ${{ steps.failed-job.outputs.failed_job }}
+          **Failed Step**: ${{ steps.fetch-logs.outputs.failed_step }}
+
+          **GitHub Issue**: ${{ env.ISSUE_URL }}
+          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Please review the issue for detailed logs and resolution steps.
+          COMMENT_EOF
+
+          gh pr comment "$PR_NUMBER" --body-file pr_comment.md
+
+          echo "✅ Comment added to PR #$PR_NUMBER"
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "## Bug Tracking Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ env.ISSUE_URL }}" ]; then
+            echo "✅ **GitHub Issue Created**: ${{ env.ISSUE_URL }}" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Bug log generated** from template" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **PR comment added** with failure details" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Warning: Issue creation may have failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Failure Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Feature**: ${{ steps.feature.outputs.branch_name }} (#${{ steps.feature.outputs.feature_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Job**: ${{ steps.failed-job.outputs.failed_job }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Step**: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
