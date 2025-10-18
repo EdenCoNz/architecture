@@ -10,7 +10,7 @@ on:
     branches: [ main ]
 
 jobs:
-  # Example 1: Node.js project
+  # Example 1: Node.js projecT
   test-nodejs:
     uses: EdenCoNz/cicd-template/.github/workflows/reusable-test.yml@main
     secrets: inherit
