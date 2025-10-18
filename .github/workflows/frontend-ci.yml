@@ -11,6 +11,7 @@ permissions:
   contents: read
   checks: write
   actions: read  # Needed to fetch job logs and job information
+  issues: write  # Needed for bug logger to create GitHub issues
 
 # Prevent concurrent runs for same branch/PR
 concurrency:
