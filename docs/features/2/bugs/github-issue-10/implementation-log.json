@@ -1,0 +1,1026 @@
+[
+  {
+    "storyNumber": 1,
+    "storyTitle": "Investigate Docker Container Root Cause Failure",
+    "timestamp": "2025-10-18T05:57:00Z",
+    "status": "completed",
+    "filesModified": [],
+    "filesCreated": [
+      "docs/features/2/bugs/github-issue-10/implementation-log.json"
+    ],
+    "actions": [
+      {
+        "action": "Built Docker image locally",
+        "tool": "docker build",
+        "command": "docker build -t frontend:test .",
+        "result": "Success - image built successfully"
+      },
+      {
+        "action": "Started container for testing",
+        "tool": "docker run",
+        "command": "docker run -d --name frontend-test -p 8081:8080 frontend:test",
+        "result": "Container running successfully"
+      },
+      {
+        "action": "Tested /health endpoint",
+        "tool": "curl",
+        "command": "curl -s -w '\\nHTTP Status: %{http_code}\\n' http://localhost:8081/health",
+        "result": "\u2705 Health endpoint works correctly - returns 'healthy' with HTTP 200"
+      },
+      {
+        "action": "Tested / endpoint with case-sensitive grep",
+        "tool": "curl + grep",
+        "command": "curl -f -s http://localhost:8081/ | grep -q '<!DOCTYPE html>'",
+        "result": "\u274c Test FAILED - grep cannot find '<!DOCTYPE html>' (uppercase)"
+      },
+      {
+        "action": "Inspected actual DOCTYPE format",
+        "tool": "curl",
+        "command": "curl -s http://localhost:8081/ | head -1",
+        "result": "Found: '<!doctype html>' (lowercase)"
+      },
+      {
+        "action": "Tested / endpoint with case-insensitive grep",
+        "tool": "curl + grep",
+        "command": "curl -f -s http://localhost:8081/ | grep -qi '<!DOCTYPE html>'",
+        "result": "\u2705 Test PASSED with case-insensitive match (-i flag)"
+      },
+      {
+        "action": "Inspected container logs",
+        "tool": "docker logs",
+        "result": "No errors - nginx serving requests successfully with HTTP 200 responses"
+      },
+      {
+        "action": "Examined /usr/share/nginx/html contents",
+        "tool": "docker exec",
+        "command": "docker exec frontend-test ls -la /usr/share/nginx/html",
+        "result": "All files present with correct permissions (nginx-app:nginx-app ownership)"
+      },
+      {
+        "action": "Verified index.html content in container",
+        "tool": "docker exec",
+        "command": "docker exec frontend-test cat /usr/share/nginx/html/index.html",
+        "result": "Valid HTML with '<!doctype html>' (lowercase)"
+      },
+      {
+        "action": "Tested nginx configuration syntax",
+        "tool": "docker exec",
+        "command": "docker exec frontend-test nginx -t",
+        "result": "\u2705 Nginx configuration is valid and successful"
+      },
+      {
+        "action": "Inspected source index.html template",
+        "tool": "Read",
+        "file": "frontend/index.html",
+        "result": "Source template uses '<!doctype html>' (lowercase) - this is Vite's default"
+      }
+    ],
+    "rootCauseFindings": {
+      "summary": "CI/CD test uses case-sensitive grep that expects uppercase '<!DOCTYPE html>' but Vite generates lowercase '<!doctype html>'",
+      "details": {
+        "symptom": "CI workflow step 'Test application root' fails even though application is serving HTML correctly",
+        "actualBehavior": "Application serves valid HTML with '<!doctype html>' (lowercase)",
+        "expectedBehavior": "CI test expects '<!DOCTYPE html>' (uppercase)",
+        "componentAtFault": "CI test script in .github/workflows/frontend-ci.yml line 237",
+        "ciTestCommand": "curl -f -s http://localhost:8080/ | grep -q '<!DOCTYPE html>'",
+        "issue": "grep -q is case-sensitive by default",
+        "whyHealthCheckPasses": "Health check endpoint (/health) is hardcoded in nginx.conf and returns plain text 'healthy'",
+        "whyRootEndpointFails": "Root endpoint (/) serves index.html with lowercase '<!doctype html>' which doesn't match case-sensitive grep pattern",
+        "viteDefaultBehavior": "Vite build tool generates HTML with lowercase DOCTYPE declaration by default (HTML5 standard allows both)",
+        "html5Standard": "Both '<!DOCTYPE html>' and '<!doctype html>' are valid HTML5 DOCTYPE declarations"
+      },
+      "possibleFixes": [
+        {
+          "option": 1,
+          "approach": "Fix CI test to use case-insensitive grep",
+          "implementation": "Change 'grep -q' to 'grep -qi' in .github/workflows/frontend-ci.yml line 237",
+          "pros": "Minimal change, accepts both uppercase and lowercase DOCTYPE (more robust)",
+          "cons": "None",
+          "recommended": true
+        },
+        {
+          "option": 2,
+          "approach": "Change source HTML to uppercase DOCTYPE",
+          "implementation": "Change '<!doctype html>' to '<!DOCTYPE html>' in frontend/index.html line 1",
+          "pros": "Matches conventional uppercase style seen in many HTML examples",
+          "cons": "Vite might regenerate with lowercase on next scaffold, requires maintaining non-standard template",
+          "recommended": false
+        },
+        {
+          "option": 3,
+          "approach": "Use more flexible HTML validation",
+          "implementation": "Change grep pattern to match any DOCTYPE variant: 'grep -qi \"<!doctype\"'",
+          "pros": "Most flexible, accepts various DOCTYPE formats",
+          "cons": "Less strict validation",
+          "recommended": false
+        }
+      ],
+      "recommendedFix": "Option 1: Change CI test to use case-insensitive grep (-i flag). This is the most robust solution as it accepts both valid HTML5 DOCTYPE formats without requiring changes to the application code or Vite configuration."
+    },
+    "issuesEncountered": [
+      {
+        "issue": "Port 8080 already allocated during local testing",
+        "resolution": "Used port 8081 instead (docker run -p 8081:8080)"
+      }
+    ],
+    "investigationNotes": {
+      "dockerBuildProcess": "Multi-stage build works correctly - build stage creates dist/index.html, production stage copies it to /usr/share/nginx/html",
+      "nginxConfiguration": "Nginx config is valid and working correctly - serves index.html for all routes via try_files directive",
+      "filePermissions": "All files have correct ownership (nginx-app:nginx-app) and permissions",
+      "healthCheckEndpoint": "Health check uses custom nginx location block that returns plain text, not dependent on index.html",
+      "containerLogs": "No errors in container logs - all requests returning HTTP 200",
+      "buildArtifacts": "dist/index.html exists and contains valid HTML structure with React root div",
+      "caseMatters": "Linux/Unix grep is case-sensitive by default - must use -i flag for case-insensitive matching"
+    },
+    "nextSteps": [
+      "Story #2: Write regression tests that verify both DOCTYPE formats work",
+      "Story #3: Implement fix by updating CI workflow to use case-insensitive grep",
+      "Story #4: Validate fix locally with full Docker workflow",
+      "Story #5: Verify CI/CD pipeline passes end-to-end"
+    ]
+  },
+  {
+    "storyNumber": 2,
+    "storyTitle": "Write Regression Test for Docker Container Endpoints",
+    "timestamp": "2025-10-18T06:01:25Z",
+    "status": "completed",
+    "filesCreated": [
+      "frontend/scripts/test-docker-endpoints.sh"
+    ],
+    "filesModified": [
+      "frontend/README.md",
+      ".github/workflows/frontend-ci.yml"
+    ],
+    "actions": [
+      {
+        "action": "Created comprehensive test script for Docker container endpoints",
+        "tool": "Write",
+        "file": "frontend/scripts/test-docker-endpoints.sh",
+        "result": "Created production-ready bash script with health and root endpoint tests"
+      },
+      {
+        "action": "Made test script executable",
+        "tool": "chmod",
+        "command": "chmod +x frontend/scripts/test-docker-endpoints.sh",
+        "result": "Script is now executable"
+      },
+      {
+        "action": "Validated bash script syntax",
+        "tool": "bash -n",
+        "command": "bash -n frontend/scripts/test-docker-endpoints.sh",
+        "result": "\u2713 Script syntax is valid"
+      },
+      {
+        "action": "Added Docker Container Testing section to README",
+        "tool": "Edit",
+        "file": "frontend/README.md",
+        "result": "Documented test script usage, exit codes, and CI/CD integration"
+      },
+      {
+        "action": "Updated GitHub Actions workflow to use test script",
+        "tool": "Edit",
+        "file": ".github/workflows/frontend-ci.yml",
+        "result": "Replaced inline test steps with dedicated test script call"
+      },
+      {
+        "action": "Validated workflow YAML syntax",
+        "tool": "python yaml.safe_load",
+        "result": "\u2713 YAML syntax is valid"
+      }
+    ],
+    "implementationDetails": {
+      "testScript": {
+        "location": "frontend/scripts/test-docker-endpoints.sh",
+        "language": "bash",
+        "features": [
+          "Validates /health endpoint returns 200 status and 'healthy' text",
+          "Validates / endpoint returns 200 status and HTML with DOCTYPE (case-insensitive)",
+          "Verifies HTML contains React app div (id=\"root\")",
+          "Fail-fast with clear error messages indicating which endpoint failed",
+          "Executable both locally and in CI/CD environment",
+          "Configurable container name and port via arguments",
+          "30-second timeout with retry logic for endpoint availability",
+          "Color-coded output (disabled in CI environments)",
+          "Comprehensive troubleshooting messages on failure",
+          "Container status validation before running tests"
+        ],
+        "testCoverage": [
+          {
+            "test": "Health endpoint HTTP status",
+            "validates": "Returns HTTP 200",
+            "exitCode": 1
+          },
+          {
+            "test": "Health endpoint response body",
+            "validates": "Contains 'healthy' text",
+            "exitCode": 1
+          },
+          {
+            "test": "Root endpoint HTTP status",
+            "validates": "Returns HTTP 200",
+            "exitCode": 2
+          },
+          {
+            "test": "Root endpoint DOCTYPE",
+            "validates": "Contains '<!DOCTYPE html>' (case-insensitive)",
+            "exitCode": 2
+          },
+          {
+            "test": "Root endpoint React div",
+            "validates": "Contains div with id=\"root\"",
+            "exitCode": 3
+          }
+        ],
+        "exitCodes": {
+          "0": "All tests passed",
+          "1": "Health endpoint test failed",
+          "2": "Root endpoint test failed (DOCTYPE check)",
+          "3": "Root endpoint test failed (React div check)",
+          "4": "Container not running",
+          "5": "Invalid arguments or missing dependencies"
+        }
+      },
+      "documentation": {
+        "location": "frontend/README.md",
+        "sections": [
+          "Docker Container Testing overview",
+          "Running Container Tests Locally (4-step guide)",
+          "What the Tests Validate (detailed endpoint checks)",
+          "Test Script Usage (examples with different arguments)",
+          "Exit Codes (all 6 exit codes documented)",
+          "CI/CD Integration (pipeline integration notes)"
+        ]
+      },
+      "cicdIntegration": {
+        "workflow": ".github/workflows/frontend-ci.yml",
+        "job": "Build and Test Docker Image",
+        "stepName": "Test container endpoints",
+        "changes": "Replaced inline bash test steps with single call to test-docker-endpoints.sh",
+        "benefits": [
+          "Cleaner workflow file (reduced from 30 lines to 4 lines)",
+          "Reusable test logic between local and CI environments",
+          "Easier to maintain and enhance tests",
+          "Better error messages and troubleshooting guidance",
+          "Consistent test behavior across environments"
+        ]
+      }
+    },
+    "acceptanceCriteria": [
+      {
+        "criteria": "Create test script that validates /health endpoint returns 200 status and 'healthy' text",
+        "status": "\u2705 Completed",
+        "implementation": "test_health_endpoint() function validates HTTP 200 and grep for 'healthy'"
+      },
+      {
+        "criteria": "Add test that validates / endpoint returns 200 status and HTML with DOCTYPE",
+        "status": "\u2705 Completed",
+        "implementation": "test_root_endpoint() validates HTTP 200 and case-insensitive grep for '<!DOCTYPE html>'"
+      },
+      {
+        "criteria": "Add test that verifies HTML contains expected React app div (id=\"root\")",
+        "status": "\u2705 Completed",
+        "implementation": "test_root_endpoint() includes grep check for 'id=\"root\"'"
+      },
+      {
+        "criteria": "Test script should fail fast with clear error messages indicating which endpoint failed",
+        "status": "\u2705 Completed",
+        "implementation": "Each test exits immediately on failure with specific exit codes and detailed troubleshooting messages"
+      },
+      {
+        "criteria": "Tests should be executable both locally and in CI/CD environment",
+        "status": "\u2705 Completed",
+        "implementation": "Script works with default arguments for CI, accepts custom arguments for local testing, color output disabled in CI"
+      },
+      {
+        "criteria": "Document how to run tests locally in docker-guide.md or README",
+        "status": "\u2705 Completed",
+        "implementation": "Added comprehensive Docker Container Testing section to frontend/README.md with usage examples and troubleshooting"
+      }
+    ],
+    "issuesEncountered": [],
+    "testingPerformed": {
+      "syntaxValidation": {
+        "bash": "\u2713 Script syntax validated with bash -n",
+        "yaml": "\u2713 Workflow YAML validated with python yaml.safe_load"
+      },
+      "note": "Full integration testing will be performed in Story #4 after implementing the fix from Story #3"
+    },
+    "nextSteps": [
+      "Story #3: Implement fix for Docker container root endpoint (case-insensitive grep)",
+      "Story #4: Validate fix locally with full Docker workflow using new test script",
+      "Story #5: Verify CI/CD pipeline passes end-to-end with new test script"
+    ]
+  },
+  {
+    "storyNumber": 3,
+    "storyTitle": "Implement Fix for Docker Container Root Endpoint",
+    "timestamp": "2025-10-18T06:04:59Z",
+    "status": "completed",
+    "filesCreated": [],
+    "filesModified": [],
+    "actions": [
+      {
+        "action": "Reviewed root cause analysis from Story #1",
+        "tool": "Read",
+        "file": "docs/features/2/bugs/github-issue-10/implementation-log.json",
+        "result": "Root cause: CI test uses case-sensitive grep expecting uppercase DOCTYPE but Vite generates lowercase doctype"
+      },
+      {
+        "action": "Verified test script implementation from Story #2",
+        "tool": "grep",
+        "file": "frontend/scripts/test-docker-endpoints.sh",
+        "command": "grep -n \"DOCTYPE\" frontend/scripts/test-docker-endpoints.sh",
+        "result": "Line 251: Uses grep -qi (case-insensitive) to match DOCTYPE - fix already implemented"
+      },
+      {
+        "action": "Verified GitHub Actions workflow uses test script",
+        "tool": "Read",
+        "file": ".github/workflows/frontend-ci.yml",
+        "result": "Lines 206-210: Workflow calls test-docker-endpoints.sh script (no inline grep)"
+      },
+      {
+        "action": "Verified no remaining case-sensitive DOCTYPE checks",
+        "tool": "grep",
+        "command": "grep -n \"DOCTYPE\" .github/workflows/frontend-ci.yml",
+        "result": "No matches - all DOCTYPE checks moved to test script"
+      },
+      {
+        "action": "Verified Dockerfile builds correctly",
+        "tool": "Read",
+        "file": "frontend/Dockerfile",
+        "result": "Multi-stage build copies dist/ to /usr/share/nginx/html with proper permissions"
+      },
+      {
+        "action": "Verified file permissions for nginx user",
+        "tool": "Read",
+        "file": "frontend/Dockerfile",
+        "result": "Lines 54-61: Creates nginx-app user (UID 1001) and sets ownership on all required directories"
+      },
+      {
+        "action": "Verified nginx configuration",
+        "tool": "Read",
+        "file": "frontend/nginx.conf",
+        "result": "SPA routing configured with try_files directive, health endpoint on /health, port 8080"
+      },
+      {
+        "action": "Verified health check implementation",
+        "tool": "Read",
+        "file": "frontend/Dockerfile",
+        "result": "Lines 70-71: HEALTHCHECK with 5s start period"
+      }
+    ],
+    "implementationDetails": {
+      "rootCauseFix": "Test script uses case-insensitive grep (-qi flag) to match DOCTYPE declarations",
+      "fixLocation": "frontend/scripts/test-docker-endpoints.sh line 251",
+      "grepPattern": "grep -qi \"<!DOCTYPE html>\"",
+      "acceptsBothCases": true,
+      "implementedInStory2": true,
+      "noCodeChangesNeeded": "Fix was already implemented when test script was created in Story #2",
+      "verificationOnly": "Story #3 focused on verifying the fix meets all acceptance criteria"
+    },
+    "acceptanceCriteria": [
+      {
+        "criteria": "Application root endpoint (/) returns valid HTML with DOCTYPE declaration",
+        "status": "VERIFIED",
+        "implementation": "Test script line 251 uses grep -qi to match both uppercase and lowercase DOCTYPE",
+        "verification": "grep -qi \"<!DOCTYPE html>\" matches both <!DOCTYPE html> and <!doctype html>"
+      },
+      {
+        "criteria": "HTML response includes the React app root div element",
+        "status": "VERIFIED",
+        "implementation": "Test script line 271 checks for id=\"root\"",
+        "verification": "grep -q 'id=\"root\"' validates React div presence"
+      },
+      {
+        "criteria": "Health check endpoint (/health) continues to work correctly",
+        "status": "VERIFIED",
+        "implementation": "Test script lines 152-217 validate health endpoint",
+        "verification": "test_health_endpoint() checks HTTP 200 and \"healthy\" response"
+      },
+      {
+        "criteria": "Docker build completes successfully without errors",
+        "status": "VERIFIED",
+        "implementation": "Dockerfile multi-stage build with BuildKit cache",
+        "verification": "Story #1 log shows successful build, Story #2 workflow runs build job"
+      },
+      {
+        "criteria": "Container starts successfully and serves content within 5 seconds",
+        "status": "VERIFIED",
+        "implementation": "Dockerfile HEALTHCHECK with 5s start period, workflow waits 5s",
+        "verification": "Dockerfile line 70: start-period=5s, workflow line 200: sleep 5"
+      },
+      {
+        "criteria": "All file permissions are correctly set for nginx user",
+        "status": "VERIFIED",
+        "implementation": "Dockerfile lines 54-61 create nginx-app user and set ownership",
+        "verification": "chown -R nginx-app:nginx-app on /usr/share/nginx/html and all nginx directories"
+      },
+      {
+        "criteria": "Changes are minimal and focused only on the root cause",
+        "status": "VERIFIED",
+        "implementation": "Only test script uses case-insensitive grep - no application code changed",
+        "verification": "Fix changes only grep flag from -q to -qi (adding -i for case-insensitivity)"
+      }
+    ],
+    "issuesEncountered": [],
+    "testingNotes": {
+      "fixAlreadyImplemented": "Story #2 created test script with case-insensitive grep, so Story #3 was primarily verification",
+      "noAdditionalChanges": "No code changes were needed in Story #3",
+      "allCriteriaVerified": "All 7 acceptance criteria verified against existing implementation",
+      "readyForStory4": "Fix is complete and ready for local validation in Story #4"
+    },
+    "nextSteps": [
+      "Story #4: Validate fix locally with full Docker workflow using test script",
+      "Story #5: Verify CI/CD pipeline passes end-to-end"
+    ]
+  },
+  {
+    "storyNumber": 4,
+    "storyTitle": "Validate Fix Locally with Full Docker Workflow",
+    "timestamp": "2025-10-18T06:15:30Z",
+    "status": "completed",
+    "filesCreated": [],
+    "filesModified": [],
+    "actions": [
+      {
+        "action": "Cleaned up old Docker containers and images",
+        "tool": "docker",
+        "command": "docker stop react-frontend && docker rm react-frontend && docker rmi frontend:test frontend-test:local frontend-app:latest",
+        "result": "\u2713 Successfully removed old containers and images"
+      },
+      {
+        "action": "Built Docker image with fresh build (no cache)",
+        "tool": "docker build",
+        "command": "docker build --no-cache -t frontend:story4-test .",
+        "result": "\u2713 Build completed successfully in ~36 seconds",
+        "details": {
+          "buildTime": "36 seconds",
+          "npmPackages": "372 packages installed",
+          "vulnerabilities": "0 vulnerabilities found",
+          "viteBuildTime": "4.46s",
+          "outputFiles": [
+            "dist/index.html (0.46 kB, gzip: 0.29 kB)",
+            "dist/assets/index-5Bpwc0ZF.css (1.64 kB, gzip: 0.70 kB)",
+            "dist/assets/index-CBS21ePZ.js (366.42 kB, gzip: 118.38 kB)"
+          ]
+        }
+      },
+      {
+        "action": "Started container and measured startup time",
+        "tool": "docker run",
+        "command": "docker run -d --name frontend-story4-test -p 8081:8080 frontend:story4-test",
+        "result": "\u2713 Container started in 3 seconds (within 5-second requirement)",
+        "details": {
+          "startupTime": "3 seconds",
+          "containerStatus": "Up (health: starting)",
+          "portMapping": "8081:8080"
+        }
+      },
+      {
+        "action": "Tested /health endpoint",
+        "tool": "curl",
+        "command": "curl -s -w '\\nHTTP Status: %{http_code}\\n' http://localhost:8081/health",
+        "result": "\u2713 Health endpoint responded within 10 seconds",
+        "details": {
+          "httpStatus": 200,
+          "responseBody": "healthy",
+          "responseTime": "< 1 second"
+        }
+      },
+      {
+        "action": "Tested / endpoint for valid HTML",
+        "tool": "curl",
+        "command": "curl -s http://localhost:8081/",
+        "result": "\u2713 Root endpoint returned valid HTML within 10 seconds",
+        "details": {
+          "httpStatus": 200,
+          "doctype": "<!doctype html>",
+          "containsReactDiv": true,
+          "reactDivId": "root",
+          "responseTime": "< 1 second"
+        }
+      },
+      {
+        "action": "Verified HTML structure",
+        "tool": "curl + grep",
+        "result": "\u2713 HTML contains valid DOCTYPE and React app structure",
+        "details": {
+          "doctypeFound": "<!doctype html> (lowercase)",
+          "reactDivFound": "<div id=\"root\"></div>",
+          "validHtml5": true
+        }
+      },
+      {
+        "action": "Ran regression test script from Story #2",
+        "tool": "bash",
+        "command": "bash scripts/test-docker-endpoints.sh frontend-story4-test 8081",
+        "result": "\u2713 All regression tests PASSED",
+        "details": {
+          "test1_healthEndpoint": "PASSED - HTTP 200 with 'healthy' response",
+          "test2_rootEndpoint": "PASSED - HTTP 200 with valid HTML",
+          "test3_doctypeCheck": "PASSED - Case-insensitive DOCTYPE match",
+          "test4_reactDiv": "PASSED - React root div found",
+          "exitCode": 0
+        }
+      },
+      {
+        "action": "Verified nginx logs for errors and warnings",
+        "tool": "docker logs",
+        "command": "docker logs frontend-story4-test",
+        "result": "\u2713 No critical errors or warnings (only expected non-root user warning)",
+        "details": {
+          "startupNotices": 10,
+          "accessLogs": "All HTTP 200 responses",
+          "errorLogs": "None",
+          "warnings": [
+            {
+              "warning": "user directive ignored (non-root execution)",
+              "severity": "info",
+              "expected": true,
+              "explanation": "This warning is expected when running nginx as non-root user (security best practice)"
+            }
+          ]
+        }
+      },
+      {
+        "action": "Built Docker image with cache enabled",
+        "tool": "docker build",
+        "command": "docker build -t frontend:story4-cached .",
+        "result": "\u2713 Cached build completed in < 1 second",
+        "details": {
+          "cachedLayers": 8,
+          "buildTime": "< 1 second",
+          "allLayersCached": true,
+          "cacheEfficiency": "100% - all layers from cache"
+        }
+      },
+      {
+        "action": "Started container from cached build",
+        "tool": "docker run",
+        "command": "docker run -d --name frontend-cached-test -p 8082:8080 frontend:story4-cached",
+        "result": "\u2713 Container started successfully in 3 seconds"
+      },
+      {
+        "action": "Ran regression tests on cached build container",
+        "tool": "bash",
+        "command": "bash scripts/test-docker-endpoints.sh frontend-cached-test 8082",
+        "result": "\u2713 All regression tests PASSED on cached build",
+        "details": {
+          "allTestsPassed": true,
+          "sameResultsAsFreshBuild": true,
+          "exitCode": 0
+        }
+      },
+      {
+        "action": "Cleaned up test containers and images",
+        "tool": "docker",
+        "command": "docker stop frontend-story4-test frontend-cached-test && docker rm frontend-story4-test frontend-cached-test && docker rmi frontend:story4-test frontend:story4-cached",
+        "result": "\u2713 Cleanup completed successfully"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "criteria": "Docker image builds successfully with `docker build` command",
+        "status": "\u2705 PASSED",
+        "evidence": "Fresh build completed in 36 seconds with 0 vulnerabilities, all build stages successful"
+      },
+      {
+        "criteria": "Container starts successfully with `docker run -d -p 8080:8080`",
+        "status": "\u2705 PASSED",
+        "evidence": "Container started in 3 seconds (used port 8081 due to Jenkins on 8080)",
+        "note": "Used port 8081 instead of 8080 because Jenkins is using port 8080"
+      },
+      {
+        "criteria": "Health check endpoint returns 'healthy' within 10 seconds",
+        "status": "\u2705 PASSED",
+        "evidence": "Health endpoint responded in < 1 second with HTTP 200 and 'healthy' text"
+      },
+      {
+        "criteria": "Application root endpoint returns valid HTML within 10 seconds",
+        "status": "\u2705 PASSED",
+        "evidence": "Root endpoint responded in < 1 second with HTTP 200 and valid HTML5 structure"
+      },
+      {
+        "criteria": "HTML content includes React application structure",
+        "status": "\u2705 PASSED",
+        "evidence": "HTML contains <!doctype html> and <div id=\"root\"></div> elements"
+      },
+      {
+        "criteria": "Run regression tests from Story #2 and verify all pass",
+        "status": "\u2705 PASSED",
+        "evidence": "test-docker-endpoints.sh script passed all 5 test validations (exit code 0)"
+      },
+      {
+        "criteria": "Verify nginx logs show no errors or warnings",
+        "status": "\u2705 PASSED",
+        "evidence": "Only expected non-root user warning present (security best practice), all HTTP requests logged as 200 responses, 10 startup notices (normal)"
+      },
+      {
+        "criteria": "Test both fresh build and cached build scenarios",
+        "status": "\u2705 PASSED",
+        "evidence": "Fresh build (36s) and cached build (<1s with 8 cached layers) both produced working containers that passed all tests"
+      }
+    ],
+    "testResults": {
+      "freshBuild": {
+        "buildTime": "36 seconds",
+        "imageSize": "53.5 MB (estimated)",
+        "buildSuccess": true,
+        "vulnerabilities": 0,
+        "allTestsPassed": true
+      },
+      "cachedBuild": {
+        "buildTime": "< 1 second",
+        "cachedLayers": 8,
+        "cacheEfficiency": "100%",
+        "allTestsPassed": true,
+        "sameResultsAsFresh": true
+      },
+      "containerStartup": {
+        "startupTime": "3 seconds",
+        "healthCheckPeriod": "5 seconds",
+        "withinRequirement": true
+      },
+      "endpointTests": {
+        "healthEndpoint": {
+          "responseTime": "< 1 second",
+          "httpStatus": 200,
+          "responseBody": "healthy",
+          "passed": true
+        },
+        "rootEndpoint": {
+          "responseTime": "< 1 second",
+          "httpStatus": 200,
+          "hasDoctype": true,
+          "doctypeFormat": "<!doctype html>",
+          "hasReactDiv": true,
+          "passed": true
+        }
+      },
+      "regressionTests": {
+        "scriptLocation": "frontend/scripts/test-docker-endpoints.sh",
+        "freshBuildResult": "PASSED (exit 0)",
+        "cachedBuildResult": "PASSED (exit 0)",
+        "testsExecuted": 5,
+        "testsPassed": 5,
+        "testsFailed": 0
+      }
+    },
+    "issuesEncountered": [
+      {
+        "issue": "Port 8080 already allocated during local testing",
+        "cause": "Jenkins container using port 8080",
+        "resolution": "Used port 8081 instead (docker run -p 8081:8080)",
+        "impact": "None - tests passed with alternative port"
+      }
+    ],
+    "performanceMetrics": {
+      "freshBuildTime": "36 seconds",
+      "cachedBuildTime": "< 1 second",
+      "cacheSpeedup": "36x faster with cache",
+      "containerStartupTime": "3 seconds",
+      "healthEndpointResponseTime": "< 1 second",
+      "rootEndpointResponseTime": "< 1 second",
+      "totalTestExecutionTime": "~ 10 seconds per container"
+    },
+    "dockerBestPractices": {
+      "multiStageBuild": "\u2713 Used for separating build and runtime dependencies",
+      "nonRootUser": "\u2713 Container runs as nginx-app user (UID 1001)",
+      "minimalBaseImage": "\u2713 Using nginx:alpine and node:20-alpine",
+      "healthCheck": "\u2713 HEALTHCHECK configured with 5s start period",
+      "layerCaching": "\u2713 Efficient layer ordering - 100% cache hit on rebuild",
+      "buildKitOptimization": "\u2713 BuildKit cache mounts for npm packages",
+      "securityScanning": "\u2713 0 vulnerabilities in npm dependencies",
+      "properPermissions": "\u2713 All nginx files owned by nginx-app:nginx-app"
+    },
+    "validationSummary": {
+      "totalAcceptanceCriteria": 8,
+      "criteriaPass": 8,
+      "criteriaFail": 0,
+      "overallStatus": "\u2705 ALL ACCEPTANCE CRITERIA PASSED",
+      "readyForStory5": true,
+      "conclusion": "Fix is working correctly. Both fresh and cached builds produce containers that serve the React application successfully with valid HTML. All regression tests pass. Ready for CI/CD pipeline validation in Story #5."
+    },
+    "nextSteps": [
+      "Story #5: Verify CI/CD pipeline passes end-to-end with the implemented fix"
+    ]
+  },
+  {
+    "storyNumber": 5,
+    "storyTitle": "Verify CI/CD Pipeline Passes End-to-End",
+    "timestamp": "2025-10-18T06:17:35Z",
+    "status": "completed",
+    "filesCreated": [],
+    "filesModified": [],
+    "actions": [
+      {
+        "action": "Staged all modified and new files for commit",
+        "tool": "git add",
+        "files": [
+          ".github/workflows/frontend-ci.yml",
+          "frontend/README.md",
+          "frontend/scripts/test-docker-endpoints.sh",
+          "docs/features/2/bugs/github-issue-10/implementation-log.json",
+          "docs/features/2/bugs/github-issue-10/user-stories.md",
+          "docs/features/bug-log.json"
+        ],
+        "result": "All files staged successfully"
+      },
+      {
+        "action": "Committed bug fix with detailed commit message",
+        "tool": "git commit",
+        "result": "Commit created successfully (e97bdbf)",
+        "commitSha": "e97bdbf",
+        "commitMessage": "Fix Docker container endpoint testing with case-insensitive DOCTYPE validation"
+      },
+      {
+        "action": "Pushed changes to trigger CI/CD pipeline",
+        "tool": "git push",
+        "command": "git push origin feature/2-test",
+        "result": "Successfully pushed to origin/feature/2-test",
+        "triggeredWorkflow": true
+      },
+      {
+        "action": "Monitored workflow execution",
+        "tool": "gh run watch",
+        "workflowRunId": "18611856092",
+        "result": "Workflow completed successfully with all jobs passing"
+      },
+      {
+        "action": "Verified workflow completion status",
+        "tool": "gh run view",
+        "workflowRunId": "18611856092",
+        "result": "All critical jobs passed: Lint, Type Check, Security Audit, Build, Docker Build & Test"
+      },
+      {
+        "action": "Extracted detailed test results from workflow logs",
+        "tool": "gh run view --log",
+        "result": "Regression test script executed successfully in CI environment with all tests passing"
+      }
+    ],
+    "cicdPipelineResults": {
+      "workflowRunId": "18611856092",
+      "workflowName": "Frontend CI/CD",
+      "trigger": "pull_request",
+      "branch": "feature/2-test",
+      "pullRequest": "#8",
+      "overallStatus": "success",
+      "totalDuration": "~2 minutes",
+      "jobs": [
+        {
+          "name": "Lint and Format Check",
+          "status": "success",
+          "duration": "26s",
+          "steps": [
+            "Checkout",
+            "Setup Node.js",
+            "Install dependencies",
+            "Run ESLint",
+            "Check Prettier formatting"
+          ],
+          "allStepsPassed": true
+        },
+        {
+          "name": "TypeScript Type Check",
+          "status": "success",
+          "duration": "35s",
+          "steps": [
+            "Checkout",
+            "Setup Node.js",
+            "Install dependencies",
+            "Run TypeScript type check"
+          ],
+          "allStepsPassed": true
+        },
+        {
+          "name": "Security Audit",
+          "status": "success",
+          "duration": "24s",
+          "steps": [
+            "Checkout",
+            "Setup Node.js",
+            "Install dependencies",
+            "Run npm audit",
+            "Security audit summary"
+          ],
+          "allStepsPassed": true
+        },
+        {
+          "name": "Build Application",
+          "status": "success",
+          "duration": "37s",
+          "steps": [
+            "Checkout",
+            "Setup Node.js",
+            "Install dependencies",
+            "Build application",
+            "Upload build artifacts",
+            "Check build size"
+          ],
+          "allStepsPassed": true,
+          "artifacts": [
+            "frontend-build-34df8fa2fe8ddc32429f6a947e177f72eb1cdde8"
+          ]
+        },
+        {
+          "name": "Build and Test Docker Image",
+          "status": "success",
+          "duration": "49s",
+          "steps": [
+            "Checkout",
+            "Set up Docker Buildx",
+            "Build Docker image",
+            "Start container for testing",
+            "Test container endpoints",
+            "Stop and remove test container",
+            "Docker build summary"
+          ],
+          "allStepsPassed": true,
+          "criticalStep": "Test container endpoints",
+          "previouslyFailing": "Test application root",
+          "nowPassing": true
+        }
+      ],
+      "skippedJobs": [
+        {
+          "name": "Log Bug Report and Create Issue",
+          "reason": "Only runs on workflow failure",
+          "expected": true
+        },
+        {
+          "name": "Deployment Readiness Check",
+          "reason": "Conditional job not triggered",
+          "expected": true
+        }
+      ]
+    },
+    "testContainerEndpointsDetails": {
+      "scriptUsed": "frontend/scripts/test-docker-endpoints.sh",
+      "containerName": "frontend-test",
+      "port": 8080,
+      "maxWaitTime": "30s",
+      "containerStatus": "Up 5 seconds (health: starting)",
+      "test1_healthEndpoint": {
+        "name": "Health Check Endpoint",
+        "endpoint": "http://localhost:8080/health",
+        "test1_1_httpStatus": {
+          "check": "HTTP status code",
+          "result": "PASSED - HTTP 200"
+        },
+        "test1_2_responseBody": {
+          "check": "Response contains 'healthy' text",
+          "result": "PASSED - Contains 'healthy'"
+        },
+        "overallResult": "PASSED"
+      },
+      "test2_rootEndpoint": {
+        "name": "Application Root Endpoint",
+        "endpoint": "http://localhost:8080/",
+        "test2_1_httpStatus": {
+          "check": "HTTP status code",
+          "result": "PASSED - HTTP 200"
+        },
+        "test2_2_doctype": {
+          "check": "Valid HTML with DOCTYPE (case-insensitive)",
+          "result": "PASSED - Contains DOCTYPE",
+          "note": "Case-insensitive match fixed the bug"
+        },
+        "test2_3_reactDiv": {
+          "check": "React app root div (id=\"root\")",
+          "result": "PASSED - Contains React div"
+        },
+        "overallResult": "PASSED"
+      },
+      "summary": {
+        "totalTests": 5,
+        "testsPassed": 5,
+        "testsFailed": 0,
+        "exitCode": 0,
+        "message": "All endpoint tests PASSED - Container is serving content correctly!"
+      }
+    },
+    "acceptanceCriteria": [
+      {
+        "criteria": "Lint and Format Check job passes",
+        "status": "PASSED",
+        "evidence": "Job completed in 26s with all steps successful"
+      },
+      {
+        "criteria": "TypeScript Type Check job passes",
+        "status": "PASSED",
+        "evidence": "Job completed in 35s with all steps successful"
+      },
+      {
+        "criteria": "Build Application job passes and uploads artifacts",
+        "status": "PASSED",
+        "evidence": "Job completed in 37s, artifact 'frontend-build-34df8fa...' uploaded successfully"
+      },
+      {
+        "criteria": "Security Audit job passes",
+        "status": "PASSED",
+        "evidence": "Job completed in 24s with all steps successful"
+      },
+      {
+        "criteria": "Build and Test Docker Image job passes completely",
+        "status": "PASSED",
+        "evidence": "Job completed in 49s with all steps successful, including previously failing test"
+      },
+      {
+        "criteria": "\"Test health endpoint\" step passes",
+        "status": "PASSED",
+        "evidence": "Test script Test 1.1 and 1.2 both passed - HTTP 200 with 'healthy' response"
+      },
+      {
+        "criteria": "\"Test application root\" step passes (previously failing)",
+        "status": "PASSED",
+        "evidence": "Test script Test 2.1, 2.2, and 2.3 all passed - HTTP 200 with valid HTML and React div",
+        "fixVerified": true,
+        "rootCauseResolved": "Case-insensitive DOCTYPE validation now accepts both '<!DOCTYPE html>' and '<!doctype html>'"
+      },
+      {
+        "criteria": "Docker build summary shows successful image creation",
+        "status": "PASSED",
+        "evidence": "Docker build summary step completed successfully"
+      },
+      {
+        "criteria": "All tests complete within expected timeout windows",
+        "status": "PASSED",
+        "evidence": "Total workflow duration ~2 minutes, all jobs completed within normal timeframes"
+      },
+      {
+        "criteria": "No new warnings or errors introduced in any job",
+        "status": "PASSED",
+        "evidence": "All jobs show clean execution with no errors or warnings"
+      }
+    ],
+    "issuesEncountered": [],
+    "performanceMetrics": {
+      "totalWorkflowDuration": "~2 minutes",
+      "lintJobDuration": "26s",
+      "typeCheckJobDuration": "35s",
+      "securityAuditJobDuration": "24s",
+      "buildJobDuration": "37s",
+      "dockerBuildTestJobDuration": "49s",
+      "parallelJobExecution": true,
+      "cacheEfficiency": "High - npm dependencies cached",
+      "dockerBuildTime": "< 49s (including tests)",
+      "endpointTestTime": "< 5s total for all tests"
+    },
+    "comparisonWithPreviousRun": {
+      "previousRunId": "18610162186",
+      "previousStatus": "failure",
+      "previousFailedJob": "Build and Test Docker Image",
+      "previousFailedStep": "Test application root",
+      "previousError": "Application root did not respond with valid HTML",
+      "currentRunId": "18611856092",
+      "currentStatus": "success",
+      "fixApplied": "Case-insensitive DOCTYPE validation in test script",
+      "resolutionVerified": true
+    },
+    "bestPracticesFollowed": {
+      "tddApproach": "Test-Driven Development - wrote regression tests before final validation",
+      "minimalChanges": "Only modified test validation logic, no application code changes",
+      "comprehensiveTesting": "Tested locally (Story #4) before CI/CD validation (Story #5)",
+      "documentation": "Updated README.md with Docker container testing instructions",
+      "reuseableTests": "Created standalone test script usable locally and in CI/CD",
+      "clearCommitMessage": "Detailed commit message explaining root cause and resolution",
+      "noSecretsExposed": "No sensitive information in code or logs",
+      "nonRootExecution": "Container runs as non-root user (nginx-app UID 1001)",
+      "caseInsensitiveValidation": "Accepts both valid HTML5 DOCTYPE formats"
+    },
+    "validationSummary": {
+      "totalAcceptanceCriteria": 10,
+      "criteriaPass": 10,
+      "criteriaFail": 0,
+      "overallStatus": "ALL ACCEPTANCE CRITERIA PASSED",
+      "bugFixed": true,
+      "regressionTestsPassing": true,
+      "cicdPipelineHealthy": true,
+      "readyForMerge": true,
+      "conclusion": "CI/CD pipeline passes end-to-end successfully. The Docker container endpoint testing bug has been completely resolved. The case-insensitive DOCTYPE validation now correctly handles both uppercase and lowercase DOCTYPE declarations generated by Vite. All jobs pass, no new warnings or errors introduced, and the previously failing 'Test application root' step now passes consistently."
+    },
+    "nextSteps": [
+      "Bug fix implementation is complete - all 5 user stories successfully executed",
+      "Pull request #8 is ready for review and merge",
+      "Consider closing GitHub issue #10 after PR is merged"
+    ],
+    "githubIssueResolution": {
+      "issueNumber": 10,
+      "issueTitle": "Docker build or test failed - container issues detected",
+      "issueSeverity": "High",
+      "rootCause": "CI test used case-sensitive grep expecting uppercase DOCTYPE but Vite generates lowercase",
+      "solution": "Implemented case-insensitive DOCTYPE validation in test script",
+      "filesModified": [
+        ".github/workflows/frontend-ci.yml",
+        "frontend/README.md"
+      ],
+      "filesCreated": [
+        "frontend/scripts/test-docker-endpoints.sh",
+        "docs/features/2/bugs/github-issue-10/implementation-log.json",
+        "docs/features/2/bugs/github-issue-10/user-stories.md",
+        "docs/features/bug-log.json"
+      ],
+      "readyToClose": true
+    }
+  }
+]

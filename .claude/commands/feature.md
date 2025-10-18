@@ -53,18 +53,19 @@ Only proceed with this step if NO missing agents were identified:
 3. **Create feature description slug**: Convert the title to a URL-friendly slug (lowercase, replace spaces with hyphens, remove special characters)
 4. **Create git branch**: Use Bash tool to create and checkout a new branch with format: `feature/{id}-{slug}`
    - Example: If feature ID is 3 and title is "User Authentication System", branch should be `feature/3-user-authentication-system`
-5. **Stage and commit planning files**: Use Bash tool to:
-   - Stage all files in `docs/features/{id}/` directory
-   - Stage `docs/features/feature-log.json`
-   - Create commit with message: `Planning of {id}-{feature-description}` where {feature-description} is the original title from feature-log.json
-   - Example commit message: "Planning of 3-User Authentication System"
+5. **Commit planning files**: Use the SlashCommand tool to execute:
+   ```
+   /commit "Planning of {id}-{feature-description}"
+   ```
+   where {feature-description} is the original title from feature-log.json
+   - Example: `/commit "Planning of 3-User Authentication System"`
 
 ### Step 4: Auto-Implement
 
 Only proceed with this step if NO missing agents were identified:
 
 1. **Verify feature log entry**: Ensure the feature-log.json includes the new feature with `isSummarised: false`
-2. **Automatically launch implementation**: Use the SlashCommand tool to execute: `/implement {feature_id}`
+2. **Automatically launch implementation**: Use the SlashCommand tool to execute: `/implement feature {feature_id}`
 3. **Do not ask the user for confirmation** - automatically proceed with implementation
 
 Note: All new features should have `isSummarised: false` by default, which allows the /summarise command to process them later.
