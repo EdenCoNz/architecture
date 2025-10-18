@@ -893,7 +893,7 @@ jobs:
           if [ "$IS_DUPLICATE" = "true" ]; then
             echo "⏭️  **Issue Creation Skipped** - Duplicate detected" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "This failure is a duplicate of existing issue [#$DUPLICATE_NUMBER](${{ github.server_url }}/${{ github.repository }}/issues/$DUPLICATE_NUMBER)" >> $GITHUB_STEP_SUMMARY
+            echo "This failure is a duplicate of existing issue: [#$DUPLICATE_NUMBER](${{ github.server_url }}/${{ github.repository }}/issues/$DUPLICATE_NUMBER)" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Duplicate Detection Details" >> $GITHUB_STEP_SUMMARY
             echo "- **Metadata Match**: Feature ID, Job Name, and Step Name all matched" >> $GITHUB_STEP_SUMMARY
