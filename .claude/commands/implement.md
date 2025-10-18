@@ -168,7 +168,28 @@ After all stories are completed and feature log is updated:
 
 1. **Read implementation-log.json**: Extract all completed stories and files modified from the determined implementation log path
 2. **Read feature-log.json**: Get the title for this feature/bug ID
-3. **Create detailed commit message**: Use the following format:
+3. **Determine issue number for bug fixes**:
+   - If `$TYPE` is "bug" and `$ID` matches the pattern "github-issue-{number}":
+     - Extract the issue number (e.g., "github-issue-123" → "123")
+   - Otherwise, set issue number to null
+4. **Create detailed commit message**: Use the following format:
+
+   For bugs with GitHub issue:
+   ```
+   Implementation of {type}-{id}-{title}
+
+   Completed user stories:
+   - Story #{num}: {story-title}
+   - Story #{num}: {story-title}
+
+   Files modified:
+   - {file1}
+   - {file2}
+
+   Fixes #{issue-number}
+   ```
+
+   For features or bugs without GitHub issue:
    ```
    Implementation of {type}-{id}-{title}
 
@@ -180,8 +201,9 @@ After all stories are completed and feature log is updated:
    - {file1}
    - {file2}
    ```
+
    Note: {type} should be lowercase ("feature" or "bug")
-4. **Commit and push**: Use the SlashCommand tool to execute:
+5. **Commit and push**: Use the SlashCommand tool to execute:
    ```
    /commit "{commit message}" push
    ```

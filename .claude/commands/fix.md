@@ -110,16 +110,14 @@ This will:
 
 Wait for the implementation to complete.
 
-### Step 5: Close GitHub Issue
+### Step 5: Verify Issue Auto-Close
 
-If all user stories were successfully implemented:
+The GitHub issue will automatically close when the commit from Step 4 is merged to the default branch (main/master), because the commit message includes "Fixes #{issue_number}".
 
-1. Use the Bash tool to close the GitHub issue:
-   ```bash
-   gh issue close {issue_number} --comment "Fixed in commit {commit_url}. All user stories completed and tested."
-   ```
-
-If implementation was partial or blocked, skip this step and report the status.
+Report to the user:
+- Confirm that the commit message includes "Fixes #{issue_number}"
+- Explain that the issue will auto-close upon merge to main/master
+- If implementation was partial or blocked, note that the issue will remain open
 
 ### Step 6: Report
 
@@ -129,7 +127,8 @@ Provide a comprehensive summary that includes:
 - User stories path created
 - Number of user stories implemented
 - Implementation status (completed/partial/blocked)
-- GitHub issue status (closed/still open)
+- Commit message with "Fixes #{issue_number}" included
+- Note that issue will auto-close when PR is merged to main/master
 - Any errors or issues encountered
 
 ## Error Handling
