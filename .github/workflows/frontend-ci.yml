@@ -478,13 +478,13 @@ jobs:
           # Create bug log content from template
           BUG_LOG_CONTENT=$(cat "$TEMPLATE_FILE")
 
-          # Replace template variables
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| featureID | 1 |/| featureID | $FEATURE_ID |/")
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| featureName |  |/| featureName | $FEATURE_NAME |/")
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| title |  |/| title | $TITLE |/")
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s|| runURL |  ||runURL | $WORKFLOW_URL |")
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| jobName |  |/| jobName | $FAILED_JOB |/")
-          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s/| stepName |  |/| stepName | $FAILED_STEP |/")
+          # Replace template variables using # as sed delimiter to avoid conflicts with | in Markdown tables
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureID | 1 |#| featureID | $FEATURE_ID |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureName |  |#| featureName | $FEATURE_NAME |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| title |  |#| title | $TITLE |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| runURL |  |#| runURL | $WORKFLOW_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| jobName |  |#| jobName | $FAILED_JOB |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| stepName |  |#| stepName | $FAILED_STEP |#")
 
           # For logDetail, we'll add it after the table
           echo "$BUG_LOG_CONTENT" > bug_log.md
