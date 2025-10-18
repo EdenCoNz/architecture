@@ -1,0 +1,24 @@
+# Core FastAPI and ASGI server
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# Database and ORM
+sqlalchemy==2.0.35
+alembic==1.13.3
+asyncpg==0.29.0  # Async PostgreSQL driver
+psycopg2-binary==2.9.9  # Sync PostgreSQL driver (for Alembic)
+
+# Authentication and Security
+python-jose[cryptography]==3.3.0  # JWT tokens
+passlib[bcrypt]==1.7.4  # Password hashing
+python-multipart==0.0.12  # Form data handling
+
+# Redis for caching and sessions
+redis==5.1.1
+hiredis==2.3.2  # C parser for Redis (performance)
+
+# Utilities
+python-dotenv==1.0.1  # Environment variable loading
+email-validator==2.2.0  # Email validation

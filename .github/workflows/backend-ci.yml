@@ -1,0 +1,705 @@
+name: Backend CI/CD
+
+# Trigger on pull requests and pushes to main branch
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+# Explicit permissions (least privilege)
+permissions:
+  contents: read
+  checks: write
+  actions: read  # Needed to fetch job logs and job information
+
+# Prevent concurrent runs for same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Lint with Ruff
+  lint:
+    name: Lint with Ruff
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements/development.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run Ruff linter
+        run: ruff check .
+
+      - name: Run Ruff format check
+        run: ruff format --check .
+
+  # Job 2: Format Check with Black
+  format:
+    name: Format Check with Black
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements/development.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black
+
+      - name: Run Black format check
+        run: black --check --diff .
+
+  # Job 3: Type Check with mypy
+  typecheck:
+    name: Type Check with mypy
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements/development.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/base.txt
+          pip install mypy
+
+      - name: Run mypy type check
+        run: mypy app/
+
+  # Job 4: Security Scan with Bandit
+  security:
+    name: Security Scan with Bandit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements/development.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit[toml]
+
+      - name: Run Bandit security scan
+        run: bandit -r app/ -c pyproject.toml
+        continue-on-error: true  # Don't fail build on security issues, but report them
+
+      - name: Security scan summary
+        if: always()
+        run: |
+          echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          bandit -r app/ -c pyproject.toml || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 5: Test with pytest
+  test:
+    name: Run Tests with Coverage
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    needs: [lint, format, typecheck]  # Only test if quality checks pass
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    # Service containers for testing
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7.2-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements/test.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/base.txt
+          pip install -r requirements/test.txt
+
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: testing
+        run: |
+          pytest -v --cov=app --cov-report=term --cov-report=xml --cov-report=html
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-${{ github.sha }}
+          path: |
+            backend/htmlcov/
+            backend/coverage.xml
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          coverage report >> $GITHUB_STEP_SUMMARY || echo "Coverage report not available" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 6: Build Check (verify application starts)
+  build:
+    name: Build and Startup Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    needs: [test]  # Run after tests pass
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dev_user
+          POSTGRES_PASSWORD: dev_password
+          POSTGRES_DB: dev_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7.2-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements/base.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/base.txt
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://dev_user:dev_password@localhost:5432/dev_db
+          SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: development
+        run: |
+          alembic upgrade head
+
+      - name: Start application (health check)
+        env:
+          DATABASE_URL: postgresql+asyncpg://dev_user:dev_password@localhost:5432/dev_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: development
+        run: |
+          echo "Starting FastAPI application..."
+          timeout 30 uvicorn main:app --host 0.0.0.0 --port 8000 &
+          APP_PID=$!
+
+          echo "Waiting for application to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null; then
+              echo "✅ Application started successfully"
+              kill $APP_PID
+              exit 0
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 1
+          done
+
+          echo "❌ Application failed to start within 30 seconds"
+          kill $APP_PID || true
+          exit 1
+
+      - name: Test health endpoints
+        run: |
+          echo "Testing health check endpoints..."
+
+          # Start application in background
+          DATABASE_URL=postgresql+asyncpg://dev_user:dev_password@localhost:5432/dev_db \
+          REDIS_URL=redis://localhost:6379/0 \
+          SECRET_KEY=test-secret-key-for-ci \
+          ENVIRONMENT=development \
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          APP_PID=$!
+
+          # Wait for startup
+          sleep 5
+
+          # Test /health endpoint
+          echo "Testing /health endpoint..."
+          HEALTH_RESPONSE=$(curl -s http://localhost:8000/health)
+          echo "Response: $HEALTH_RESPONSE"
+
+          if echo "$HEALTH_RESPONSE" | grep -q '"status":"healthy"'; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            kill $APP_PID
+            exit 1
+          fi
+
+          # Test /health/live endpoint
+          echo "Testing /health/live endpoint..."
+          LIVE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health/live)
+
+          if [ "$LIVE_STATUS" = "200" ]; then
+            echo "✅ Liveness check passed"
+          else
+            echo "❌ Liveness check failed (HTTP $LIVE_STATUS)"
+            kill $APP_PID
+            exit 1
+          fi
+
+          # Test /health/ready endpoint
+          echo "Testing /health/ready endpoint..."
+          READY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health/ready)
+
+          if [ "$READY_STATUS" = "200" ]; then
+            echo "✅ Readiness check passed"
+          else
+            echo "❌ Readiness check failed (HTTP $READY_STATUS)"
+            kill $APP_PID
+            exit 1
+          fi
+
+          # Cleanup
+          kill $APP_PID
+
+          echo "✅ All health endpoints passed"
+
+      - name: Build summary
+        if: success()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Application built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Database migrations applied successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Application started successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All health endpoints responding correctly" >> $GITHUB_STEP_SUMMARY
+
+  # Job 7: Dependency Security Audit
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements/base.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/base.txt
+          pip install safety
+
+      - name: Run Safety check
+        run: safety check --json || true
+        continue-on-error: true
+
+      - name: Dependency audit summary
+        if: always()
+        run: |
+          echo "## Dependency Security Audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          safety check || echo "Security vulnerabilities detected in dependencies - review above" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 8: Deployment Readiness (only on main branch)
+  deployment-check:
+    name: Deployment Readiness Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, format, typecheck, security, test, build, dependency-audit]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports-${{ github.sha }}
+          path: coverage/
+
+      - name: Verify artifacts
+        run: |
+          echo "## Deployment Readiness" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Tests passed with coverage reports generated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Application builds and starts successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Security scans completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Ready for deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Coverage Reports" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lah coverage/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check coverage.xml exists
+        run: |
+          if [ ! -f "coverage/coverage.xml" ]; then
+            echo "❌ Error: coverage.xml not found in artifacts"
+            exit 1
+          fi
+          echo "✅ coverage.xml exists in artifacts"
+
+  # Job 9: Log bugs and create GitHub issues
+  log-bugs:
+    name: Log Bug Report and Create Issue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, format, typecheck, security, test, build, dependency-audit]
+    if: |
+      failure() &&
+      github.event_name == 'pull_request' &&
+      startsWith(github.head_ref, 'feature/')
+
+    permissions:
+      contents: read
+      issues: write  # Required to create GitHub issues
+      actions: read  # Required to fetch job logs and job information
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract feature ID from branch name
+        id: feature
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Branch name: $BRANCH_NAME"
+
+          # Extract feature ID from branch name (format: feature/{id})
+          if [[ $BRANCH_NAME =~ ^feature/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            echo "Extracted feature ID: $FEATURE_ID"
+            echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "Could not extract feature ID from branch name: $BRANCH_NAME"
+            echo "Using default feature ID: 0"
+            echo "feature_id=0" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine which job failed
+        id: failed-job
+        run: |
+          # Check which job failed and set appropriate title
+          if [ "${{ needs.lint.result }}" == "failure" ]; then
+            echo "title=Backend lint job failed - Ruff linting issues detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Lint with Ruff" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.format.result }}" == "failure" ]; then
+            echo "title=Backend format check failed - Black formatting issues detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Format Check with Black" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.typecheck.result }}" == "failure" ]; then
+            echo "title=Backend type check failed - mypy type errors detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Type Check with mypy" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.security.result }}" == "failure" ]; then
+            echo "title=Backend security scan failed - Bandit vulnerabilities detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Security Scan with Bandit" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.test.result }}" == "failure" ]; then
+            echo "title=Backend tests failed - pytest failures detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Run Tests with Coverage" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "title=Backend build failed - application startup issues detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Build and Startup Check" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.dependency-audit.result }}" == "failure" ]; then
+            echo "title=Backend dependency audit failed - vulnerable dependencies detected" >> $GITHUB_OUTPUT
+            echo "failed_job=Dependency Security Audit" >> $GITHUB_OUTPUT
+          else
+            echo "title=Backend unknown job failure" >> $GITHUB_OUTPUT
+            echo "failed_job=Unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch failed job logs
+        id: fetch-logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          RUN_ID="${{ github.run_id }}"
+          REPO="${{ github.repository }}"
+
+          echo "Fetching logs for job: $FAILED_JOB"
+
+          # Get job ID
+          JOBS_RESPONSE=$(mktemp)
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$JOBS_RESPONSE" || {
+            echo "Warning: Could not fetch jobs list"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "log_excerpt=Could not retrieve logs" >> $GITHUB_OUTPUT
+            rm -f "$JOBS_RESPONSE"
+            exit 0
+          }
+
+          # Extract job ID
+          JOB_ID=$(jq -r ".jobs[] | select(.name == \"$FAILED_JOB\") | .id" "$JOBS_RESPONSE")
+          rm -f "$JOBS_RESPONSE"
+
+          if [ -z "$JOB_ID" ]; then
+            echo "Warning: Could not find job ID for: $FAILED_JOB"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "log_excerpt=Could not retrieve job information" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Found job ID: $JOB_ID"
+
+          # Get the failed step name and number
+          STEP_RESPONSE=$(mktemp)
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/jobs" > "$STEP_RESPONSE" || {
+            echo "Warning: Could not fetch job details"
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            rm -f "$STEP_RESPONSE"
+          }
+
+          FAILED_STEP=$(jq -r ".jobs[] | select(.id == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" "$STEP_RESPONSE" | head -n 1)
+          rm -f "$STEP_RESPONSE"
+
+          if [ -z "$FAILED_STEP" ]; then
+            FAILED_STEP="Unknown"
+          fi
+
+          echo "Failed step: $FAILED_STEP"
+          # Sanitize output
+          SAFE_FAILED_STEP=$(echo "$FAILED_STEP" | tr -cd '[:alnum:] _-')
+          echo "failed_step=$SAFE_FAILED_STEP" >> $GITHUB_OUTPUT
+
+          # Download job logs
+          gh api "/repos/$REPO/actions/jobs/$JOB_ID/logs" > job_logs.txt || {
+            echo "Warning: Could not download logs"
+            echo "Could not retrieve logs" > job_logs.txt
+          }
+
+          echo "Total log lines: $(wc -l < job_logs.txt)"
+
+          # Extract relevant log excerpt (last 100 lines for context)
+          tail -100 job_logs.txt > log_excerpt.txt
+
+          # Remove timestamps and add line numbers
+          sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}\.[0-9]*Z //' log_excerpt.txt | \
+            awk '{printf "%4d | %s\n", NR, $0}' > log_excerpt_formatted.txt
+
+          mv log_excerpt_formatted.txt log_excerpt.txt
+
+          echo "✅ Log formatting complete"
+
+          # Store excerpt in environment variable for use in issue
+          echo "LOG_EXCERPT<<EOF" >> $GITHUB_ENV
+          cat log_excerpt.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create bug log entry using template
+        id: create-bug-log
+        run: |
+          FEATURE_ID="${{ steps.feature.outputs.feature_id }}"
+          FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          FAILED_JOB="${{ steps.failed-job.outputs.failed_job }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+
+          # Read the template
+          TEMPLATE_FILE="docs/templates/bug-log-template.md"
+
+          if [ ! -f "$TEMPLATE_FILE" ]; then
+            echo "Error: Template file not found at $TEMPLATE_FILE"
+            exit 1
+          fi
+
+          # Read the extracted log excerpt
+          if [ -f log_excerpt.txt ]; then
+            LOG_DETAIL=$(cat log_excerpt.txt)
+          else
+            LOG_DETAIL="No log excerpt available"
+          fi
+
+          # Create bug log content from template
+          BUG_LOG_CONTENT=$(cat "$TEMPLATE_FILE")
+
+          # Replace template variables
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| title |  |#| title | $TITLE |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureID |  |#| featureID | $FEATURE_ID |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| featureName |  |#| featureName | $FEATURE_NAME |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| jobName |  |#| jobName | $FAILED_JOB |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| stepName |  |#| stepName | $FAILED_STEP |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| PRURL |  |#| PRURL | $PR_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| commitURL |  |#| commitURL | $COMMIT_URL |#")
+          BUG_LOG_CONTENT=$(echo "$BUG_LOG_CONTENT" | sed "s#| runURL |  |#| runURL | $WORKFLOW_URL |#")
+
+          # Write the populated template to file
+          echo "$BUG_LOG_CONTENT" > bug_log.md
+
+          # Add log details section
+          echo "" >> bug_log.md
+          echo '```' >> bug_log.md
+          echo "$LOG_DETAIL" >> bug_log.md
+          echo '```' >> bug_log.md
+
+          echo "✅ Bug log created from template"
+
+      - name: Create GitHub issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="${{ steps.failed-job.outputs.title }}"
+          FEATURE_NAME="${{ steps.feature.outputs.branch_name }}"
+
+          # Create the GitHub issue
+          ISSUE_URL=$(gh issue create \
+            --title "[$FEATURE_NAME] $TITLE" \
+            --body-file bug_log.md \
+            --label "ci-failure,backend" \
+            --assignee "${{ github.event.pull_request.user.login }}")
+
+          echo "✅ GitHub issue created: $ISSUE_URL"
+          echo "ISSUE_URL=$ISSUE_URL" >> $GITHUB_ENV
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "## Bug Tracking Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ env.ISSUE_URL }}" ]; then
+            echo "✅ **GitHub Issue Created**: ${{ env.ISSUE_URL }}" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Bug log generated** from template" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  **Warning**: Issue creation may have failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Failure Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Feature**: ${{ steps.feature.outputs.branch_name }} (#${{ steps.feature.outputs.feature_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Job**: ${{ steps.failed-job.outputs.failed_job }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Step**: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,17 @@
+# Include base dependencies
+-r base.txt
+
+# Development tools
+ipython==8.27.0  # Enhanced Python REPL
+ipdb==0.13.13  # IPython debugger
+
+# Code quality
+black==24.8.0  # Code formatter
+ruff==0.6.8  # Fast Python linter
+mypy==1.11.2  # Static type checker
+
+# Pre-commit hooks
+pre-commit==3.8.0
+
+# Database inspection
+sqlalchemy[mypy]==2.0.35  # SQLAlchemy type stubs for mypy

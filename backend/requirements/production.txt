@@ -1,0 +1,11 @@
+# Include base dependencies
+-r base.txt
+
+# Production ASGI server with better performance
+gunicorn==23.0.0  # WSGI server that can wrap Uvicorn workers
+
+# Monitoring and logging
+sentry-sdk[fastapi]==2.14.0  # Error tracking
+
+# Security
+cryptography==43.0.1  # Enhanced cryptography support

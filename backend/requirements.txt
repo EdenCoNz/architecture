@@ -1,0 +1,4 @@
+# Development environment (default)
+# For production, use: pip install -r requirements/production.txt
+# For testing, use: pip install -r requirements/test.txt
+-r requirements/development.txt
