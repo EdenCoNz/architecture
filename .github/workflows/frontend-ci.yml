@@ -1,0 +1,299 @@
+name: Frontend CI/CD
+
+# Trigger on pull requests and pushes to main branch
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggering
+
+# Explicit permissions (least privilege)
+permissions:
+  contents: read
+  checks: write
+  actions: read  # Needed to fetch job logs and job information
+
+# Prevent concurrent runs for same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Lint and Format Check
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check Prettier formatting
+        run: npm run format:check
+
+  # Job 2: Type Check
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type check
+        run: npx tsc -b --noEmit
+
+  # Job 3: Build
+  build:
+    name: Build Application
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    needs: [lint, typecheck]  # Only build if lint and typecheck pass
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: frontend/dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Check build size
+        run: |
+          echo "## Build Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Bundle Size" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          du -sh dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### File Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          find dist -name "*.js" -o -name "*.css" | xargs du -h | sort -rh | head -10 >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 4: Security Audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true  # Don't fail build on audit issues, but report them
+
+      - name: Security audit summary
+        if: always()
+        run: |
+          echo "## Security Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          npm audit --audit-level=moderate || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 5: Docker Build and Test
+  docker:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: [build]  # Run after build job succeeds
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: |
+            frontend:${{ github.sha }}
+            frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start container for testing
+        run: |
+          echo "Starting Docker container for health check testing..."
+          docker run -d --name frontend-test -p 8080:8080 frontend:${{ github.sha }}
+
+          echo "Waiting for container to be ready..."
+          sleep 5
+
+          echo "Container status:"
+          docker ps -a --filter name=frontend-test
+
+      - name: Test container endpoints
+        run: |
+          echo "Running regression tests on Docker container endpoints..."
+          echo ""
+          cd frontend
+          ./scripts/test-docker-endpoints.sh frontend-test 8080
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          echo "## Docker Container Failure Logs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          docker logs frontend-test >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Could not retrieve logs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Stop and remove test container
+        if: always()
+        run: |
+          docker stop frontend-test || true
+          docker rm frontend-test || true
+
+      - name: Docker build summary
+        if: success()
+        run: |
+          echo "## Docker Build Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker image built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Image tagged with commit SHA: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Image tagged with: \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Container health check passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Application serves HTML correctly" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          docker images frontend:${{ github.sha }} >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Size" >> $GITHUB_STEP_SUMMARY
+          docker images frontend:${{ github.sha }} --format "{{.Size}}" >> $GITHUB_STEP_SUMMARY
+
+  # Job 6: Deployment Readiness (only on main branch)
+  deployment-check:
+    name: Deployment Readiness Check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, typecheck, build, security, docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: dist/
+
+      - name: Verify build artifacts
+        run: |
+          echo "## Deployment Readiness" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build artifacts generated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker image built and tested successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Ready for deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifact Contents" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lah dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check index.html exists
+        run: |
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ Error: index.html not found in build artifacts"
+            exit 1
+          fi
+          echo "✅ index.html exists in build artifacts"
+
+  # Job 7: Log bugs and create GitHub issues
+  log-bugs:
+    name: Log Bug Report and Create Issue
+    needs: [lint, typecheck, build, security, docker]
+    if: |
+      failure() &&
+      github.event_name == 'pull_request' &&
+      startsWith(github.head_ref, 'feature/')
+    uses: EdenCoNz/cicd-template/.github/workflows/reusable-bug-logger.yml@main
+    with:
+      job_results: ${{ toJSON(needs) }}
+      branch_name: ${{ github.head_ref }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_url: ${{ github.event.pull_request.html_url }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+      run_id: ${{ github.run_id }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
