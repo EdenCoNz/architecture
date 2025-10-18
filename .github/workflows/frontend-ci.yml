@@ -295,5 +295,4 @@ jobs:
       pr_url: ${{ github.event.pull_request.html_url }}
       pr_author: ${{ github.event.pull_request.user.login }}
       run_id: ${{ github.run_id }}
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    secrets: inherit
