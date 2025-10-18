@@ -287,7 +287,7 @@ jobs:
     if: |
       failure() &&
       github.event_name == 'pull_request' &&
-      startsWith(github.head_ref, 'feature/', 'bau/')
+      (startsWith(github.head_ref, 'feature/') || startsWith(github.head_ref, 'bau/'))
     uses: EdenCoNz/cicd-template/.github/workflows/reusable-bug-logger.yml@main
     with:
       job_results: ${{ toJSON(needs) }}
