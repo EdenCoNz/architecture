@@ -785,16 +785,17 @@ jobs:
           # Strategy 3: Line-by-line similarity percentage
           echo "Strategy 3: Line-by-line similarity analysis..."
 
-          # Count matching lines (ignoring line numbers and whitespace differences)
-          # Remove line numbers (first column before |) and compare
-          sed 's/^[[:space:]]*[0-9]*[[:space:]]*|[[:space:]]*//' prev_log.txt | sort > prev_log_normalized.txt
-          sed 's/^[[:space:]]*[0-9]*[[:space:]]*|[[:space:]]*//' current_log.txt | sort > current_log_normalized.txt
+          # Compare logs while preserving line numbers and sequential order
+          # Keep the full line format: "   1 | log content"
+          # No sorting - compare as they appear in the excerpts
+          cp prev_log.txt prev_log_normalized.txt
+          cp current_log.txt current_log_normalized.txt
 
-          # Count total unique lines in both logs
+          # Count total unique lines in both logs (preserving format)
           TOTAL_UNIQUE_LINES=$(cat prev_log_normalized.txt current_log_normalized.txt | sort -u | wc -l)
 
-          # Count common lines between both logs
-          COMMON_LINES=$(comm -12 prev_log_normalized.txt current_log_normalized.txt | wc -l)
+          # Count common lines between both logs (preserving format)
+          COMMON_LINES=$(comm -12 <(sort prev_log_normalized.txt) <(sort current_log_normalized.txt) | wc -l)
 
           # Calculate similarity percentage
           if [ "$TOTAL_UNIQUE_LINES" -gt 0 ]; then
