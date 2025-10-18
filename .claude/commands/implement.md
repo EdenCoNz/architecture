@@ -43,8 +43,10 @@ Execute user stories for a specific feature or bug by launching appropriate agen
    - Set user stories path to `docs/features/$ID/user-stories.md`
    - Set implementation log path to `docs/features/$ID/implementation-log.json`
 2. If `$TYPE` is "bug":
-   - Read docs/features/bug-log.json to find the bug with matching ID
-   - Get the featureID from the bug entry
+   - The ID should be in the format "github-issue-{number}" (e.g., "github-issue-10")
+   - Extract the feature ID from the user stories path (typically the bug user stories are at docs/features/{FEATUREID}/bugs/{ID}/user-stories.md)
+   - Search for the user stories file by pattern: docs/features/*/bugs/$ID/user-stories.md
+   - If found, use the parent feature directory as FEATUREID
    - Set base path to `docs/features/$FEATUREID/bugs/$ID`
    - Set user stories path to `docs/features/$FEATUREID/bugs/$ID/user-stories.md`
    - Set implementation log path to `docs/features/$FEATUREID/bugs/$ID/implementation-log.json`

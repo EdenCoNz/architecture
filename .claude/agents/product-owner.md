@@ -183,8 +183,8 @@ Transform feature requests and bug reports for web applications into actionable 
    - Determine scope of fix needed
 
 4. **Generate Unique Bug Fix ID**
-   - Use the bug ID from docs/features/bug-log.json as the identifier
-   - Format: bug-{id} (e.g., bug-1, bug-2)
+   - Use the bug ID from the context provided (typically from GitHub issue)
+   - Format: github-issue-{number} (e.g., github-issue-10, github-issue-15)
 
 5. **Create User Stories for Bug Fix**
    - Break down the fix into atomic, testable stories
@@ -215,9 +215,6 @@ Transform feature requests and bug reports for web applications into actionable 
 9. **Create Files**
    - Create docs/features/{featureID}/bugs/{bugID}/user-stories.md
    - Include execution order with phases
-   - Update docs/features/bug-log.json with:
-     - userStoriesCreated: timestamp
-     - userStoriesPath: path to user stories file
 
 10. **Validate and Report**
     - Verify all stories are atomic

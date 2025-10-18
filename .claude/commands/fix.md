@@ -92,36 +92,9 @@ Write the user stories to: docs/features/{featureID}/bugs/github-issue-{issue_nu
 
 Wait for the agent to complete and return its output.
 
-### Step 4: Update Bug Log
+### Step 4: Implement User Stories
 
-Update or create docs/features/bug-log.json to track this GitHub issue:
-
-1. Read docs/features/bug-log.json (create with empty structure if doesn't exist)
-2. Add or update the bug entry:
-   ```json
-   {
-     "id": "github-issue-{issue_number}",
-     "featureID": "{featureID}",
-     "featureName": "{featureName}",
-     "title": "{title}",
-     "severity": "high",
-     "isFixed": false,
-     "createdAt": "{YYYY-MM-DDTHH:mm:ssZ}",
-     "githubIssueNumber": {issue_number},
-     "jobName": "{jobName}",
-     "stepName": "{stepName}",
-     "PRURL": "{PRURL}",
-     "commitURL": "{commitURL}",
-     "runURL": "{runURL}",
-     "userStoriesCreated": "{YYYY-MM-DDTHH:mm:ssZ}",
-     "userStoriesPath": "docs/features/{featureID}/bugs/github-issue-{issue_number}/user-stories.md"
-   }
-   ```
-3. Write the updated bug-log.json
-
-### Step 5: Implement User Stories
-
-After updating the bug log, automatically implement the user stories:
+After creating the user stories, automatically implement them:
 
 Use the SlashCommand tool to execute:
 ```
@@ -137,7 +110,7 @@ This will:
 
 Wait for the implementation to complete.
 
-### Step 6: Close GitHub Issue
+### Step 5: Close GitHub Issue
 
 If all user stories were successfully implemented:
 
@@ -146,13 +119,9 @@ If all user stories were successfully implemented:
    gh issue close {issue_number} --comment "Fixed in commit {commit_url}. All user stories completed and tested."
    ```
 
-2. Update bug-log.json to mark the bug as fixed:
-   - Set `isFixed: true`
-   - Set `fixedAt: "{YYYY-MM-DDTHH:mm:ssZ}"`
-
 If implementation was partial or blocked, skip this step and report the status.
 
-### Step 7: Report
+### Step 6: Report
 
 Provide a comprehensive summary that includes:
 - GitHub issue number and title
@@ -168,6 +137,5 @@ Provide a comprehensive summary that includes:
 - If gh command fails, ensure GitHub CLI is installed and authenticated
 - If feature ID cannot be determined from GitHub issue, ask user
 - If product-owner agent fails, report which issue failed and stop
-- If bug-log.json cannot be created/updated, report error and stop
 - If /implement command fails, report error with details and do not close GitHub issue
 - If implementation is partial or blocked, do not close GitHub issue
