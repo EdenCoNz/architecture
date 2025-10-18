@@ -556,7 +556,6 @@ jobs:
           echo "  Step Name:    $FAILED_STEP"
           echo ""
 
-<<<<<<< HEAD
           # Fetch latest open issue
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Step 1: Fetching Latest Issue"
@@ -565,31 +564,13 @@ jobs:
           # Get the latest open issue
           LATEST_ISSUE=$(gh issue list \
             --repo "$REPO" \
-=======
-          # Fetch latest open issue with ci-failure label
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Step 1: Fetching Latest CI Failure Issue"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          # Create label if it doesn't exist
-          gh label create "ci-failure" --description "Automated CI/CD pipeline failure" --color "d73a4a" --force 2>/dev/null || true
-
-          # Get the latest open issue with ci-failure label
-          LATEST_ISSUE=$(gh issue list \
-            --repo "$REPO" \
-            --label "ci-failure" \
->>>>>>> bcfb9e8c7492aee0e36a06f62b4e699afe8f58df
             --state open \
             --limit 1 \
             --json number,title,body \
             --jq '.[0]')
 
           if [ -z "$LATEST_ISSUE" ] || [ "$LATEST_ISSUE" == "null" ]; then
-<<<<<<< HEAD
             echo "ℹ️  No existing issues found"
-=======
-            echo "ℹ️  No existing ci-failure issues found"
->>>>>>> bcfb9e8c7492aee0e36a06f62b4e699afe8f58df
             echo "✅ Proceeding to create new issue"
             echo "is_duplicate=false" >> $GITHUB_OUTPUT
             echo "skip_reason=no_existing_issues" >> $GITHUB_OUTPUT
@@ -889,10 +870,6 @@ jobs:
           ISSUE_URL=$(gh issue create \
             --title "[$FEATURE_NAME] $TITLE" \
             --body-file bug_log.md \
-<<<<<<< HEAD
-=======
-            --label "ci-failure" \
->>>>>>> bcfb9e8c7492aee0e36a06f62b4e699afe8f58df
             --assignee "${{ github.event.pull_request.user.login }}")
 
           echo "✅ GitHub issue created: $ISSUE_URL"
