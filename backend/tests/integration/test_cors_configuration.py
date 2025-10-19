@@ -48,7 +48,7 @@ class TestCORSConfiguration:
         assert hasattr(settings, "CORS_ALLOWED_ORIGINS")
         # In test environment, either CORS_ALLOW_ALL_ORIGINS or specific origins
         if not hasattr(settings, "CORS_ALLOW_ALL_ORIGINS") or not settings.CORS_ALLOW_ALL_ORIGINS:
-            assert isinstance(settings.CORS_ALLOWED_ORIGINS, (list, tuple))
+            assert isinstance(settings.CORS_ALLOWED_ORIGINS, list | tuple)
             assert len(settings.CORS_ALLOWED_ORIGINS) > 0
 
     def test_development_origins_are_allowed(self) -> None:
@@ -185,7 +185,10 @@ class TestSecurityHeaders:
 
         # Check that response has some security headers
         # At minimum, Django should include X-Content-Type-Options
-        if hasattr(settings, "SECURE_CONTENT_TYPE_NOSNIFF") and settings.SECURE_CONTENT_TYPE_NOSNIFF:
+        if (
+            hasattr(settings, "SECURE_CONTENT_TYPE_NOSNIFF")
+            and settings.SECURE_CONTENT_TYPE_NOSNIFF
+        ):
             assert "X-Content-Type-Options" in response
 
     @pytest.mark.django_db
@@ -248,7 +251,7 @@ class TestCORSEnvironmentConfiguration:
         assert hasattr(settings, "CORS_ALLOWED_ORIGINS")
 
         # In test environment, it should be a list/tuple
-        assert isinstance(settings.CORS_ALLOWED_ORIGINS, (list, tuple))
+        assert isinstance(settings.CORS_ALLOWED_ORIGINS, list | tuple)
 
 
 @pytest.mark.integration

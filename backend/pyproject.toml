@@ -39,6 +39,7 @@ factory-boy = "^3.3.1"
 faker = "^33.1.0"
 freezegun = "^1.5.1"
 responses = "^0.25.3"
+pre-commit = "^4.0.1"
 
 [tool.poetry.scripts]
 dev = "scripts.dev:main"
