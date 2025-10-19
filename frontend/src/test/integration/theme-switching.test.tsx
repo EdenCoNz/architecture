@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, within, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '../test-utils';
 import App from '../../App';
