@@ -19,16 +19,6 @@
       "isSummarised": false,
       "summarisedAt": null,
       "actions": []
-    },
-    {
-      "featureID": "3",
-      "title": "Initialize Backend Project",
-      "createdAt": "2025-10-19T14:30:00Z",
-      "userStoriesCreated": "2025-10-19T14:30:00Z",
-      "userStoriesImplemented": null,
-      "isSummarised": false,
-      "summarisedAt": null,
-      "actions": []
     }
   ]
 }
