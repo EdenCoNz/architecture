@@ -8,7 +8,28 @@
       "userStoriesImplemented": "2025-10-15T20:00:00Z",
       "isSummarised": true,
       "summarisedAt": "2025-10-15T20:15:00Z",
-      "actions": []
+      "actions": [],
+      "state": "summarised",
+      "stateHistory": [
+        {
+          "state": "planned",
+          "timestamp": "2025-10-15T00:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        },
+        {
+          "state": "deployed",
+          "timestamp": "2025-10-15T20:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        },
+        {
+          "state": "summarised",
+          "timestamp": "2025-10-15T20:15:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        }
+      ]
     },
     {
       "featureID": "2",
@@ -18,7 +39,22 @@
       "userStoriesImplemented": "2025-10-15T12:30:00Z",
       "isSummarised": false,
       "summarisedAt": null,
-      "actions": []
+      "actions": [],
+      "state": "deployed",
+      "stateHistory": [
+        {
+          "state": "planned",
+          "timestamp": "2025-10-15T08:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        },
+        {
+          "state": "deployed",
+          "timestamp": "2025-10-15T12:30:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        }
+      ]
     },
     {
       "featureID": "3",
@@ -28,7 +64,22 @@
       "userStoriesImplemented": "2025-10-19T00:00:00Z",
       "isSummarised": false,
       "summarisedAt": null,
-      "actions": []
+      "actions": [],
+      "state": "deployed",
+      "stateHistory": [
+        {
+          "state": "planned",
+          "timestamp": "2025-10-19T00:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        },
+        {
+          "state": "deployed",
+          "timestamp": "2025-10-19T00:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        }
+      ]
     },
     {
       "featureID": "4",
@@ -43,6 +94,46 @@
           "actionType": "design",
           "completedAt": "2025-10-19T10:30:00Z",
           "designBriefUpdated": true
+        }
+      ],
+      "state": "deployed",
+      "stateHistory": [
+        {
+          "state": "planned",
+          "timestamp": "2025-10-19T00:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        },
+        {
+          "state": "deployed",
+          "timestamp": "2025-10-19T00:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        }
+      ]
+    },
+    {
+      "featureID": "5",
+      "title": "Architecture System Improvements",
+      "createdAt": "2025-10-19T20:30:00Z",
+      "userStoriesCreated": "2025-10-19T20:30:00Z",
+      "userStoriesImplemented": "2025-10-19T23:55:00Z",
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": [],
+      "state": "deployed",
+      "stateHistory": [
+        {
+          "state": "in_progress",
+          "timestamp": "2025-10-19T20:30:00Z",
+          "triggeredBy": "command",
+          "notes": "Migrated from legacy feature log"
+        },
+        {
+          "state": "deployed",
+          "timestamp": "2025-10-19T23:55:00Z",
+          "triggeredBy": "command",
+          "notes": "All user stories completed via /implement command"
         }
       ]
     }

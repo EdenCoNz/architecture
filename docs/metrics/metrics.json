@@ -1,0 +1,197 @@
+{
+  "generatedAt": "2025-10-19T23:00:00Z",
+  "periodStart": "2025-10-15T00:00:00Z",
+  "periodEnd": "2025-10-19T23:00:00Z",
+  "summary": {
+    "totalFeatures": 5,
+    "totalStories": 47,
+    "totalCompleted": 38,
+    "totalInProgress": 9,
+    "averageStoriesPerFeature": 9.4,
+    "averageTimePerStory": "1.8 hours",
+    "overallSuccessRate": 0.81
+  },
+  "agentMetrics": [
+    {
+      "agent": "backend-developer",
+      "storiesCompleted": 12,
+      "averageTimePerStory": "2.1 hours",
+      "filesModifiedAverage": 2.5,
+      "filesCreatedAverage": 7.8,
+      "successRate": 1.0,
+      "issuesEncountered": 0,
+      "mostUsedTools": ["Write", "Bash", "Read"],
+      "storyTypes": {
+        "initialize": 3,
+        "create": 4,
+        "configure": 2,
+        "setup": 3
+      }
+    },
+    {
+      "agent": "frontend-developer",
+      "storiesCompleted": 7,
+      "averageTimePerStory": "1.5 hours",
+      "filesModifiedAverage": 3.1,
+      "filesCreatedAverage": 2.4,
+      "successRate": 1.0,
+      "issuesEncountered": 0,
+      "mostUsedTools": ["Write", "Read", "Edit", "Bash"],
+      "storyTypes": {
+        "create": 3,
+        "implement": 2,
+        "configure": 2
+      }
+    },
+    {
+      "agent": "devops-engineer",
+      "storiesCompleted": 5,
+      "averageTimePerStory": "1.2 hours",
+      "filesModifiedAverage": 1.8,
+      "filesCreatedAverage": 2.2,
+      "successRate": 1.0,
+      "issuesEncountered": 0,
+      "mostUsedTools": ["Write", "Read", "Bash"],
+      "storyTypes": {
+        "configure": 3,
+        "create": 2
+      }
+    },
+    {
+      "agent": "ui-ux-designer",
+      "storiesCompleted": 2,
+      "averageTimePerStory": "0.8 hours",
+      "filesModifiedAverage": 1.0,
+      "filesCreatedAverage": 0.0,
+      "successRate": 1.0,
+      "issuesEncountered": 0,
+      "mostUsedTools": ["Read", "Edit"],
+      "storyTypes": {
+        "design": 2
+      }
+    },
+    {
+      "agent": "meta-developer",
+      "storiesCompleted": 12,
+      "averageTimePerStory": "1.9 hours",
+      "filesModifiedAverage": 2.8,
+      "filesCreatedAverage": 1.5,
+      "successRate": 1.0,
+      "issuesEncountered": 0,
+      "mostUsedTools": ["Read", "Write", "Edit", "Bash"],
+      "storyTypes": {
+        "research": 1,
+        "design": 2,
+        "implement": 7,
+        "create": 2
+      }
+    }
+  ],
+  "featureMetrics": [
+    {
+      "featureID": "1",
+      "title": "Initialize Frontend Web Application",
+      "storyCount": 8,
+      "completedStories": 8,
+      "totalDuration": "20.0 hours",
+      "averageStoryDuration": "2.5 hours",
+      "agentsInvolved": ["frontend-developer", "devops-engineer"],
+      "state": "summarised",
+      "planningToDeploymentTime": "20.0 hours"
+    },
+    {
+      "featureID": "2",
+      "title": "Dockerize Frontend Application",
+      "storyCount": 4,
+      "completedStories": 4,
+      "totalDuration": "4.5 hours",
+      "averageStoryDuration": "1.1 hours",
+      "agentsInvolved": ["devops-engineer", "frontend-developer"],
+      "state": "deployed",
+      "planningToDeploymentTime": "4.5 hours"
+    },
+    {
+      "featureID": "3",
+      "title": "Initialize Backend Project",
+      "storyCount": 7,
+      "completedStories": 7,
+      "totalDuration": "14.0 hours",
+      "averageStoryDuration": "2.0 hours",
+      "agentsInvolved": ["backend-developer", "devops-engineer"],
+      "state": "deployed",
+      "planningToDeploymentTime": "14.0 hours"
+    },
+    {
+      "featureID": "4",
+      "title": "Connect Frontend and Backend with Test Page",
+      "storyCount": 7,
+      "completedStories": 7,
+      "totalDuration": "10.5 hours",
+      "averageStoryDuration": "1.5 hours",
+      "agentsInvolved": ["ui-ux-designer", "backend-developer", "frontend-developer", "devops-engineer"],
+      "state": "deployed",
+      "planningToDeploymentTime": "10.5 hours"
+    },
+    {
+      "featureID": "5",
+      "title": "Architecture System Improvements",
+      "storyCount": 19,
+      "completedStories": 9,
+      "totalDuration": "17.1 hours",
+      "averageStoryDuration": "1.9 hours",
+      "agentsInvolved": ["meta-developer"],
+      "state": "in_progress",
+      "planningToDeploymentTime": "N/A"
+    }
+  ],
+  "velocityMetrics": {
+    "storiesPerDay": 7.6,
+    "featuresPerWeek": 2.1,
+    "averageFeatureDuration": "1.6 days",
+    "trendDirection": "improving"
+  },
+  "qualityMetrics": {
+    "overallIssueRate": 0.0,
+    "retryCount": 0,
+    "averageFilesPerStory": 6.5,
+    "averageActionsPerStory": 7.8,
+    "averageToolsPerStory": 3.2
+  },
+  "trendData": [
+    {
+      "featureID": "1",
+      "storiesPerDay": 9.6,
+      "averageStoryTime": "2.5 hours",
+      "issueRate": 0.0,
+      "averageFilesPerStory": 8.2
+    },
+    {
+      "featureID": "2",
+      "storiesPerDay": 21.3,
+      "averageStoryTime": "1.1 hours",
+      "issueRate": 0.0,
+      "averageFilesPerStory": 3.5
+    },
+    {
+      "featureID": "3",
+      "storiesPerDay": 8.4,
+      "averageStoryTime": "2.0 hours",
+      "issueRate": 0.0,
+      "averageFilesPerStory": 6.8
+    },
+    {
+      "featureID": "4",
+      "storiesPerDay": 15.9,
+      "averageStoryTime": "1.5 hours",
+      "issueRate": 0.0,
+      "averageFilesPerStory": 4.1
+    },
+    {
+      "featureID": "5",
+      "storiesPerDay": 6.3,
+      "averageStoryTime": "1.9 hours",
+      "issueRate": 0.0,
+      "averageFilesPerStory": 4.2
+    }
+  ]
+}
