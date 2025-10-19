@@ -33,8 +33,19 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy source code and configuration files
 COPY . .
 
+# Build arguments for environment variables
+# These can be overridden at build time using --build-arg
+ARG VITE_API_URL=http://localhost:8000
+ARG VITE_DEV_MODE=false
+
+# Set environment variables for the build process
+# Vite will embed these into the JavaScript bundle at build time
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_DEV_MODE=${VITE_DEV_MODE}
+
 # Build the application for production
 # This creates optimized, minified assets in the dist/ directory
+# Environment variables are embedded into the bundle during this step
 RUN npm run build
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -242,6 +242,251 @@ Stack (spacing: 3)
 - **Error**: Error Alert banner below AppBar, navigation remains functional
 - **Success**: Full layout with content populated
 
+---
+
+### Feature: API Test Page
+**Purpose**: Provide development and testing interface for verifying backend connectivity and API responses.
+
+**Design Decisions**:
+- **Card-based layout with clear sections**: Separates action trigger from response display for visual clarity
+- **Prominent contained button**: Primary color draws attention to test action, follows established button patterns
+- **Alert feedback for states**: Leverages MUI Alert component for consistent success/error messaging with semantic colors
+- **Monospace code display**: Uses Paper component with pre/code tags for raw JSON response inspection
+
+**Components Used**: Container, Card, CardHeader, CardContent, Stack, Button, Alert, CircularProgress, Paper, Typography
+
+**Component Specifications**:
+
+#### Layout Structure
+```
+Container (maxWidth: md, sx: { py: 4 })
+  └─ Card (elevation: 2)
+      ├─ CardHeader
+      │   ├─ title: "API Test Page" (variant: h5)
+      │   └─ subheader: "Test backend connectivity and API responses" (variant: body2)
+      └─ CardContent
+          └─ Stack (spacing: 3)
+              ├─ Stack (spacing: 2, alignItems: flex-start)
+              │   ├─ Button
+              │   └─ Alert (conditional - success or error)
+              └─ Paper (conditional - response display)
+```
+
+#### Test Button Component
+- **Variant**: contained
+- **Color**: primary (#1976d2)
+- **Size**: large
+- **Icon**: Send icon (from @mui/icons-material/Send) positioned startIcon
+- **Text**: "Test Backend Connection"
+- **States**:
+  - Default: Solid primary background, white text
+  - Hover: Darker primary (#1565c0), elevation increase
+  - Focus: 2px outline offset, primary color ring
+  - Loading: Disabled appearance, CircularProgress (size: 24px) replacing icon
+  - Disabled: Grey background (rgba(0,0,0,0.12)), grey text (rgba(0,0,0,0.26))
+- **Accessibility**:
+  - aria-label: "Test backend API connection"
+  - aria-busy: true when loading
+  - Keyboard: Enter/Space to activate, focus visible
+
+#### Success Alert
+- **Severity**: success
+- **Variant**: filled
+- **Icon**: CheckCircle (auto from severity)
+- **Background**: Success main (#2e7d32)
+- **Text**: White contrast text
+- **Content**: "Connection successful! Response received from backend." (Typography variant: body2)
+- **Accessible**: role="alert", announced to screen readers
+
+#### Error Alert
+- **Severity**: error
+- **Variant**: filled
+- **Icon**: Error (auto from severity)
+- **Background**: Error main (#d32f2f)
+- **Text**: White contrast text
+- **Content**: Dynamic error message from API or "Failed to connect to backend. Please check if the server is running." (Typography variant: body2)
+- **Accessible**: role="alert", announced to screen readers
+
+#### Response Display Paper
+- **Elevation**: 1
+- **Background**: Background paper (#ffffff)
+- **Padding**: spacing(3) = 24px
+- **Border**: 1px solid divider (rgba(0,0,0,0.12))
+- **Structure**:
+  - Typography (variant: h6, mb: 2): "Response Data"
+  - Typography (variant: caption, color: text.secondary, mb: 1): Timestamp
+  - Box (component: pre, sx: monospace styling):
+    - Typography (component: code, variant: body2)
+    - JSON.stringify(response, null, 2)
+- **Styling**:
+  - White-space: pre-wrap
+  - Word-break: break-word
+  - Font-family: 'Courier New', monospace
+  - Font-size: 14px
+  - Background: background.default (#fafafa)
+  - Padding: spacing(2) = 16px
+  - Border-radius: 4px
+  - Max-height: 400px
+  - Overflow-y: auto
+
+#### Loading Indicator
+- **Component**: CircularProgress
+- **Size**: 24px
+- **Color**: inherit (white on primary button)
+- **Position**: Replaces Send icon in button
+- **Centered**: Using Stack alignment when standalone
+
+**Interaction Patterns**:
+1. **Initial state**: Button enabled, no alerts or response visible
+2. **User clicks button**:
+   - Button shows loading spinner, becomes disabled
+   - Previous alerts/response cleared
+3. **Success response**:
+   - Loading stops, button re-enables
+   - Success Alert fades in (150ms)
+   - Response Paper slides in below (225ms)
+   - Focus remains on button for retry
+4. **Error response**:
+   - Loading stops, button re-enables
+   - Error Alert fades in (150ms)
+   - No response Paper shown
+   - Focus remains on button for retry
+5. **Keyboard navigation**:
+   - Tab to button, Enter/Space to activate
+   - Alert announced to screen readers immediately
+   - Escape does not close alerts (user control via re-test)
+
+**States**:
+
+| State | Button | Alert | Response Display | Visual Indicators |
+|-------|--------|-------|------------------|-------------------|
+| **Initial** | Enabled, primary | Hidden | Hidden | Send icon visible |
+| **Loading** | Disabled, loading | Hidden | Hidden | CircularProgress spinning, button text unchanged |
+| **Success** | Enabled, primary | Success filled alert visible | Paper with formatted JSON | CheckCircle icon, green alert background |
+| **Error** | Enabled, primary | Error filled alert visible | Hidden | Error icon, red alert background, error message |
+| **Empty/No Test Run** | Enabled, primary | Hidden | Hidden | Neutral state, instructional subheader |
+
+**Responsive Behavior**:
+- **xs (0-600px)**:
+  - Container padding: spacing(2) = 16px
+  - Button: full-width (fullWidth prop)
+  - Card padding: spacing(2) = 16px
+  - Typography: h5 → h6 for title
+- **sm+ (600px+)**:
+  - Container padding: spacing(4) = 32px
+  - Button: intrinsic width (width: auto)
+  - Card padding: spacing(3) = 24px
+  - Typography: h5 for title
+
+**Accessibility**:
+- **ARIA**:
+  - Button: aria-label, aria-busy during loading
+  - Alerts: role="alert" for screen reader announcement
+  - Response region: aria-live="polite" for updates
+- **Keyboard**:
+  - Full keyboard navigation support
+  - Enter/Space on button triggers test
+  - Focus visible indicators (2px outline)
+- **Screen Reader**:
+  - Status changes announced via alerts
+  - Button state changes (loading → ready) announced
+  - Response data accessible via code block
+- **Color Contrast**:
+  - Button text on primary: 4.65:1 (WCAG AA pass)
+  - Alert text on success/error: >7:1 (WCAG AAA pass)
+  - Code text on paper: 15.8:1 (WCAG AAA pass)
+- **Touch Targets**: Button minimum 48x48px (MUI default large size)
+
+**Semantic HTML Structure**:
+```html
+<main>
+  <div class="MuiContainer-root">
+    <article class="MuiCard-root">
+      <header class="MuiCardHeader-root">
+        <h5>API Test Page</h5>
+        <p>Test backend connectivity and API responses</p>
+      </header>
+      <div class="MuiCardContent-root">
+        <section>
+          <button aria-label="Test backend API connection" aria-busy="false">
+            <svg><!-- Send icon --></svg>
+            <span>Test Backend Connection</span>
+          </button>
+
+          <!-- Success state -->
+          <div role="alert" class="MuiAlert-filledSuccess">
+            <svg><!-- CheckCircle icon --></svg>
+            <p>Connection successful! Response received from backend.</p>
+          </div>
+
+          <!-- OR Error state -->
+          <div role="alert" class="MuiAlert-filledError">
+            <svg><!-- Error icon --></svg>
+            <p>Failed to connect to backend. Please check if the server is running.</p>
+          </div>
+
+          <!-- Response display -->
+          <section class="MuiPaper-root" aria-live="polite">
+            <h6>Response Data</h6>
+            <p class="MuiTypography-caption">Received at: 2025-10-19 14:32:15</p>
+            <pre>
+              <code>
+                {
+                  "message": "Hello from backend API"
+                }
+              </code>
+            </pre>
+          </section>
+        </section>
+      </div>
+    </article>
+  </div>
+</main>
+```
+
+**CSS Implementation Notes**:
+- Use MUI `sx` prop for component-specific responsive styles
+- Leverage theme spacing function: `spacing(n)` not hardcoded pixels
+- Use theme breakpoints: `theme.breakpoints.down('sm')`
+- Code block styling requires custom sx for monospace font and scrolling
+- Transitions: 150ms for alerts (fade), 225ms for response (slide-up)
+
+**Edge Cases**:
+- **Network timeout**: Show error alert with timeout-specific message after 30s
+- **Malformed JSON response**: Display error alert, show raw text in response if possible
+- **Empty response**: Show success but note "Empty response body" in display
+- **Long response data**: Max-height 400px with vertical scroll on response Paper
+- **Rapid repeated clicks**: Debounce button clicks, only one request at a time
+- **Backend down**: Clear error message with actionable guidance
+
+**Content Examples**:
+
+Success message:
+```
+"Connection successful! Response received from backend."
+```
+
+Error messages:
+```
+"Failed to connect to backend. Please check if the server is running."
+"Request timed out. The backend may be overloaded."
+"Invalid response format. Expected JSON."
+```
+
+Response timestamp format:
+```
+"Received at: 2025-10-19 14:32:15"
+```
+
+Sample JSON responses:
+```json
+{
+  "message": "Hello from backend API",
+  "timestamp": "2025-10-19T14:32:15.123Z",
+  "version": "1.0.0"
+}
+```
+
 ## Accessibility
 
 ### WCAG AA Compliance

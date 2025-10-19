@@ -35,10 +35,16 @@
       "title": "Connect Frontend and Backend with Test Page",
       "createdAt": "2025-10-19T00:00:00Z",
       "userStoriesCreated": "2025-10-19T00:00:00Z",
-      "userStoriesImplemented": null,
+      "userStoriesImplemented": "2025-10-19T00:00:00Z",
       "isSummarised": false,
       "summarisedAt": null,
-      "actions": []
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-19T10:30:00Z",
+          "designBriefUpdated": true
+        }
+      ]
     }
   ]
 }

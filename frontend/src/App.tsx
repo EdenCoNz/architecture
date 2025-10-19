@@ -10,7 +10,7 @@ import { CssBaseline, Box } from '@mui/material';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import theme from './theme';
 import { Header } from './components/layout';
-import { Home, NotFound } from './pages';
+import { Home, NotFound, TestPage } from './pages';
 import './styles/global.css';
 
 function App() {
@@ -49,6 +49,9 @@ function App() {
             <Routes>
               {/* Home route */}
               <Route path="/" element={<Home />} />
+
+              {/* Test page route - API connectivity test */}
+              <Route path="/test" element={<TestPage />} />
 
               {/* 404 Not Found route - catches all unmatched routes */}
               <Route path="*" element={<NotFound />} />

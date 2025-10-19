@@ -5,8 +5,5 @@
  * Services handle all external data fetching and mutations.
  */
 
-// export { default as api } from './api';
-// export * from './auth.service';
-// export * from './user.service';
-
-export {};
+export { apiService, ApiError } from './api';
+export type { default as ApiService } from './api';
