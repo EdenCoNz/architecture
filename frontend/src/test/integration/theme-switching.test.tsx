@@ -163,7 +163,9 @@ describe('Theme Switching Integration Tests', () => {
       expect(screen.getByText('Test backend connectivity and API responses')).toBeInTheDocument();
 
       // Verify button
-      expect(screen.getByRole('button', { name: /test backend api connection/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /test backend api connection/i })
+      ).toBeInTheDocument();
 
       // Verify theme toggle
       expect(screen.getByRole('button', { name: /switch to dark mode/i })).toBeInTheDocument();

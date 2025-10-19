@@ -46,6 +46,7 @@ export function ThemeContextProvider({ children }: ThemeContextProviderProps) {
  * @throws Error if used outside of ThemeContextProvider
  * @returns Theme context value
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useThemeContext(): ThemeContextType {
   const context = useContext(ThemeContext);
 

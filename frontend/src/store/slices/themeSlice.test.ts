@@ -12,7 +12,6 @@ import themeReducer, {
   initializeTheme,
   selectThemeMode,
   selectEffectiveTheme,
-  type ThemeMode,
   type ThemeState,
 } from './themeSlice';
 
@@ -86,30 +85,33 @@ describe('themeSlice', () => {
       });
 
       it('should default to light if no payload provided', () => {
-        const state = themeReducer(initialState, initializeTheme(undefined as any));
+        const state = themeReducer(initialState, initializeTheme(undefined));
         expect(state.mode).toBe('light');
       });
     });
   });
 
   describe('selectors', () => {
+    // Type for mock Redux state used in selector tests
+    type MockRootState = { theme: ThemeState };
+
     it('selectThemeMode should return current theme mode', () => {
-      const state = { theme: { mode: 'dark' as ThemeMode } };
-      expect(selectThemeMode(state as any)).toBe('dark');
+      const state: MockRootState = { theme: { mode: 'dark' } };
+      expect(selectThemeMode(state)).toBe('dark');
     });
 
     it('selectEffectiveTheme should return light when mode is light', () => {
-      const state = { theme: { mode: 'light' as ThemeMode } };
-      expect(selectEffectiveTheme(state as any)).toBe('light');
+      const state: MockRootState = { theme: { mode: 'light' } };
+      expect(selectEffectiveTheme(state)).toBe('light');
     });
 
     it('selectEffectiveTheme should return dark when mode is dark', () => {
-      const state = { theme: { mode: 'dark' as ThemeMode } };
-      expect(selectEffectiveTheme(state as any)).toBe('dark');
+      const state: MockRootState = { theme: { mode: 'dark' } };
+      expect(selectEffectiveTheme(state)).toBe('dark');
     });
 
     it('selectEffectiveTheme should return system preference when mode is auto', () => {
-      const state = { theme: { mode: 'auto' as ThemeMode } };
+      const state: MockRootState = { theme: { mode: 'auto' } };
 
       // Mock prefers-color-scheme: dark
       const mockMatchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -126,11 +128,11 @@ describe('themeSlice', () => {
         value: mockMatchMedia,
       });
 
-      expect(selectEffectiveTheme(state as any)).toBe('dark');
+      expect(selectEffectiveTheme(state)).toBe('dark');
     });
 
     it('selectEffectiveTheme should default to light when auto and no preference', () => {
-      const state = { theme: { mode: 'auto' as ThemeMode } };
+      const state: MockRootState = { theme: { mode: 'auto' } };
 
       // Mock no dark mode preference
       const mockMatchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -147,7 +149,7 @@ describe('themeSlice', () => {
         value: mockMatchMedia,
       });
 
-      expect(selectEffectiveTheme(state as any)).toBe('light');
+      expect(selectEffectiveTheme(state)).toBe('light');
     });
   });
 });

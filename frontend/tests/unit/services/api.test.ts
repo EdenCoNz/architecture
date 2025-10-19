@@ -6,6 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Unmock the API service for these unit tests (it's mocked globally in setup.ts)
+vi.unmock('@/services/api');
+
 import { apiService } from '@/services/api';
 import type { HealthCheckResponse, ApiError, ThemePreferenceResponse } from '@/types';
 

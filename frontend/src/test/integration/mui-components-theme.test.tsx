@@ -42,24 +42,18 @@ describe('MUI Components Theme Testing', () => {
 
     variants.forEach((variant) => {
       it(`should render ${variant} in light mode`, () => {
-        const { container } = render(
-          <Typography variant={variant}>Test {variant}</Typography>,
-          {
-            preloadedState: { theme: { mode: 'light' } },
-          }
-        );
+        const { container } = render(<Typography variant={variant}>Test {variant}</Typography>, {
+          preloadedState: { theme: { mode: 'light' } },
+        });
 
         expect(container.querySelector('.MuiTypography-root')).toBeInTheDocument();
         expect(container.textContent).toContain(`Test ${variant}`);
       });
 
       it(`should render ${variant} in dark mode`, () => {
-        const { container } = render(
-          <Typography variant={variant}>Test {variant}</Typography>,
-          {
-            preloadedState: { theme: { mode: 'dark' } },
-          }
-        );
+        const { container } = render(<Typography variant={variant}>Test {variant}</Typography>, {
+          preloadedState: { theme: { mode: 'dark' } },
+        });
 
         expect(container.querySelector('.MuiTypography-root')).toBeInTheDocument();
         expect(container.textContent).toContain(`Test ${variant}`);
@@ -69,10 +63,9 @@ describe('MUI Components Theme Testing', () => {
 
   describe('Layout Components', () => {
     it('should render Container in both themes', () => {
-      const { rerender, container } = render(
-        <Container>Test Content</Container>,
-        { preloadedState: { theme: { mode: 'light' } } }
-      );
+      const { rerender, container } = render(<Container>Test Content</Container>, {
+        preloadedState: { theme: { mode: 'light' } },
+      });
 
       expect(container.querySelector('.MuiContainer-root')).toBeInTheDocument();
 
@@ -81,10 +74,9 @@ describe('MUI Components Theme Testing', () => {
     });
 
     it('should render Box in both themes', () => {
-      const { rerender, container } = render(
-        <Box sx={{ p: 2 }}>Test Box</Box>,
-        { preloadedState: { theme: { mode: 'light' } } }
-      );
+      const { rerender, container } = render(<Box sx={{ p: 2 }}>Test Box</Box>, {
+        preloadedState: { theme: { mode: 'light' } },
+      });
 
       expect(container.querySelector('.MuiBox-root')).toBeInTheDocument();
 
@@ -93,10 +85,9 @@ describe('MUI Components Theme Testing', () => {
     });
 
     it('should render Paper with elevation in both themes', () => {
-      const { rerender, container } = render(
-        <Paper elevation={2}>Paper Content</Paper>,
-        { preloadedState: { theme: { mode: 'light' } } }
-      );
+      const { rerender, container } = render(<Paper elevation={2}>Paper Content</Paper>, {
+        preloadedState: { theme: { mode: 'light' } },
+      });
 
       expect(container.querySelector('.MuiPaper-root')).toBeInTheDocument();
       expect(container.querySelector('.MuiPaper-elevation2')).toBeInTheDocument();
@@ -183,10 +174,9 @@ describe('MUI Components Theme Testing', () => {
     });
 
     it('should render Button with icon in both themes', () => {
-      const { rerender, container } = render(
-        <Button startIcon={<HomeIcon />}>With Icon</Button>,
-        { preloadedState: { theme: { mode: 'light' } } }
-      );
+      const { rerender, container } = render(<Button startIcon={<HomeIcon />}>With Icon</Button>, {
+        preloadedState: { theme: { mode: 'light' } },
+      });
 
       expect(container.querySelector('.MuiButton-startIcon')).toBeInTheDocument();
 
