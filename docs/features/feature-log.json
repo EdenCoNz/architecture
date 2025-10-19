@@ -136,6 +136,25 @@
           "notes": "All user stories completed via /implement command"
         }
       ]
+    },
+    {
+      "featureID": "6",
+      "title": "Dark Mode / Light Mode Toggle",
+      "createdAt": "2025-10-19T00:00:00Z",
+      "userStoriesCreated": "2025-10-19T00:00:00Z",
+      "userStoriesImplemented": null,
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": [],
+      "state": "planned",
+      "stateHistory": [
+        {
+          "state": "planned",
+          "timestamp": "2025-10-19T00:00:00Z",
+          "triggeredBy": "command",
+          "notes": "Feature planned by product-owner"
+        }
+      ]
     }
   ]
 }
