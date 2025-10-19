@@ -9,7 +9,7 @@ import logging
 from unittest.mock import Mock
 
 import pytest
-from django.http import Http404, HttpRequest, HttpResponse
+from django.http import Http404, HttpResponse
 from django.test import RequestFactory
 from rest_framework.exceptions import (
     AuthenticationFailed,
@@ -69,7 +69,8 @@ class TestErrorHandlingMiddleware:
 
         request = request_factory.get("/api/test/")
 
-        with caplog.at_level(logging.ERROR):
+        # Capture logs from the middleware's logger
+        with caplog.at_level(logging.ERROR, logger="common.middleware.error_handling"):
             response = middleware(request)
 
         assert response.status_code == 500
@@ -94,9 +95,7 @@ class TestErrorHandlingMiddleware:
         request_factory: RequestFactory,
     ) -> None:
         """Test that middleware catches DRF ValidationError exceptions."""
-        mock_get_response = Mock(
-            side_effect=ValidationError({"field": ["This field is required"]})
-        )
+        mock_get_response = Mock(side_effect=ValidationError({"field": ["This field is required"]}))
         middleware = ErrorHandlingMiddleware(mock_get_response)
 
         request = request_factory.post("/api/test/")
@@ -135,9 +134,7 @@ class TestErrorHandlingMiddleware:
         request_factory: RequestFactory,
     ) -> None:
         """Test that middleware catches AuthenticationFailed exceptions."""
-        mock_get_response = Mock(
-            side_effect=AuthenticationFailed("Invalid credentials")
-        )
+        mock_get_response = Mock(side_effect=AuthenticationFailed("Invalid credentials"))
         middleware = ErrorHandlingMiddleware(mock_get_response)
 
         request = request_factory.get("/api/test/")
@@ -171,7 +168,8 @@ class TestErrorHandlingMiddleware:
 
         request = request_factory.get("/api/test/")
 
-        with caplog.at_level(logging.ERROR):
+        # Capture logs from the middleware's logger
+        with caplog.at_level(logging.ERROR, logger="common.middleware.error_handling"):
             middleware(request)
 
         assert error_message in caplog.text
@@ -190,7 +188,7 @@ class TestErrorHandlingMiddleware:
 
         # Should not contain the actual error message
         assert b"secret123" not in response.content
-        assert b"Internal server error" in response.content.lower()
+        assert b"internal server error" in response.content.lower()
 
     def test_middleware_includes_error_details_in_debug_mode(
         self,
@@ -220,7 +218,8 @@ class TestErrorHandlingMiddleware:
 
         request = request_factory.get("/api/specific/path/")
 
-        with caplog.at_level(logging.ERROR):
+        # Capture logs from the middleware's logger
+        with caplog.at_level(logging.ERROR, logger="common.middleware.error_handling"):
             middleware(request)
 
         assert "/api/specific/path/" in caplog.text
@@ -236,7 +235,8 @@ class TestErrorHandlingMiddleware:
 
         request = request_factory.post("/api/test/")
 
-        with caplog.at_level(logging.ERROR):
+        # Capture logs from the middleware's logger
+        with caplog.at_level(logging.ERROR, logger="common.middleware.error_handling"):
             middleware(request)
 
         assert "POST" in caplog.text

@@ -64,16 +64,32 @@ CACHES = {
 
 LOGGING = {
     "version": 1,
-    "disable_existing_loggers": True,
+    "disable_existing_loggers": False,  # Allow pytest caplog to work
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
+            "formatter": "simple",
         },
     },
     "loggers": {
         "django": {
             "handlers": ["console"],
             "level": "ERROR",
+        },
+        "common.middleware": {
+            "handlers": ["console"],
+            "level": "DEBUG",  # Allow all logs for testing
+            "propagate": True,  # Allow caplog to capture
         },
     },
 }

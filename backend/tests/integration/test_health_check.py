@@ -55,12 +55,11 @@ class TestHealthCheckEndpoint:
         assert "T" in timestamp
         assert isinstance(timestamp, str)
 
-    def test_health_check_does_not_require_authentication(
-        self, api_client: APIClient
-    ) -> None:
+    def test_health_check_does_not_require_authentication(self, api_client: APIClient) -> None:
         """Test that health check endpoint is publicly accessible."""
-        # Force client to be unauthenticated
-        api_client.force_authenticate(user=None)
+        # api_client is unauthenticated by default, no need to force
+        # Note: calling force_authenticate(user=None) would trigger session
+        # table access which requires migrations that may not be run
 
         url = reverse("health-check")
         response = api_client.get(url)

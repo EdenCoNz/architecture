@@ -4,6 +4,8 @@ Development settings for backend project.
 These settings are used during local development.
 """
 
+from typing import Any, cast
+
 from .base import *  # noqa: F401, F403
 
 # ============================================================================
@@ -62,7 +64,10 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # REST Framework - Add browsable API in development
 # ============================================================================
 
-REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa: F405
+# Cast REST_FRAMEWORK to help MyPy with type inference
+_rest_framework = cast(dict[str, Any], REST_FRAMEWORK)  # noqa: F405
+
+_rest_framework["DEFAULT_RENDERER_CLASSES"] = [
     "rest_framework.renderers.JSONRenderer",
     "rest_framework.renderers.BrowsableAPIRenderer",
 ]
@@ -71,7 +76,10 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa: F405
 # Logging - More verbose in development
 # ============================================================================
 
-LOGGING["loggers"]["django.db.backends"] = {  # noqa: F405
+# Cast LOGGING to help MyPy with type inference
+_logging = cast(dict[str, Any], LOGGING)  # noqa: F405
+
+_logging["loggers"]["django.db.backends"] = {
     "handlers": ["console"],
     "level": "DEBUG",
     "propagate": False,

@@ -74,7 +74,14 @@ class TestServerStartup:
 
         assert "ENGINE" in db_config
         assert "NAME" in db_config
-        assert db_config["ENGINE"] == "django.db.backends.postgresql"
+
+        # In test environment, SQLite is used for speed, otherwise PostgreSQL
+        if db_config["ENGINE"] == "django.db.backends.sqlite3":
+            # Test environment uses in-memory SQLite
+            assert db_config["NAME"] == ":memory:"
+        else:
+            # Production/development uses PostgreSQL
+            assert db_config["ENGINE"] == "django.db.backends.postgresql"
 
     def test_logging_is_configured(self) -> None:
         """Test that logging is properly configured."""

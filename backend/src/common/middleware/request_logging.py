@@ -7,7 +7,7 @@ such as method, path, IP address, user agent, and response status.
 
 import logging
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from django.http import HttpRequest, HttpResponse
 
@@ -99,7 +99,7 @@ class RequestLoggingMiddleware:
         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:
             # Take the first IP in the chain
-            return x_forwarded_for.split(",")[0].strip()
+            return str(x_forwarded_for.split(",")[0].strip())
 
         # Fall back to REMOTE_ADDR
-        return request.META.get("REMOTE_ADDR", "Unknown")
+        return str(request.META.get("REMOTE_ADDR", "Unknown"))

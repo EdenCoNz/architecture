@@ -78,7 +78,7 @@ class HealthCheckService:
         Returns:
             bool: True if debug mode is enabled
         """
-        return settings.DEBUG
+        return bool(settings.DEBUG)
 
     def get_health_status(self) -> HealthStatus:
         """
@@ -106,4 +106,4 @@ class HealthCheckService:
             bool: True if all health checks pass
         """
         db_status = self.check_database()
-        return db_status["connected"]
+        return bool(db_status["connected"])

@@ -5,10 +5,10 @@ This middleware catches exceptions raised during request processing
 and returns properly formatted JSON error responses.
 """
 
-import json
 import logging
 import traceback
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from django.conf import settings
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
@@ -76,20 +76,18 @@ class ErrorHandlingMiddleware:
         except Exception as exc:
             return self._handle_generic_exception(request, exc)
 
-    def _handle_http404(self, request: HttpRequest, exc: Http404) -> JsonResponse:
+    def _handle_http404(self, request: HttpRequest, _exc: Http404) -> JsonResponse:
         """
         Handle HTTP 404 Not Found errors.
 
         Args:
             request: HTTP request object
-            exc: Http404 exception
+            _exc: Http404 exception (unused, required by signature)
 
         Returns:
             JSON response with 404 status
         """
-        logger.warning(
-            "HTTP 404: method=%s path=%s", request.method, request.path
-        )
+        logger.warning("HTTP 404: method=%s path=%s", request.method, request.path)
 
         return JsonResponse(
             {
@@ -101,14 +99,14 @@ class ErrorHandlingMiddleware:
         )
 
     def _handle_not_authenticated(
-        self, request: HttpRequest, exc: NotAuthenticated
+        self, request: HttpRequest, _exc: NotAuthenticated
     ) -> JsonResponse:
         """
         Handle authentication required errors.
 
         Args:
             request: HTTP request object
-            exc: NotAuthenticated exception
+            _exc: NotAuthenticated exception (unused, required by signature)
 
         Returns:
             JSON response with 401 status
@@ -180,15 +178,15 @@ class ErrorHandlingMiddleware:
         return JsonResponse(
             {
                 "error": "Permission Denied",
-                "message": str(exc) if str(exc) else "You do not have permission to access this resource",
+                "message": (
+                    str(exc) if str(exc) else "You do not have permission to access this resource"
+                ),
                 "path": request.path,
             },
             status=403,
         )
 
-    def _handle_validation_error(
-        self, request: HttpRequest, exc: ValidationError
-    ) -> JsonResponse:
+    def _handle_validation_error(self, request: HttpRequest, exc: ValidationError) -> JsonResponse:
         """
         Handle validation errors.
 
@@ -224,9 +222,7 @@ class ErrorHandlingMiddleware:
             status=400,
         )
 
-    def _handle_api_exception(
-        self, request: HttpRequest, exc: APIException
-    ) -> JsonResponse:
+    def _handle_api_exception(self, request: HttpRequest, exc: APIException) -> JsonResponse:
         """
         Handle DRF API exceptions.
 
@@ -254,9 +250,7 @@ class ErrorHandlingMiddleware:
             status=exc.status_code,
         )
 
-    def _handle_generic_exception(
-        self, request: HttpRequest, exc: Exception
-    ) -> JsonResponse:
+    def _handle_generic_exception(self, request: HttpRequest, exc: Exception) -> JsonResponse:
         """
         Handle generic Python exceptions.
 

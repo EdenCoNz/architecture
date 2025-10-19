@@ -23,12 +23,12 @@ class HealthCheckView(APIView):
     permission_classes = []  # Public endpoint
     authentication_classes = []  # No authentication required
 
-    def get(self, request: Request) -> Response:
+    def get(self, _request: Request) -> Response:
         """
         Handle GET request for health check.
 
         Args:
-            request: HTTP request object
+            _request: HTTP request object (unused, required by framework)
 
         Returns:
             Response: Health status information
@@ -46,7 +46,9 @@ class HealthCheckView(APIView):
 
         # Return 503 if unhealthy, 200 if healthy
         http_status = (
-            status.HTTP_200_OK if health.status == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
+            status.HTTP_200_OK
+            if health.status == "healthy"
+            else status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
         return Response(response_data, status=http_status)
@@ -63,12 +65,12 @@ class LivenessView(APIView):
     permission_classes = []
     authentication_classes = []
 
-    def get(self, request: Request) -> Response:
+    def get(self, _request: Request) -> Response:
         """
         Handle GET request for liveness check.
 
         Args:
-            request: HTTP request object
+            _request: HTTP request object (unused, required by framework)
 
         Returns:
             Response: Simple OK response
@@ -87,12 +89,12 @@ class ReadinessView(APIView):
     permission_classes = []
     authentication_classes = []
 
-    def get(self, request: Request) -> Response:
+    def get(self, _request: Request) -> Response:
         """
         Handle GET request for readiness check.
 
         Args:
-            request: HTTP request object
+            _request: HTTP request object (unused, required by framework)
 
         Returns:
             Response: Readiness status

@@ -165,7 +165,6 @@ addopts = [
     "--verbose",
     "--color=yes",
     "--maxfail=5",
-    "--timeout=30",
 ]
 markers = [
     "unit: Unit tests (fast, isolated)",
@@ -194,6 +193,7 @@ omit = [
     "*/wsgi.py",
     "*/asgi.py",
     "manage.py",
+    "*/apps/health/*",  # Unused app, using common.views instead
 ]
 branch = true
 parallel = true

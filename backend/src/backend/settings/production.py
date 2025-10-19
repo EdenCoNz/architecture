@@ -4,6 +4,8 @@ Production settings for backend project.
 These settings are used in production deployment.
 """
 
+from typing import Any, cast
+
 from .base import *  # noqa: F401, F403
 
 # ============================================================================
@@ -67,18 +69,21 @@ SESSION_CACHE_ALIAS = "default"
 # REST Framework - Production optimizations
 # ============================================================================
 
+# Cast REST_FRAMEWORK to help MyPy with type inference
+_rest_framework = cast(dict[str, Any], REST_FRAMEWORK)  # noqa: F405
+
 # Remove browsable API in production
-REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa: F405
+_rest_framework["DEFAULT_RENDERER_CLASSES"] = [
     "rest_framework.renderers.JSONRenderer",
 ]
 
 # Add throttling in production
-REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = [  # noqa: F405
+_rest_framework["DEFAULT_THROTTLE_CLASSES"] = [
     "rest_framework.throttling.AnonRateThrottle",
     "rest_framework.throttling.UserRateThrottle",
 ]
 
-REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # noqa: F405
+_rest_framework["DEFAULT_THROTTLE_RATES"] = {
     "anon": config("THROTTLE_ANON", default="100/hour"),  # noqa: F405
     "user": config("THROTTLE_USER", default="1000/hour"),  # noqa: F405
 }
@@ -87,7 +92,10 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # noqa: F405
 # Logging - Production logging configuration
 # ============================================================================
 
-LOGGING["handlers"]["file"] = {  # noqa: F405
+# Cast LOGGING to help MyPy with type inference
+_logging = cast(dict[str, Any], LOGGING)  # noqa: F405
+
+_logging["handlers"]["file"] = {
     "class": "logging.handlers.RotatingFileHandler",
     "filename": BASE_DIR / "logs" / "django.log",  # noqa: F405
     "maxBytes": 1024 * 1024 * 15,  # 15MB
@@ -95,7 +103,7 @@ LOGGING["handlers"]["file"] = {  # noqa: F405
     "formatter": "verbose",
 }
 
-LOGGING["root"]["handlers"] = ["console", "file"]  # noqa: F405
+_logging["root"]["handlers"] = ["console", "file"]
 
-LOGGING["loggers"]["django"]["handlers"] = ["console", "file"]  # noqa: F405
-LOGGING["loggers"]["django.server"]["handlers"] = ["console", "file"]  # noqa: F405
+_logging["loggers"]["django"]["handlers"] = ["console", "file"]
+_logging["loggers"]["django.server"]["handlers"] = ["console", "file"]
