@@ -131,7 +131,7 @@ You are an elite UI/UX design specialist with deep Material UI (MUI) design syst
 ## Workflow
 
 1. **Review Provided Context**
-   - Context files are pre-loaded by the calling command (e.g., /implement-us, /callagent)
+   - Context files are pre-loaded by the calling command (e.g., /implement)
    - Review the provided context to understand project-specific design requirements and Material UI best practices
    - **Always check design brief**: Check if `docs/design-brief.md` exists using Read tool
      - **If EXISTS**: Read to understand overall UI/UX strategy and design system

@@ -8,7 +8,6 @@ This directory contains context files that provide project-specific guidelines, 
 
 ```
 context/
-├── context-index.yml       # Central registry mapping keywords to context files
 ├── backend/                # Backend development context
 ├── devops/                 # DevOps, Docker, CI/CD context
 ├── frontend/               # Frontend development context
@@ -38,7 +37,7 @@ Read each file before starting work
 
 **How:**
 1. Analyze task description for keywords
-2. Look up relevant context files in `context/context-index.yml`
+2. Match keywords to known context files
 3. Load only matching context files
 
 **Example:**
@@ -95,7 +94,7 @@ Include this in agent prompts:
 
 2. **Keyword-Based Context Loading**
    - Analyze the task description for relevant keywords
-   - Consult `context/context-index.yml` to find matching context files
+   - Match keywords to known context files in the appropriate domain directory
    - Read all matching context files
 
 3. **Fallback to Default Context**
@@ -108,13 +107,14 @@ Include this in agent prompts:
    - Apply this context to inform your approach and recommendations
 ```
 
-## Context Index Reference
+## Context Organization
 
-The `context-index.yml` file provides:
-- **Keyword mappings**: Task keywords → Context files
-- **Agent defaults**: Default context for each agent
-- **Context rules**: Pattern-based context resolution
-- **Tags**: Topic-based organization
+Context files are organized by domain:
+- **backend/**: Backend development best practices (Django, DRF, MySQL)
+- **devops/**: DevOps practices (Docker, GitHub Actions, CI/CD)
+- **frontend/**: Frontend development (React, TypeScript, Material UI)
+- **design/**: UI/UX design guidelines and patterns
+- **testing/**: Testing strategies and frameworks
 
 ## Examples
 
@@ -158,17 +158,13 @@ Load:
 
 ### Adding New Context Files
 1. Create the context file in appropriate directory
-2. Update `context/context-index.yml` with new entry:
-   - path
-   - tags
-   - keywords
-   - description
-   - agents
+2. Follow naming conventions (descriptive, kebab-case)
+3. Include clear sections and examples
 
 ### Updating Context
 1. Edit the context file directly
-2. Update context-index.yml if keywords/tags change
-3. No need to update agent prompts (they reference the index)
+2. Update documentation if major changes occur
+3. Test with relevant agents to ensure quality
 
 ### Context File Best Practices
 - Keep files focused on single topic (e.g., separate docker.md and github-actions.md)

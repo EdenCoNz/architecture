@@ -36,10 +36,9 @@ Improve the CI pipeline..."
 #### Priority 2: Keyword-Based Context Loading (Recommended)
 If no explicit context is specified, analyze the task for keywords and load relevant context:
 
-1. Read the context index: `context/context-index.yml`
-2. Analyze the task description for relevant keywords
-3. Match keywords to context files using the index
-4. Read all matching context files
+1. Analyze the task description for relevant keywords
+2. Match keywords to known context files in the appropriate domain
+3. Read all matching context files
 
 **Common keyword patterns for {AGENT_TYPE}:**
 - Keyword A → context/path/file1.md
@@ -49,7 +48,7 @@ If no explicit context is specified, analyze the task for keywords and load rele
 **How to determine keywords:**
 ```bash
 # Use Grep to search for relevant patterns in the task description
-# Then consult context-index.yml for matching context files
+# Match to known context files in your domain directory
 ```
 
 #### Priority 3: Default Context (Fallback)
@@ -95,7 +94,7 @@ User: "Add code coverage reporting to our CI pipeline"
 
 Agent Analysis:
 - Keywords: "CI pipeline", "code coverage"
-- Context index lookup: "ci", "pipeline" → github-actions
+- Keyword match: "ci", "pipeline" → github-actions
 - Load: context/devops/github-actions.md
 - Skip: context/devops/docker.md (not needed)
 ```
@@ -106,7 +105,7 @@ User: "Build and push Docker images in GitHub Actions workflow"
 
 Agent Analysis:
 - Keywords: "Docker images", "GitHub Actions", "workflow"
-- Context index lookup: "docker", "github actions" → github-actions, docker
+- Keyword match: "docker", "github actions" → github-actions, docker
 - Load:
   - context/devops/github-actions.md
   - context/devops/docker.md
@@ -145,8 +144,8 @@ Clearly specify what context files belong to each agent by default.
 ### Step 3: Add Keyword Examples
 Provide examples of common keywords that map to specific context files for that agent.
 
-### Step 4: Cross-Reference Context Index
-Mention that agents should consult `context/context-index.yml` for authoritative keyword mappings.
+### Step 4: Document Keyword Patterns
+Document common keyword patterns that map to specific context files for that agent.
 
 ## Benefits of This Approach
 
@@ -161,6 +160,6 @@ Mention that agents should consult `context/context-index.yml` for authoritative
 
 When adding new context:
 1. Add the file to appropriate context directory
-2. Update context-index.yml with keywords and tags
-3. Agent prompts automatically benefit from the new context
-4. No need to update individual agent files
+2. Follow naming conventions (descriptive, kebab-case)
+3. Document keywords and patterns in agent documentation
+4. Test with relevant agents to ensure proper loading

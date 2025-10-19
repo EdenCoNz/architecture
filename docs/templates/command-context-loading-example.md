@@ -173,40 +173,6 @@ Implement this user story following best practices from the loaded context.
 ```
 ```
 
-## Pattern 6: Context Index Query
-
-**Use when:** Need programmatic context resolution
-
-```markdown
----
-description: Smart context loader example
-model: claude-sonnet-4-5
----
-
-## Step 1: Read Context Index
-
-Read context/context-index.yml to get keyword mappings
-
-## Step 2: Analyze Task Keywords
-
-Extract keywords from the task description:
-```python
-import re
-
-task = "Optimize Docker images in GitHub Actions"
-keywords = ["docker", "github actions", "optimize"]
-```
-
-## Step 3: Match Keywords to Context
-
-Look up keywords in context-index.yml:
-- "docker" → context/devops/docker.md
-- "github actions" → context/devops/github-actions.md
-
-## Step 4: Load Matched Context
-
-Read the matched context files before proceeding...
-```
 
 ## Best Practices for Commands
 
@@ -216,10 +182,10 @@ If you know exactly what context is needed, specify it explicitly:
 Read: context/devops/github-actions.md
 ```
 
-### 2. Use Context Index for Complex Scenarios
-For multi-domain or ambiguous tasks, reference the context index:
+### 2. Analyze Task Keywords for Complex Scenarios
+For multi-domain or ambiguous tasks, analyze task keywords to determine required context:
 ```markdown
-Consult context/context-index.yml to determine required context based on task keywords
+Analyze task keywords to determine required context files
 ```
 
 ### 3. Document Context Decisions
@@ -268,8 +234,7 @@ For each user story, determine context before launching agent:
    - Extract task type (e.g., "testing", "deployment", "UI")
 
 2. **Resolve Context Files**
-   - Use context/context-index.yml keyword mappings
-   - Match story keywords to context file IDs
+   - Match story keywords to known context files
    - Build list of context files to load
 
 3. **Launch Agent with Context**
@@ -287,7 +252,7 @@ For each user story, determine context before launching agent:
    ```
 
 4. **Fallback for Unclear Context**
-   - If keywords don't match context index, load agent's default context
+   - If keywords don't match known context files, load agent's default context
    - Allows agent to determine what's needed
 ```
 
@@ -300,10 +265,9 @@ For each user story, determine context before launching agent:
 | Multi-Domain | Spans multiple areas | Full-stack feature implementation |
 | Dynamic Resolution | Analyze project first | Fix command that checks current state |
 | Context Passthrough | Nested commands | /implement passing context to agents |
-| Index Query | Complex keyword matching | Smart loader analyzing task description |
 
 **General Recommendation:**
 - Start with **Explicit Pre-loading** for simple commands
-- Use **Context Index Query** for complex/multi-step commands like /implement
+- Use **Dynamic Resolution** for complex/multi-step commands like /implement
 - Always provide context explicitly to agents in task prompts
 - Let agents fallback to default context if needed

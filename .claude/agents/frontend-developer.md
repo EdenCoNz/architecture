@@ -124,7 +124,7 @@ You are an elite Frontend Developer with deep expertise across the entire fronte
 ## Workflow
 
 1. **Review Provided Context**
-   - Context files are pre-loaded by the calling command (e.g., /implement-us, /callagent)
+   - Context files are pre-loaded by the calling command (e.g., /implement)
    - Review the provided context to understand project-specific frontend requirements and architectural decisions
    - Understand existing component patterns, conventions, and standards from the context
    - Identify relevant frameworks, libraries, and design systems from the context

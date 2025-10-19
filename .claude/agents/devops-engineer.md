@@ -111,7 +111,7 @@ You are an elite DevOps engineer specializing in Docker containerization and Git
 ## Workflow
 
 1. **Review Provided Context**
-   - Context files are pre-loaded by the calling command (e.g., /implement-us, /callagent)
+   - Context files are pre-loaded by the calling command (e.g., /implement)
    - Review the provided context to understand project-specific Docker and CI/CD requirements
    - Understand existing Dockerfiles, workflows, and deployment patterns from the context
    - Identify relevant standards and conventions from the context

@@ -30,8 +30,8 @@ Execute user stories for a specific feature or bug by launching appropriate agen
 - Skip stories that are already completed (found in implementation logs)
 - Execute ALL user stories regardless of agent type (ui-ux-designer, frontend-developer, backend-developer, devops-engineer, etc.)
 - Respect execution order: sequential phases run one-by-one, parallel phases run simultaneously
-- **IMPORTANT**: Call /implement-us for each story (it handles context loading and agent orchestration)
-- Each story will be implemented by /implement-us which records work in implementation log
+- Launch agents directly with appropriate context for each story
+- Record implementation in implementation log after each story
 - Update feature log only when ALL stories are completed
 
 ## Workflow
@@ -66,43 +66,79 @@ Execute user stories for a specific feature or bug by launching appropriate agen
 2. Parse the Execution Order section
 3. Identify all phases and their execution mode (sequential/parallel)
 
-### Step 3: Execute User Stories Using /implement-us
+### Step 3: Execute User Stories
 
 For each phase in the execution order:
 
 1. Skip stories that are already completed (check implementation-log.json)
-2. Execute ALL stories in the phase using the `/implement-us` command
+2. For each story in the phase:
+   - Extract story details (title, description, acceptance criteria, agent, dependencies)
+   - Load appropriate context based on agent type and story keywords
+   - Launch the agent with the story and context
+   - Record implementation in implementation-log.json
+
+#### Context Loading for Stories
+
+**Agent Default Context (always load):**
+- ui-ux-designer → `context/design/**/*`
+- frontend-developer → `context/frontend/**/*`
+- backend-developer → `context/backend/**/*`
+- devops-engineer → `context/devops/**/*`
+
+**Keyword-Based Additional Context:**
+Analyze story title and description for keywords:
+
+- "Material UI" or "MUI" → `context/frontend/material-ui-best-practices.md`
+- "React" or "component" → `context/frontend/react-typescript-best-practices-2024-2025.md`
+- "Docker" or "container" → `context/devops/docker.md`
+- "GitHub Actions" or "CI/CD" → `context/devops/github-actions.md`
+- "Django" or "DRF" → `context/backend/django-drf-mysql-best-practices.md`
+
+#### Execution Modes
+
 3. For sequential phases:
-   - Call `/implement-us $TYPE $ID {story-number}` one by one in the specified order
+   - Execute stories one by one in the specified order
    - Wait for each to complete before starting the next
 4. For parallel phases:
-   - Call `/implement-us $TYPE $ID {story-number}` for all stories simultaneously
-   - Use multiple SlashCommand tool calls in a single message
+   - Launch multiple agents simultaneously using the Task tool
+   - Use multiple Task tool calls in a single message
 
 **Example for Sequential Phase:**
 ```
 For Phase 1 (Sequential) with stories 1, 2, 3:
-- Call: /implement-us feature 1 1
+- Execute story 1: Load context → Launch agent → Record in log
 - Wait for completion
-- Call: /implement-us feature 1 2
+- Execute story 2: Load context → Launch agent → Record in log
 - Wait for completion
-- Call: /implement-us feature 1 3
+- Execute story 3: Load context → Launch agent → Record in log
 ```
 
 **Example for Parallel Phase:**
 ```
 For Phase 2 (Parallel) with stories 4, 5:
-- Call both simultaneously in one message:
-  - /implement-us feature 1 4
-  - /implement-us feature 1 5
+- Load context for both stories
+- Launch both agents simultaneously in one message using Task tool
+- Record both in log after completion
 ```
 
-**Note:** The `/implement-us` command handles:
-- Story parsing and validation
-- Agent identification
-- Context loading (agent defaults + keyword-based)
-- Agent orchestration
-- Implementation log recording
+#### Implementation Log Format
+
+After each story completes, append to implementation-log.json:
+```json
+{
+  "storyNumber": 1,
+  "storyTitle": "Story title",
+  "agent": "agent-type",
+  "status": "completed|partial|blocked",
+  "completedAt": "YYYY-MM-DDTHH:mm:ssZ",
+  "filesModified": ["relative/path/to/file.ts"],
+  "filesCreated": ["relative/path/to/newfile.ts"],
+  "actions": ["Action description"],
+  "toolsUsed": ["Write", "Edit"],
+  "issuesEncountered": ["Issue description"],
+  "notes": "Additional notes"
+}
+```
 
 ### Step 4: Verify Completion and Update Feature Log
 
