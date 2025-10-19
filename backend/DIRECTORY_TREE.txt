@@ -1,0 +1,103 @@
+backend/
+├── src/                          # Source code
+│   ├── backend/                  # Django project configuration
+│   │   ├── settings/             # Environment-specific settings
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── development.py
+│   │   │   ├── production.py
+│   │   │   └── test.py
+│   │   ├── __init__.py
+│   │   ├── asgi.py
+│   │   ├── wsgi.py
+│   │   └── urls.py
+│   │
+│   ├── apps/                     # Feature-based applications
+│   │   ├── __init__.py
+│   │   ├── README.md
+│   │   └── <app_name>/          # Example app structure
+│   │       ├── __init__.py
+│   │       ├── apps.py
+│   │       ├── models.py
+│   │       ├── views.py
+│   │       ├── serializers.py
+│   │       ├── urls.py
+│   │       ├── admin.py
+│   │       ├── managers.py
+│   │       ├── signals.py
+│   │       ├── tasks.py
+│   │       ├── migrations/
+│   │       └── tests/
+│   │
+│   ├── common/                   # Shared utilities
+│   │   ├── __init__.py
+│   │   ├── middleware/
+│   │   │   └── __init__.py
+│   │   ├── utils/
+│   │   │   └── __init__.py
+│   │   ├── validators/
+│   │   │   └── __init__.py
+│   │   ├── exceptions/
+│   │   │   └── __init__.py
+│   │   ├── mixins/
+│   │   │   └── __init__.py
+│   │   ├── serializers/
+│   │   │   └── __init__.py
+│   │   ├── permissions/
+│   │   │   └── __init__.py
+│   │   └── decorators/
+│   │       └── __init__.py
+│   │
+│   └── core/                     # Core business logic
+│       ├── __init__.py
+│       ├── models/
+│       │   └── __init__.py
+│       ├── services/
+│       │   └── __init__.py
+│       └── repositories/
+│           └── __init__.py
+│
+├── tests/                        # Test suite
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── test_configuration.py
+│   ├── unit/                     # Unit tests
+│   │   ├── __init__.py
+│   │   ├── apps/
+│   │   │   └── __init__.py
+│   │   ├── common/
+│   │   │   └── __init__.py
+│   │   ├── core/
+│   │   │   └── __init__.py
+│   │   └── test_directory_structure.py
+│   ├── integration/              # Integration tests
+│   │   ├── __init__.py
+│   │   ├── api/
+│   │   │   └── __init__.py
+│   │   └── database/
+│   │       └── __init__.py
+│   ├── e2e/                      # End-to-end tests
+│   │   └── __init__.py
+│   └── fixtures/                 # Test fixtures
+│       └── __init__.py
+│
+├── scripts/                      # Utility scripts
+│   ├── __init__.py
+│   ├── dev.py
+│   └── prod.py
+│
+├── static/                       # Static files
+├── templates/                    # Django templates
+├── logs/                         # Application logs
+├── media/                        # User uploads
+├── staticfiles/                  # Collected static files
+│
+├── pyproject.toml                # Poetry configuration
+├── Makefile                      # Development commands
+├── manage.py                     # Django management
+├── .env.example                  # Environment template
+├── .gitignore                    # Git ignore rules
+├── .editorconfig                 # Editor configuration
+├── README.md                     # Project documentation
+├── ARCHITECTURE.md               # Architecture guide
+└── STRUCTURE_SUMMARY.md          # Structure summary

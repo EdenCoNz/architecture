@@ -1,0 +1,234 @@
+[tool.poetry]
+name = "backend"
+version = "0.1.0"
+description = "Backend API service built with Django REST Framework"
+authors = ["Architecture Team"]
+readme = "README.md"
+packages = [{include = "backend", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+django = "^5.1"
+djangorestframework = "^3.15"
+django-environ = "^0.11.2"
+django-cors-headers = "^4.6.0"
+psycopg2-binary = "^2.9.10"
+gunicorn = "^23.0.0"
+whitenoise = "^6.8.2"
+drf-spectacular = "^0.28.0"
+python-decouple = "^3.8"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-django = "^4.9.0"
+pytest-cov = "^6.0.0"
+pytest-mock = "^3.14.0"
+pytest-watch = "^4.2.0"
+pytest-xdist = "^3.6.1"
+pytest-sugar = "^1.0.0"
+pytest-timeout = "^2.3.1"
+pytest-testmon = "^2.1.1"
+black = "^24.10.0"
+ruff = "^0.8.4"
+mypy = "^1.14.0"
+django-stubs = "^5.1.1"
+djangorestframework-stubs = "^3.15.1"
+ipython = "^8.31.0"
+django-debug-toolbar = "^4.4.6"
+factory-boy = "^3.3.1"
+faker = "^33.1.0"
+freezegun = "^1.5.1"
+responses = "^0.25.3"
+
+[tool.poetry.scripts]
+dev = "scripts.dev:main"
+prod = "scripts.prod:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+# ============================================================================
+# Black Configuration (Code Formatting)
+# ============================================================================
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | \.eggs
+  | \.tox
+  | dist
+  | build
+  | migrations
+)/
+'''
+
+# ============================================================================
+# Ruff Configuration (Linting)
+# ============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    "migrations",
+    ".venv",
+    "venv",
+    ".git",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "ARG",   # flake8-unused-arguments
+    "SIM",   # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "W191",  # indentation contains tabs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"test_*.py" = ["ARG001", "ARG002"]
+"**/tests/**" = ["ARG001", "ARG002"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+# ============================================================================
+# MyPy Configuration (Type Checking)
+# ============================================================================
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+strict_concatenate = true
+
+plugins = [
+    "mypy_django_plugin.main",
+    "mypy_drf_plugin.main",
+]
+
+[[tool.mypy.overrides]]
+module = "*.migrations.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.django-stubs]
+django_settings_module = "backend.settings"
+
+# ============================================================================
+# Pytest Configuration (Testing)
+# ============================================================================
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "backend.settings.test"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-report=json",
+    "--no-cov-on-fail",
+    "--tb=short",
+    "--showlocals",
+    "--verbose",
+    "--color=yes",
+    "--maxfail=5",
+]
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (database, API)",
+    "e2e: End-to-end tests (full workflows)",
+    "slow: Slow running tests (>1s)",
+    "smoke: Smoke tests (critical functionality)",
+    "regression: Regression tests (bug fixes)",
+    "security: Security-related tests",
+    "performance: Performance benchmarks",
+]
+# Parallel test execution configuration
+# Use -n auto to auto-detect CPU count, or -n NUM for specific number of workers
+# Example: pytest -n auto
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/settings/*",
+    "*/wsgi.py",
+    "*/asgi.py",
+    "manage.py",
+    "*/apps/health/*",  # Unused app, using common.views instead
+]
+branch = true
+parallel = true
+concurrency = ["thread", "multiprocessing"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+skip_empty = true
+sort = "Cover"
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+    "except ImportError:",
+    "except ModuleNotFoundError:",
+    "if settings.DEBUG:",
+    "pass",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+show_contexts = true
+
+[tool.coverage.json]
+output = "coverage.json"
+show_contexts = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
