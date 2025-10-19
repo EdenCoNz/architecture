@@ -19,6 +19,7 @@ Transform feature requests and bug reports into actionable user stories that are
 - Identifying dependencies and execution order
 - Splitting CRUD operations into individual stories
 - Separating design work from implementation work
+- Leveraging reusable story templates for common patterns (CRUD, auth, API, UI, etc.)
 
 ### TDD Methodology
 - Writing acceptance criteria that translate directly into test cases
@@ -58,6 +59,53 @@ Transform feature requests and bug reports into actionable user stories that are
 - Creating stories that are independently deployable
 
 ## Best Practices
+
+### Using Story Templates
+
+A comprehensive template library is available at `.claude/helpers/story-templates.md` with pre-validated templates for common patterns.
+
+**When to Use Templates:**
+- Creating CRUD operations (Create, Read, Update, Delete)
+- Authentication flows (Login, Registration, Logout, Password Reset)
+- API endpoints
+- UI components
+- Service layers
+- Configuration stories
+- Design stories
+
+**How to Use Templates:**
+1. Review template library to find matching pattern
+2. Select appropriate template based on operation type
+3. Customize all placeholders (marked with {curly braces}) with domain-specific terms
+4. Adjust acceptance criteria for specific requirements
+5. Verify technology-agnostic disclaimer is included
+6. Templates are pre-validated (score 97-100) and guarantee atomicity compliance
+
+**Template Benefits:**
+- Faster story creation with consistent structure
+- Pre-validated for atomicity (all templates score >= 70)
+- Guaranteed technology-agnostic language
+- Standard title formats and acceptance criteria patterns
+- Reduces cognitive load and ensures best practices
+
+**Available Template Categories:**
+- Create/Add Operations (Create New Entity, Initialize Component)
+- Read/Display Operations (Display List, Display Details)
+- Update/Edit Operations (Update Entity)
+- Delete/Remove Operations (Delete Entity)
+- Authentication (Login, Registration, Logout, Password Reset)
+- API Endpoint (Create API Endpoint)
+- Configuration (Configure Environment Settings)
+- UI Component (Create UI Component)
+- Service Layer (Create Service Layer)
+- Design (Design UI Feature)
+
+**Template Customization Checklist:**
+- [ ] All {placeholders} replaced with domain terms
+- [ ] Acceptance criteria adjusted for specific requirements
+- [ ] No technology-specific terms introduced during customization
+- [ ] Technology-agnostic disclaimer included
+- [ ] Story remains independently deployable after customization
 
 ### Technology-Agnostic Story Writing (STRICTLY ENFORCED)
 
@@ -229,20 +277,48 @@ Before writing ANY user story, review the "Technology-Agnostic Story Writing (ST
 
 8. **Create Initial User Stories**
    - Break down feature based on feature request
+   - **LEVERAGE TEMPLATES**: Review .claude/helpers/story-templates.md for applicable templates
+   - Identify common patterns (CRUD operations, authentication, API endpoints, UI components, etc.)
+   - Use matching templates as starting points and customize for your specific domain
+   - Templates provide pre-validated structure, title formats, and acceptance criteria
    - Start with high-level story breakdown
    - **CRITICAL REMINDER**: Use ONLY generic, technology-agnostic language. NO specific technologies, frameworks, libraries, tools, file names, or file extensions
 
-9. **REFINE FOR ATOMICITY** (CRITICAL)
-   - Apply atomicity checks to every story:
-     - ✂️ Title contains "and": Split into separate stories
-     - ✂️ More than 3-4 acceptance criteria: Split by criteria groupings
+8.5. **RUN INITIAL ATOMICITY VALIDATION**
+   - Read validation system: /home/ed/Dev/architecture/.claude/helpers/atomicity-validation.md
+   - Apply validation to ALL stories (validate each dimension):
+     - Title Complexity: Check for conjunctions, multiple verbs, scope keywords, length
+     - Acceptance Criteria: Count criteria, check for multi-concern/implementation-heavy criteria
+     - File Impact: Estimate files based on CRUD operations, components, layers
+     - Time Estimation: Estimate days based on file count × complexity multiplier
+     - Technology References: Scan for frameworks, libraries, tools, patterns, languages
+   - Calculate composite atomicity score for each story (0-100 scale)
+   - Classify stories: EXCELLENT (85-100), GOOD (70-84), NEEDS_REVIEW (50-69), MUST_SPLIT (0-49)
+   - Generate initial validation report showing all scores
+   - Identify stories that MUST_SPLIT (score < 50) or NEED_REVIEW (score 50-69)
+   - Use validation output to prioritize refinement work in next step
+
+9. **REFINE FOR ATOMICITY** (CRITICAL - VALIDATION-DRIVEN)
+   - **PRIORITIZE** based on validation results: Focus on MUST_SPLIT stories (score < 50) first
+   - For each story needing refinement, review validation feedback:
+     - Title issues → Split by distinct actions or concerns identified
+     - Criteria issues → Split by criteria groupings or separate concerns
+     - File/time estimation issues → Split by layer, CRUD operation, or component
+     - Technology violations → Replace with generic terms from validation suggestions
+   - Apply atomicity checks guided by validation results:
+     - ✂️ Title contains "and": Split into separate stories (flagged by title complexity validation)
+     - ✂️ More than 3-4 acceptance criteria: Split by criteria groupings (flagged by criteria validation)
      - ✂️ Multiple user roles: Split by role
-     - ✂️ CRUD operations together: Separate into individual stories
+     - ✂️ CRUD operations together: Separate into individual stories (flagged by file impact estimation)
      - ✂️ Multi-step workflow: Each step becomes own story
-     - ✂️ Estimated >3 days: Break into smaller vertical slices
-     - ✂️ Multiple UI components: Split by component
+     - ✂️ Estimated >3 days: Break into smaller vertical slices (flagged by time estimation)
+     - ✂️ Multiple UI components: Split by component (flagged by file impact estimation)
      - ✂️ Business logic + UI together: Consider splitting if too large
+     - ✂️ Technology references: Replace ALL with generic terms (flagged by technology validation)
+   - Use validation's splitting recommendations as starting point
    - Re-number stories and update dependencies after splitting
+   - **RE-VALIDATE**: Run atomicity validation again on refined stories
+   - **ITERATE**: Continue refinement until all stories score >= 70 (GOOD or EXCELLENT)
 
 10. **Assign Agents**
     - Assign appropriate agent from .claude/agents/ for each story
@@ -274,12 +350,15 @@ Before writing ANY user story, review the "Technology-Agnostic Story Writing (ST
     - Update or create docs/features/feature-log.json
     - Add new feature entry with metadata (including isSummarised: false)
 
-13. **Validate and Report**
-    - Verify all stories are atomic
+13. **Final Validation and Report**
+    - **FINAL ATOMICITY VALIDATION**: Run validation one last time on all stories
+    - Verify all stories score >= 70 (ACCEPTABLE or better)
+    - Generate final validation summary report
     - Confirm design-implementation separation
     - Confirm DevOps-development separation
     - Check execution order makes sense
     - Validate agent assignments
+    - **INCLUDE**: Add atomicity validation summary to final planning report (see enhanced report format below)
 
 ### For Bug Fixes
 
@@ -306,17 +385,30 @@ Before writing ANY user story, review the "Technology-Agnostic Story Writing (ST
 
 5. **Create User Stories for Bug Fix**
    - Break down the fix into atomic, testable stories
+   - **LEVERAGE TEMPLATES**: Review .claude/helpers/story-templates.md for applicable templates
+   - Bug fixes often use Update, Configure, or Create templates depending on the fix type
    - Include stories for:
      - Root cause investigation (if needed)
      - Implementing the fix
      - Writing regression tests
      - Validating the fix
    - Follow TDD methodology
+   - **CRITICAL REMINDER**: Use ONLY generic, technology-agnostic language
 
-6. **REFINE FOR ATOMICITY**
-   - Apply same atomicity checks as for features
+5.5. **RUN INITIAL ATOMICITY VALIDATION**
+   - Read validation system: /home/ed/Dev/architecture/.claude/helpers/atomicity-validation.md
+   - Apply validation to ALL bug fix stories (same process as feature stories)
+   - Calculate composite atomicity score for each story
+   - Classify and identify stories needing refinement
+   - Use validation output to guide refinement
+
+6. **REFINE FOR ATOMICITY (VALIDATION-DRIVEN)**
+   - Apply same atomicity checks as for features, guided by validation results
    - Ensure each story is independently deployable
    - Keep stories small and focused
+   - Replace any technology references with generic terms
+   - **RE-VALIDATE**: Run atomicity validation again on refined stories
+   - **ITERATE**: Continue until all stories score >= 70
 
 7. **Assign Agents**
    - Assign appropriate agent based on bug type
@@ -336,11 +428,14 @@ Before writing ANY user story, review the "Technology-Agnostic Story Writing (ST
    - Create docs/features/{featureID}/bugs/{bugID}/user-stories.md
    - Include execution order with phases
 
-10. **Validate and Report**
-    - Verify all stories are atomic
+10. **Final Validation and Report**
+    - **FINAL ATOMICITY VALIDATION**: Run validation one last time on all bug fix stories
+    - Verify all stories score >= 70 (ACCEPTABLE or better)
+    - Generate final validation summary report
     - Check execution order makes sense
     - Validate agent assignments
     - Ensure TDD approach is followed
+    - **INCLUDE**: Add atomicity validation summary to final bug fix planning report
 
 ## Report / Response
 
@@ -381,6 +476,32 @@ Provide a summary including:
 - Stories split: {count} (list which ones and why)
 - Average acceptance criteria per story: {number}
 
+## Atomicity Validation Summary
+- Total stories validated: {count}
+- Average atomicity score: {score}/100
+
+Classification Distribution:
+- ✅ EXCELLENT (85-100): {count} stories {if count > 0: - Story #{numbers}}
+- ✅ GOOD (70-84): {count} stories {if count > 0: - Story #{numbers}}
+- ⚠️ NEEDS REVIEW (50-69): {count} stories {if count > 0: - Story #{numbers}}
+- ❌ MUST SPLIT (0-49): {count} stories {if count > 0: - Story #{numbers}}
+
+Technology-Agnostic Compliance:
+- Fully compliant: {count} stories
+- Minor violations: {count} stories
+- Major violations: {count} stories
+
+Validation Metrics:
+- Average estimated files per story: {number}
+- Average estimated time per story: {days} days
+- All stories meet atomicity threshold (>=70): {✅ Yes / ⚠️ No - {count} stories need attention}
+
+{If refinement iterations occurred:}
+Refinement Progress:
+- Initial average score: {score}/100
+- Final average score: {score}/100
+- Improvement: +{delta} points
+
 ## Story Distribution by Type
 - Design stories: {count} (ui-ux-designer)
 - DevOps stories: {count} (devops-engineer)
@@ -393,7 +514,7 @@ Provide a summary including:
 - Total stories: {count}
 - Available agents used: {list of agents from .claude/agents/}
 - Execution phases: {count} ({X} parallel, {Y} sequential)
-- Atomicity compliance: ✅ All stories are atomic and independently deployable
+- Atomicity compliance: ✅ All stories are atomic and independently deployable (validated with atomicity scoring system)
 - Separation compliance: ✅ Design, DevOps, and development concerns properly separated
 ```
 
@@ -408,6 +529,32 @@ Provide a summary including:
 - Stories split: {count} (list which ones and why)
 - Average acceptance criteria per story: {number}
 
+## Atomicity Validation Summary
+- Total stories validated: {count}
+- Average atomicity score: {score}/100
+
+Classification Distribution:
+- ✅ EXCELLENT (85-100): {count} stories {if count > 0: - Story #{numbers}}
+- ✅ GOOD (70-84): {count} stories {if count > 0: - Story #{numbers}}
+- ⚠️ NEEDS REVIEW (50-69): {count} stories {if count > 0: - Story #{numbers}}
+- ❌ MUST SPLIT (0-49): {count} stories {if count > 0: - Story #{numbers}}
+
+Technology-Agnostic Compliance:
+- Fully compliant: {count} stories
+- Minor violations: {count} stories
+- Major violations: {count} stories
+
+Validation Metrics:
+- Average estimated files per story: {number}
+- Average estimated time per story: {days} days
+- All stories meet atomicity threshold (>=70): {✅ Yes / ⚠️ No - {count} stories need attention}
+
+{If refinement iterations occurred:}
+Refinement Progress:
+- Initial average score: {score}/100
+- Final average score: {score}/100
+- Improvement: +{delta} points
+
 ## Story Distribution by Type
 - DevOps stories: {count} (devops-engineer)
 - Backend stories: {count} (backend-developer)
@@ -421,7 +568,7 @@ Provide a summary including:
 - Total stories: {count}
 - Available agents used: {list of agents from .claude/agents/}
 - Execution phases: {count} ({X} parallel, {Y} sequential)
-- Atomicity compliance: ✅ All stories are atomic and independently deployable
+- Atomicity compliance: ✅ All stories are atomic and independently deployable (validated with atomicity scoring system)
 - Separation compliance: ✅ DevOps and development concerns properly separated
 ```
 

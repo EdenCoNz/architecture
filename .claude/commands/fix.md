@@ -14,7 +14,251 @@ Fetch the oldest open issue from GitHub and create user stories using the produc
 
 You MUST follow the workflow steps in sequential order. Do NOT ask the user for confirmation between steps - automatically proceed through all steps.
 
+## Error Handling
+
+This command uses comprehensive error handling with specific error codes and recovery suggestions.
+
+**Error Handling Reference**: See `.claude/helpers/command-error-handling.md` for complete error code documentation and `.claude/helpers/error-code-mapping.md` for validation error mapping.
+
+**Common Errors**:
+- ENV-001: Git repository not found → Initialize git or navigate to repository
+- ENV-004: GitHub CLI not installed → Install GitHub CLI
+- ENV-005: GitHub CLI not authenticated → Run `gh auth login`
+- ENV-006: GitHub repository not connected → Add remote origin
+- FS-001: Feature log not found → Run /feature command first
+- FS-005: Invalid JSON in feature-log → Fix JSON syntax errors
+- EXT-001: GitHub API rate limit exceeded → Wait for reset or authenticate
+- EXT-003: No open GitHub issues → Informational, no work to do
+- EXT-004: GitHub network error → Check network connection
+
+**Error Handling Strategy**:
+- All validation errors (Step 0) use standardized error codes
+- GitHub CLI errors are BLOCKING - must be resolved before proceeding
+- GitHub API errors are BLOCKING - cannot fetch issues without API access
+- No open issues is INFORMATIONAL - not an error, just no work to do
+- Network errors include retry suggestions with backoff
+
 ## Workflow
+
+### Step 0: Pre-Flight Validation
+
+Before executing any operations, run comprehensive validation checks to ensure prerequisites are met.
+
+#### Step 0.1: Load Error Handling and Validation Systems
+
+Read error handling system from .claude/helpers/command-error-handling.md to understand error codes, categories, and message formats.
+
+Read error code mapping from .claude/helpers/error-code-mapping.md to map validation errors to error codes.
+
+Read validation helper from .claude/helpers/pre-flight-validation.md to understand validation requirements and error message formats.
+
+All validation errors in subsequent steps should include appropriate error codes from the error code mapping.
+
+#### Step 0.2: Validate Git Repository Exists
+
+Run the following check to verify this is a git repository:
+```bash
+test -d ".git" && echo "VALID" || echo "INVALID"
+```
+
+If output is "INVALID":
+- Display error message:
+```
+Error: Not a git repository
+
+Check: Git repository existence
+Status: No .git/ directory found in current working directory
+Command: /fix
+
+Remediation:
+1. Navigate to your git repository directory
+2. Verify you are in the correct directory:
+   pwd
+3. This command requires a git repository to track bug fixes
+```
+- STOP execution immediately
+
+#### Step 0.3: Validate Feature Log Exists
+
+Check if docs/features/feature-log.json exists:
+```bash
+test -f "docs/features/feature-log.json" && echo "VALID" || echo "INVALID"
+```
+
+If output is "INVALID":
+- Display error message:
+```
+Error: Feature log not found
+
+File: docs/features/feature-log.json
+Purpose: Tracks features that bugs are associated with
+Command: /fix
+
+Remediation:
+1. Ensure you are in the correct project directory
+2. Run /feature command at least once to initialize the feature log
+3. Bug fixes must be associated with existing features
+
+Example:
+  /feature "Initialize project structure"
+```
+- STOP execution immediately
+
+If feature-log.json exists, validate JSON syntax:
+```bash
+python3 -c "import json; json.load(open('docs/features/feature-log.json'))" 2>&1
+```
+
+If JSON validation fails:
+- Display error message with specific JSON error and remediation steps (see pre-flight-validation.md)
+- STOP execution immediately
+
+#### Step 0.4: Validate GitHub CLI Authentication
+
+Check if gh command exists:
+```bash
+command -v gh >/dev/null 2>&1 && echo "VALID" || echo "INVALID"
+```
+
+If output is "INVALID":
+- Display error message:
+```
+Error: GitHub CLI not installed
+
+Check: GitHub CLI availability
+Status: 'gh' command not found
+Command: /fix
+
+Remediation:
+1. Install GitHub CLI:
+   - macOS: brew install gh
+   - Linux: See https://cli.github.com/manual/installation
+   - Windows: See https://cli.github.com/manual/installation
+2. Verify installation:
+   command -v gh
+```
+- STOP execution immediately
+
+Check GitHub CLI authentication status:
+```bash
+gh auth status 2>&1
+```
+
+Parse output to verify authentication. If not authenticated:
+- Display error message:
+```
+Error: GitHub CLI not authenticated
+
+Check: GitHub CLI authentication status
+Status: Not logged into any GitHub hosts
+Command: /fix
+
+Remediation:
+1. Authenticate with GitHub CLI:
+   gh auth login
+2. Follow the interactive prompts to authenticate
+3. Verify authentication:
+   gh auth status
+4. Ensure you have appropriate repository access
+```
+- STOP execution immediately
+
+#### Step 0.5: Validate GitHub Repository Connection
+
+Test GitHub repository connection:
+```bash
+gh repo view 2>&1
+```
+
+If command fails:
+- Display error message:
+```
+Error: Cannot connect to GitHub repository
+
+Check: GitHub repository connection
+Status: Failed to fetch repository information
+Command: /fix
+
+Remediation:
+1. Verify you are in a GitHub-connected repository:
+   git remote -v
+2. If no remote exists, add one:
+   git remote add origin https://github.com/username/repo.git
+3. Verify GitHub CLI can access the repository:
+   gh repo view
+4. Check your GitHub permissions for this repository
+```
+- STOP execution immediately
+
+#### Step 0.6: Check for Open GitHub Issues (Warning)
+
+Check if there are any open issues:
+```bash
+gh issue list --state open --limit 1 --json number
+```
+
+If output shows no issues (empty array []):
+- Display warning message:
+```
+Warning: No open GitHub issues found
+
+Status: No open issues in the repository
+Impact: /fix command processes oldest open issue
+Command: /fix
+
+Information:
+The /fix command is designed to process GitHub Actions CI/CD failures
+reported as GitHub issues.
+
+Next Steps:
+1. If you expect open issues, verify:
+   - You are in the correct repository
+   - Issues exist at: gh issue list --state open
+2. If no issues exist, this is normal - no bugs to fix
+3. Run /fix again when GitHub Actions creates failure issues
+
+This is informational only - no action needed if no issues exist.
+```
+- STOP execution (no work to do, but not an error)
+
+#### Step 0.7: Validate GitHub Integration Setup
+
+Check if .github/ directory exists:
+```bash
+test -d ".github" && echo "VALID" || echo "INVALID"
+```
+
+If output is "INVALID":
+- Display warning message:
+```
+Warning: GitHub integration directory not found
+
+Status: .github/ directory does not exist
+Impact: GitHub Actions workflows may not be configured
+Command: /fix
+
+Recommendation:
+1. This command processes CI/CD failures from GitHub Actions
+2. Ensure .github/workflows/ directory exists with workflow files
+3. Verify GitHub Actions are enabled for this repository
+
+You may continue, but the /fix command is most useful with GitHub Actions configured.
+```
+- This is a WARNING - allow execution to continue
+
+#### Step 0.8: Validation Summary
+
+If all validations pass:
+- Output: "Pre-flight validation passed - proceeding to fetch oldest GitHub issue"
+- Proceed to Step 1
+
+If any critical validation failed:
+- Execution has already been stopped
+- User must remediate issues and re-run command
+
+If no open issues found:
+- Execution stopped (no work to do)
+- This is informational, not an error
 
 ### Step 1: Fetch Oldest GitHub Issue
 
