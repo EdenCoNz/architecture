@@ -226,9 +226,18 @@ jobs:
       - name: Install project
         run: poetry install --no-interaction
 
+      # Run tests with coverage collection
+      # Coverage is collected via pytest-cov plugin configured in pyproject.toml
+      # Tests run in single-process mode (not parallel), creating a single .coverage file
+      # For parallel test execution, use 'make test-parallel' instead
       - name: Run tests with coverage
         run: make test
 
+      # Upload coverage artifacts for deployment-check job and future reference
+      # Artifacts include:
+      # - htmlcov/: Human-readable HTML coverage report
+      # - coverage.xml: Machine-readable format for CI/CD tools
+      # - coverage.json: Structured data format for programmatic analysis
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         with:
@@ -240,6 +249,8 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      # Generate coverage summary for GitHub Actions summary page
+      # This provides a quick overview of test coverage without downloading artifacts
       - name: Coverage summary
         run: |
           echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
@@ -249,14 +260,22 @@ jobs:
           poetry run coverage report >> $GITHUB_STEP_SUMMARY || true
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-      - name: Combine coverage data files
-        run: poetry run coverage combine
-
+      # Enforce minimum coverage threshold of 80%
+      # This step fails the workflow if coverage is below the threshold
+      # Note: Coverage data is read from the single .coverage file created by pytest
+      # No 'coverage combine' step is needed because tests run in single-process mode
       - name: Check coverage threshold
         run: |
-          echo "Checking coverage meets 80% threshold..."
+          echo "========================================="
+          echo "Checking coverage threshold (minimum: 80%)"
+          echo "========================================="
+          echo ""
+          echo "Coverage data source: .coverage (single-process test execution)"
+          echo ""
           poetry run coverage report --fail-under=80
-          echo "✅ Coverage meets the 80% threshold"
+          echo ""
+          echo "✅ Success: Coverage meets the 80% threshold requirement"
+          echo "========================================="
 
   # Job 5: Security Audit
   security:
