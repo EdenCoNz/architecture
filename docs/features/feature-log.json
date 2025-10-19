@@ -45,6 +45,16 @@
           "designBriefUpdated": true
         }
       ]
+    },
+    {
+      "featureID": "5",
+      "title": "Architecture System Improvements",
+      "createdAt": "2025-10-19T20:30:00Z",
+      "userStoriesCreated": "2025-10-19T20:30:00Z",
+      "userStoriesImplemented": null,
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": []
     }
   ]
 }

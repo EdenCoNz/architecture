@@ -166,12 +166,42 @@ Before writing ANY user story, review the "Technology-Agnostic Story Writing (ST
 
 2. **Check Available Agents**
    - List all agents in .claude/agents/
-   - Understand capabilities of each specialized agent
+   - Read and understand capabilities of each specialized agent
+   - Map agent capabilities to common development tasks
    - Identify gaps in agent coverage
 
-3. **Identify Missing Agents**
-   - Note any specialized agent types needed but not available
-   - Document these in "Missing Agents Needed" section
+3. **Identify Missing Agents (Critical Thinking Required)**
+   **IMPORTANT**: Think deeply about the BEST agent for each type of work, even if that agent doesn't exist yet. Don't force-fit work into existing agents just because they're available. Consider:
+
+   - **Nature of the work**: Is this application code, system/infrastructure work, meta-development, documentation, testing, security, etc.?
+   - **Specialized expertise needed**: What specific domain knowledge is required?
+   - **Existing agent boundaries**: Does any existing agent TRULY own this type of work, or are we stretching their scope?
+
+   Common agent archetypes to consider:
+   - **Application Development**: backend-developer (server-side app code), frontend-developer (client-side app code)
+   - **Infrastructure & Deployment**: devops-engineer (Docker, CI/CD, deployment automation)
+   - **Design & UX**: ui-ux-designer (visual design, component specs, user flows)
+   - **System Development**: meta-developer (agents, commands, workflow automation, system improvements)
+   - **Documentation**: technical-writer (user guides, API docs, tutorials, system documentation)
+   - **Quality Assurance**: qa-specialist (test planning, E2E scenarios, quality metrics)
+   - **Data & Database**: database-administrator (schema design, migrations, query optimization)
+   - **Security**: security-specialist (vulnerability assessments, compliance, penetration testing)
+   - **Product Management**: product-owner (requirements analysis, user stories, feature planning)
+   - **Research**: research-specialist (technology evaluation, best practices research)
+
+   **Red Flags for Incorrect Agent Assignment**:
+   - ❌ Assigning documentation work to developers (should be technical-writer)
+   - ❌ Assigning system improvements (agents/commands) to application developers (should be meta-developer)
+   - ❌ Assigning Docker/CI/CD to backend/frontend developers (should be devops-engineer)
+   - ❌ Assigning security audits to regular developers (should be security-specialist)
+   - ❌ Assigning database design to backend developers without DB expertise
+   - ❌ Assigning test strategy to developers (should be qa-specialist for comprehensive plans)
+
+   **Action**: If ideal agents don't exist:
+   - Document missing agents in "Missing Agents Needed" section
+   - Provide clear rationale for why new agent is needed
+   - Describe the agent's proposed scope and capabilities
+   - Explain what would happen if we use an existing agent instead (what would be compromised)
 
 4. **Analyze Feature Request**
    - Understand core requirements and business goals
