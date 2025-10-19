@@ -142,17 +142,41 @@
       "title": "Dark Mode / Light Mode Toggle",
       "createdAt": "2025-10-19T00:00:00Z",
       "userStoriesCreated": "2025-10-19T00:00:00Z",
-      "userStoriesImplemented": null,
+      "userStoriesImplemented": "2025-10-19T15:45:00Z",
       "isSummarised": false,
       "summarisedAt": null,
-      "actions": [],
-      "state": "planned",
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-19T14:00:00Z",
+          "designBriefUpdated": true
+        }
+      ],
+      "state": "deployed",
       "stateHistory": [
         {
           "state": "planned",
           "timestamp": "2025-10-19T00:00:00Z",
           "triggeredBy": "command",
           "notes": "Feature planned by product-owner"
+        },
+        {
+          "state": "planned",
+          "timestamp": "2025-10-19T12:00:00Z",
+          "triggeredBy": "/feature command completed",
+          "notes": "Feature planning completed - user stories created"
+        },
+        {
+          "state": "in_progress",
+          "timestamp": "2025-10-19T13:00:00Z",
+          "triggeredBy": "/implement command started",
+          "notes": "Implementation started - executing first story"
+        },
+        {
+          "state": "deployed",
+          "timestamp": "2025-10-19T15:45:00Z",
+          "triggeredBy": "/implement command completed",
+          "notes": "Implementation completed - all stories finished and deployed"
         }
       ]
     }

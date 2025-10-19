@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiService } from '@/services/api';
-import type { HealthCheckResponse, ApiError } from '@/types';
+import type { HealthCheckResponse, ApiError, ThemePreferenceResponse } from '@/types';
 
 describe('API Service', () => {
   beforeEach(() => {
@@ -251,6 +251,241 @@ describe('API Service', () => {
 
       // Act & Assert
       await expect(apiService.getHealth()).rejects.toThrow();
+    });
+  });
+
+  describe('getThemePreference', () => {
+    it('should successfully fetch theme preference', async () => {
+      // Arrange - Mock successful response
+      const mockThemeData: ThemePreferenceResponse = {
+        theme: 'dark',
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockThemeData,
+      } as Response);
+
+      // Act
+      const result = await apiService.getThemePreference();
+
+      // Assert
+      expect(result.status).toBe(200);
+      expect(result.data).toEqual(mockThemeData);
+      expect(result.data.theme).toBe('dark');
+    });
+
+    it('should call the correct endpoint URL with credentials', async () => {
+      // Arrange
+      const mockThemeData: ThemePreferenceResponse = {
+        theme: 'auto',
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockThemeData,
+      } as Response);
+
+      // Act
+      await apiService.getThemePreference();
+
+      // Assert
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:8000/api/preferences/theme/',
+        expect.objectContaining({
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        })
+      );
+    });
+
+    it('should handle 401 Unauthorized error', async () => {
+      // Arrange - Mock 401 response
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      } as Response);
+
+      // Act & Assert
+      try {
+        await apiService.getThemePreference();
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).toMatchObject({
+          message: expect.stringContaining('HTTP error'),
+          status: 401,
+        } as ApiError);
+      }
+    });
+
+    it('should handle different theme values', async () => {
+      const themes: Array<'light' | 'dark' | 'auto'> = ['light', 'dark', 'auto'];
+
+      for (const theme of themes) {
+        // Arrange
+        const mockThemeData: ThemePreferenceResponse = { theme };
+
+        global.fetch = vi.fn().mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => mockThemeData,
+        } as Response);
+
+        // Act
+        const result = await apiService.getThemePreference();
+
+        // Assert
+        expect(result.data.theme).toBe(theme);
+      }
+    });
+  });
+
+  describe('updateThemePreference', () => {
+    it('should successfully update theme preference to dark', async () => {
+      // Arrange
+      const mockThemeData: ThemePreferenceResponse = {
+        theme: 'dark',
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockThemeData,
+      } as Response);
+
+      // Act
+      const result = await apiService.updateThemePreference('dark');
+
+      // Assert
+      expect(result.status).toBe(200);
+      expect(result.data.theme).toBe('dark');
+    });
+
+    it('should call PATCH endpoint with correct payload', async () => {
+      // Arrange
+      const mockThemeData: ThemePreferenceResponse = {
+        theme: 'light',
+      };
+
+      const fetchSpy = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockThemeData,
+      } as Response);
+
+      global.fetch = fetchSpy;
+
+      // Act
+      await apiService.updateThemePreference('light');
+
+      // Assert
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://localhost:8000/api/preferences/theme/',
+        expect.objectContaining({
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ theme: 'light' }),
+        })
+      );
+    });
+
+    it('should send credentials with request', async () => {
+      // Arrange
+      const mockThemeData: ThemePreferenceResponse = {
+        theme: 'auto',
+      };
+
+      const fetchSpy = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockThemeData,
+      } as Response);
+
+      global.fetch = fetchSpy;
+
+      // Act
+      await apiService.updateThemePreference('auto');
+
+      // Assert
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          credentials: 'include',
+        })
+      );
+    });
+
+    it('should handle all theme mode values', async () => {
+      const themes: Array<'light' | 'dark' | 'auto'> = ['light', 'dark', 'auto'];
+
+      for (const theme of themes) {
+        // Arrange
+        const mockThemeData: ThemePreferenceResponse = { theme };
+        const fetchSpy = vi.fn().mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => mockThemeData,
+        } as Response);
+
+        global.fetch = fetchSpy;
+
+        // Act
+        const result = await apiService.updateThemePreference(theme);
+
+        // Assert
+        expect(result.data.theme).toBe(theme);
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            body: JSON.stringify({ theme }),
+          })
+        );
+      }
+    });
+
+    it('should handle 401 Unauthorized error on update', async () => {
+      // Arrange - Mock 401 response
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      } as Response);
+
+      // Act & Assert
+      try {
+        await apiService.updateThemePreference('dark');
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).toMatchObject({
+          message: expect.stringContaining('HTTP error'),
+          status: 401,
+        } as ApiError);
+      }
+    });
+
+    it('should handle network errors on update', async () => {
+      // Arrange - Mock network error
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+
+      // Act & Assert
+      try {
+        await apiService.updateThemePreference('light');
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).toMatchObject({
+          message: 'Network error',
+          status: 0,
+        } as ApiError);
+      }
     });
   });
 });

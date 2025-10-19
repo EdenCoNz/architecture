@@ -6,3 +6,6 @@
  */
 
 export * from './api.types';
+
+// Theme types
+export type ThemeMode = 'light' | 'dark' | 'auto';

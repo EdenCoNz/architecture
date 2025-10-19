@@ -5,7 +5,13 @@
  * Provides methods for all API endpoints with consistent error handling.
  */
 
-import type { HealthCheckResponse, ApiResponse, ApiError } from '@/types';
+import type {
+  HealthCheckResponse,
+  ApiResponse,
+  ApiError,
+  ThemePreferenceResponse,
+  ThemePreferenceRequest,
+} from '@/types';
 
 /**
  * Base API configuration
@@ -123,6 +129,58 @@ export const apiService = {
    */
   getBaseUrl(): string {
     return API_BASE_URL;
+  },
+
+  /**
+   * Get Theme Preference
+   * GET /api/preferences/theme/
+   *
+   * Retrieves the user's theme preference from the backend.
+   * Requires authentication.
+   *
+   * @returns Promise<ApiResponse<ThemePreferenceResponse>>
+   * @throws ApiError
+   */
+  async getThemePreference(): Promise<ApiResponse<ThemePreferenceResponse>> {
+    const url = `${API_BASE_URL}/api/preferences/theme/`;
+
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Include cookies for authentication
+    });
+
+    return handleResponse<ThemePreferenceResponse>(response);
+  },
+
+  /**
+   * Update Theme Preference
+   * PATCH /api/preferences/theme/
+   *
+   * Updates the user's theme preference on the backend.
+   * Requires authentication.
+   *
+   * @param theme - Theme mode to set ('light', 'dark', or 'auto')
+   * @returns Promise<ApiResponse<ThemePreferenceResponse>>
+   * @throws ApiError
+   */
+  async updateThemePreference(
+    theme: ThemePreferenceRequest['theme']
+  ): Promise<ApiResponse<ThemePreferenceResponse>> {
+    const url = `${API_BASE_URL}/api/preferences/theme/`;
+
+    const response = await fetchWithTimeout(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Include cookies for authentication
+      body: JSON.stringify({ theme }),
+    });
+
+    return handleResponse<ThemePreferenceResponse>(response);
   },
 };
 

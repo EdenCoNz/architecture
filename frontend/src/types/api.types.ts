@@ -49,3 +49,25 @@ export type ApiRequestState<T> =
   | { status: 'loading' }
   | { status: 'success'; data: T }
   | { status: 'error'; error: ApiError };
+
+/**
+ * Theme Mode
+ * User's theme preference
+ */
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
+/**
+ * Theme Preference Response
+ * Matches the backend GET /api/preferences/theme/ endpoint response structure
+ */
+export interface ThemePreferenceResponse {
+  theme: ThemeMode;
+}
+
+/**
+ * Theme Preference Request
+ * Matches the backend PATCH /api/preferences/theme/ endpoint request structure
+ */
+export interface ThemePreferenceRequest {
+  theme: ThemeMode;
+}

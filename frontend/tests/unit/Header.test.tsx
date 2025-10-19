@@ -8,16 +8,36 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '../../src/theme';
+import { Provider } from 'react-redux';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { configureStore } from '@reduxjs/toolkit';
 import { Header } from '../../src/components/layout/Header';
+import themeReducer from '../../src/store/slices/themeSlice';
 
 /**
- * Helper function to render components with Material UI theme
- * Required for proper Material UI component rendering in tests
+ * Helper function to render components with Material UI theme and Redux store
+ * Required for proper Material UI component rendering and Redux state in tests
  */
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<ThemeProvider theme={theme}>{component}</ThemeProvider>);
+  // Create a fresh Redux store for each test
+  const store = configureStore({
+    reducer: {
+      theme: themeReducer,
+    },
+  });
+
+  // Create a simple theme for testing
+  const theme = createTheme({
+    palette: {
+      mode: 'light',
+    },
+  });
+
+  return render(
+    <Provider store={store}>
+      <ThemeProvider theme={theme}>{component}</ThemeProvider>
+    </Provider>
+  );
 };
 
 describe('Header Component', () => {
