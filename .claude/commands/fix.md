@@ -190,38 +190,86 @@ Remediation:
 ```
 - STOP execution immediately
 
-#### Step 0.6: Check for Open GitHub Issues (Warning)
+#### Step 0.6: Ensure Fixed-Pending-Merge Label Exists
 
-Check if there are any open issues:
+Create the `fixed-pending-merge` label if it doesn't already exist (idempotent operation):
+
 ```bash
-gh issue list --state open --limit 1 --json number
+gh label create "fixed-pending-merge" \
+  --description "Bug fix implemented, awaiting PR merge" \
+  --color "0E8A16" 2>&1 || true
 ```
+
+This command:
+- Creates the label if it doesn't exist
+- Silently succeeds if the label already exists (via `|| true`)
+- Uses green color (0E8A16) to indicate positive status
+- Is safe to run multiple times
+
+Note: This step ensures the label is available for marking fixed issues, preventing them from being re-processed by future `/fix` runs.
+
+#### Step 0.7: Check for Open GitHub Issues (Warning)
+
+Check if there are any open issues that haven't been fixed yet:
+```bash
+gh issue list --state open --label '!fixed-pending-merge' --limit 1 --json number
+```
+
+This filters out issues that have already been fixed and are awaiting PR merge.
 
 If output shows no issues (empty array []):
-- Display warning message:
-```
-Warning: No open GitHub issues found
+- Check if there are ANY open issues (including fixed ones):
+  ```bash
+  gh issue list --state open --limit 1 --json number
+  ```
 
-Status: No open issues in the repository
-Impact: /fix command processes oldest open issue
-Command: /fix
+- If there are open issues but all have `fixed-pending-merge` label:
+  - Display informational message:
+  ```
+  Info: All open issues are fixed pending merge
 
-Information:
-The /fix command is designed to process GitHub Actions CI/CD failures
-reported as GitHub issues.
+  Status: X open issue(s) found, all have fixes pending PR merge
+  Impact: No new issues available for /fix command to process
+  Command: /fix
 
-Next Steps:
-1. If you expect open issues, verify:
-   - You are in the correct repository
-   - Issues exist at: gh issue list --state open
-2. If no issues exist, this is normal - no bugs to fix
-3. Run /fix again when GitHub Actions creates failure issues
+  Information:
+  All open issues have been fixed and are awaiting PR merge to main/master.
+  Once the PRs merge, these issues will auto-close via "Fixes #N" commit messages.
 
-This is informational only - no action needed if no issues exist.
-```
-- STOP execution (no work to do, but not an error)
+  Next Steps:
+  1. Review and merge pending PRs to close fixed issues
+  2. Wait for new GitHub Actions failures to create new issues
+  3. Run /fix again when new issues are available
 
-#### Step 0.7: Validate GitHub Integration Setup
+  This is informational only - no action needed.
+  ```
+  - STOP execution (no work to do, but not an error)
+
+- If there are no open issues at all:
+  - Display warning message:
+  ```
+  Warning: No open GitHub issues found
+
+  Status: No open issues in the repository
+  Impact: /fix command processes oldest open issue
+  Command: /fix
+
+  Information:
+  The /fix command is designed to process GitHub Actions CI/CD failures
+  reported as GitHub issues.
+
+  Next Steps:
+  1. If you expect open issues, verify:
+     - You are in the correct repository
+     - Issues exist at: gh issue list --state open
+  2. If no issues exist, this is normal - no bugs to fix
+  3. Run /fix again when GitHub Actions creates failure issues
+
+  This is informational only - no action needed if no issues exist.
+  ```
+  - STOP execution (no work to do, but not an error)
+
+#### Step 0.8: Validate GitHub Integration Setup
 
 Check if .github/ directory exists:
 ```bash
@@ -246,7 +294,7 @@ You may continue, but the /fix command is most useful with GitHub Actions config
 ```
 - This is a WARNING - allow execution to continue
 
-#### Step 0.8: Validation Summary
+#### Step 0.9: Validation Summary
 
 If all validations pass:
 - Output: "Pre-flight validation passed - proceeding to fetch oldest GitHub issue"
@@ -260,18 +308,19 @@ If no open issues found:
 - Execution stopped (no work to do)
 - This is informational, not an error
 
-### Step 1: Fetch Oldest GitHub Issue
+### Step 1: Fetch Oldest Unfixed GitHub Issue
 
-Use the Bash tool to get the oldest open issue from the GitHub repository:
+Use the Bash tool to get the oldest open issue that hasn't been fixed yet (excludes issues with `fixed-pending-merge` label):
 
 ```bash
-gh issue list --state open --json number,title,body,createdAt,labels --limit 100 | python3 -c "import json, sys; issues = json.load(sys.stdin); oldest = min(issues, key=lambda x: x['createdAt']) if issues else None; print(json.dumps(oldest, indent=2)) if oldest else print('{}')"
+gh issue list --state open --label '!fixed-pending-merge' --json number,title,body,createdAt,labels --limit 100 | python3 -c "import json, sys; issues = json.load(sys.stdin); oldest = min(issues, key=lambda x: x['createdAt']) if issues else None; print(json.dumps(oldest, indent=2)) if oldest else print('{}')"
 ```
 
 This command:
-- Lists all open issues
+- Lists all open issues WITHOUT the `fixed-pending-merge` label
+- Filters out issues that have already been fixed and are awaiting PR merge
 - Sorts by creation date using Python (oldest first)
-- Returns the first (oldest) issue
+- Returns the first (oldest) unfixed issue
 - Does not require jq to be installed
 
 If no issues are found, report to the user and stop.
@@ -354,16 +403,41 @@ This will:
 
 Wait for the implementation to complete.
 
-### Step 5: Verify Issue Auto-Close
+### Step 5: Mark Issue as Fixed Pending Merge
+
+After successful implementation and commit, mark the GitHub issue with the `fixed-pending-merge` label to prevent it from being re-processed by future `/fix` runs.
+
+First, extract the commit hash and branch name:
+```bash
+git log -1 --format='%h'  # Get short commit hash
+git rev-parse --abbrev-ref HEAD  # Get branch name
+```
+
+Then, add the label and post a comment (two separate commands):
+```bash
+gh issue edit {issue_number} --add-label "fixed-pending-merge"
+gh issue comment {issue_number} --body "🤖 Fix implemented in commit {commit_hash} on branch {branch_name}. This issue will auto-close when the PR merges to main/master."
+```
+
+This step:
+- Adds the `fixed-pending-merge` label to the issue
+- Posts a comment explaining the fix status
+- Prevents the issue from being picked up by the next `/fix` run
+- Does NOT close the issue (it will auto-close on PR merge via "Fixes #N")
+
+**Important**: Only execute this step if implementation completed successfully. If implementation was partial or blocked, skip this step and leave the issue unlabeled so it can be re-attempted.
+
+### Step 6: Verify Issue Auto-Close
 
 The GitHub issue will automatically close when the commit from Step 4 is merged to the default branch (main/master), because the commit message includes "Fixes #{issue_number}".
 
 Report to the user:
 - Confirm that the commit message includes "Fixes #{issue_number}"
 - Explain that the issue will auto-close upon merge to main/master
-- If implementation was partial or blocked, note that the issue will remain open
+- Confirm that the `fixed-pending-merge` label was added
+- If implementation was partial or blocked, note that the issue will remain open and unlabeled
 
-### Step 6: Report
+### Step 7: Report
 
 Provide a comprehensive summary that includes:
 - GitHub issue number and title
@@ -372,7 +446,9 @@ Provide a comprehensive summary that includes:
 - Number of user stories implemented
 - Implementation status (completed/partial/blocked)
 - Commit message with "Fixes #{issue_number}" included
+- `fixed-pending-merge` label status (added/not added with reason)
 - Note that issue will auto-close when PR is merged to main/master
+- Note that issue won't be re-processed by future `/fix` runs (if labeled)
 - Any errors or issues encountered
 
 ## Error Handling
