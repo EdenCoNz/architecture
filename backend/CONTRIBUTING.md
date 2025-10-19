@@ -47,12 +47,18 @@ Before you start contributing, ensure you have:
    make migrate
    ```
 
-5. Verify setup by running tests:
+5. Set up pre-commit hooks (recommended):
+   ```bash
+   poetry run pre-commit install
+   ```
+   This automatically runs code quality checks before each commit.
+
+6. Verify setup by running tests:
    ```bash
    make test
    ```
 
-6. Start the development server:
+7. Start the development server:
    ```bash
    make dev
    ```
@@ -120,6 +126,16 @@ make test
 Or run all checks at once:
 ```bash
 make format && make lint && make type-check && make test
+```
+
+**Note**: If you've set up pre-commit hooks (recommended), these checks will run automatically before each commit. You can also run them manually:
+```bash
+# Run all pre-commit hooks on all files
+poetry run pre-commit run --all-files
+
+# Run specific hook
+poetry run pre-commit run black --all-files
+poetry run pre-commit run ruff --all-files
 ```
 
 ### 5. Commit Your Changes
@@ -252,10 +268,34 @@ def get_user_by_email(email: str) -> User | None:
         return None
 ```
 
-Use modern Python 3.12+ type hint syntax:
-- `list[str]` instead of `List[str]`
-- `dict[str, int]` instead of `Dict[str, int]`
-- `str | None` instead of `Optional[str]`
+### Modern Python 3.12+ Syntax Requirements
+
+This project targets Python 3.12+ and requires modern syntax:
+
+**Type Hints** - Use built-in types instead of typing module:
+- ✅ `list[str]` instead of `List[str]`
+- ✅ `dict[str, int]` instead of `Dict[str, int]`
+- ✅ `tuple[int, str]` instead of `Tuple[int, str]`
+- ✅ `set[int]` instead of `Set[int]`
+
+**Union Types** - Use `|` operator instead of `Union`:
+- ✅ `str | None` instead of `Optional[str]` or `Union[str, None]`
+- ✅ `int | str` instead of `Union[int, str]`
+- ✅ `list[str] | None` instead of `Optional[List[str]]`
+
+**isinstance() Checks** - Use `|` operator for multiple types:
+- ✅ `isinstance(value, int | str)` instead of `isinstance(value, (int, str))`
+- ✅ `isinstance(obj, dict | list)` instead of `isinstance(obj, (dict, list))`
+
+**Why These Requirements?**
+- Modern syntax is more readable and concise
+- Ruff rule UP038 enforces modern isinstance syntax
+- Type hints are clearer with `|` operator
+- Consistent with Python 3.12+ best practices
+
+**Automated Enforcement:**
+Pre-commit hooks and CI/CD pipeline automatically check and enforce these requirements.
+If your code uses old-style syntax, Ruff will flag it as a violation.
 
 ### Documentation Standards
 

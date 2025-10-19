@@ -7,3 +7,4 @@
 
 export { Home } from './Home';
 export { NotFound } from './NotFound';
+export { default as TestPage } from './TestPage';

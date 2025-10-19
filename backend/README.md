@@ -80,6 +80,14 @@ make superuser
 PYTHONPATH=src poetry run python manage.py createsuperuser
 ```
 
+5. Set up pre-commit hooks (recommended):
+
+```bash
+poetry run pre-commit install
+```
+
+Pre-commit hooks automatically run code quality checks (Black, Ruff, MyPy) before each commit, preventing common issues from being committed.
+
 ### Development
 
 Run the development server:
@@ -453,6 +461,20 @@ make format        # Auto-format code
 make type-check    # Verify type hints
 make test          # Run tests with coverage
 ```
+
+**Automated Pre-Commit Checks:**
+
+Install pre-commit hooks to automatically run these checks before every commit:
+
+```bash
+# Install hooks (one-time setup)
+poetry run pre-commit install
+
+# Manually run all hooks on all files
+poetry run pre-commit run --all-files
+```
+
+Pre-commit hooks will prevent commits with code quality violations, ensuring your code always passes CI/CD checks.
 
 For detailed CI/CD documentation, see [docs/CICD.md](docs/CICD.md)
 
