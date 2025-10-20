@@ -13,7 +13,11 @@ on:
         required: true
         type: string
       run_id:
-        description: 'Workflow run ID that triggered this issue creation'
+        description: 'Workflow run ID that triggered this issue creation (failed workflow)'
+        required: true
+        type: string
+      artifact_run_id:
+        description: 'Workflow run ID where the artifact was uploaded (detect-workflow-failures)'
         required: true
         type: string
       job_id:
@@ -28,7 +32,11 @@ on:
         required: true
         type: string
       run_id:
-        description: 'Workflow run ID that triggered this issue creation'
+        description: 'Workflow run ID that triggered this issue creation (failed workflow)'
+        required: true
+        type: string
+      artifact_run_id:
+        description: 'Workflow run ID where the artifact was uploaded (detect-workflow-failures)'
         required: true
         type: string
       job_id:
@@ -59,7 +67,7 @@ jobs:
         with:
           name: issue-logs
           path: issue-logs/
-          run-id: ${{ inputs.run_id }}
+          run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ github.token }}
 
       - name: Verify log file exists

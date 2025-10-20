@@ -393,9 +393,12 @@ jobs:
             # Trigger independent workflow_dispatch run for this log file
             # Each trigger creates a separate workflow run that processes
             # the log file independently
+            # Note: run_id is the failed workflow (for metadata extraction)
+            # artifact_run_id is the current workflow (for artifact download)
             gh workflow run create-issue-from-log.yml \
               -f log_filename="$LOG_FILENAME" \
               -f run_id="$RUN_ID" \
+              -f artifact_run_id="${{ github.run_id }}" \
               -f job_id="$JOB_ID" \
               --ref "${{ github.ref }}" || {
                 echo "Warning: Failed to trigger workflow for $LOG_FILENAME"
