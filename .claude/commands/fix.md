@@ -212,7 +212,7 @@ Note: This step ensures the label is available for marking fixed issues, prevent
 
 Check if there are any open issues that haven't been fixed yet:
 ```bash
-gh issue list --state open --label '!fixed-pending-merge' --limit 1 --json number
+gh issue list --state open --search "-label:fixed-pending-merge" --limit 1 --json number
 ```
 
 This filters out issues that have already been fixed and are awaiting PR merge.
@@ -313,15 +313,17 @@ If no open issues found:
 Use the Bash tool to get the oldest open issue that hasn't been fixed yet (excludes issues with `fixed-pending-merge` label):
 
 ```bash
-gh issue list --state open --label '!fixed-pending-merge' --json number,title,body,createdAt,labels --limit 100 | python3 -c "import json, sys; issues = json.load(sys.stdin); oldest = min(issues, key=lambda x: x['createdAt']) if issues else None; print(json.dumps(oldest, indent=2)) if oldest else print('{}')"
+gh issue list --state open --search "-label:fixed-pending-merge" --json number,title,body,createdAt,labels --limit 100 | python3 -c "import json, sys; issues = json.load(sys.stdin); oldest = min(issues, key=lambda x: x['createdAt']) if issues else None; print(json.dumps(oldest, indent=2)) if oldest else print('{}')"
 ```
 
 This command:
-- Lists all open issues WITHOUT the `fixed-pending-merge` label
+- Lists all open issues WITHOUT the `fixed-pending-merge` label using --search "-label:labelname" syntax
 - Filters out issues that have already been fixed and are awaiting PR merge
 - Sorts by creation date using Python (oldest first)
 - Returns the first (oldest) unfixed issue
 - Does not require jq to be installed
+
+Note: The GitHub CLI does not support `--label '!labelname'` negation syntax. Use `--search "-label:labelname"` instead to exclude labels.
 
 If no issues are found, report to the user and stop.
 
