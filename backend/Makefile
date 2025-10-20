@@ -2,7 +2,7 @@
 # Makefile for Backend Development
 # ============================================================================
 
-.PHONY: help install dev prod test lint format clean migrate shell
+.PHONY: help install dev prod test lint format format-check clean migrate shell
 
 # Default target
 help:
@@ -26,7 +26,8 @@ help:
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint            - Run linting (Ruff)"
-	@echo "  make format          - Format code (Black + Ruff)"
+	@echo "  make format          - Format code (Black + Ruff + import sorting)"
+	@echo "  make format-check    - Check code formatting without making changes"
 	@echo "  make type-check      - Run type checking (MyPy)"
 	@echo ""
 	@echo "Database:"
@@ -102,9 +103,21 @@ lint:
 
 # Format code
 format:
-	@echo "Formatting code..."
+	@echo "Formatting code with Black, Ruff, and import sorting..."
+	@echo "Step 1/2: Running Black formatter..."
 	poetry run black .
+	@echo "Step 2/2: Running Ruff with auto-fix (includes import sorting)..."
 	poetry run ruff check --fix .
+	@echo "✓ Code formatting complete!"
+
+# Check code formatting without making changes
+format-check:
+	@echo "Checking code formatting..."
+	@echo "Step 1/2: Checking Black formatting..."
+	poetry run black --check .
+	@echo "Step 2/2: Checking Ruff rules (includes import sorting)..."
+	poetry run ruff check .
+	@echo "✓ Format check complete!"
 
 # Type checking
 type-check:

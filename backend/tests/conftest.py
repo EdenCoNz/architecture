@@ -33,14 +33,21 @@ User = get_user_model()
 
 
 @pytest.fixture(scope="session")
-def django_db_setup() -> None:
+def django_db_setup(django_db_setup: Any, django_db_blocker: Any) -> None:
     """
     Configure the test database.
 
     This fixture is automatically used by pytest-django to set up the
-    test database before any tests run.
+    test database before any tests run. It ensures migrations are applied.
+
+    Args:
+        django_db_setup: pytest-django's database setup fixture
+        django_db_blocker: pytest-django's database blocker fixture
     """
-    pass
+    from django.core.management import call_command
+
+    with django_db_blocker.unblock():
+        call_command("migrate", "--noinput")
 
 
 @pytest.fixture

@@ -110,7 +110,7 @@ We follow the Red-Green-Refactor cycle:
 Before committing, ensure all quality checks pass:
 
 ```bash
-# Format code
+# Format code (includes import sorting)
 make format
 
 # Run linting
@@ -126,6 +126,11 @@ make test
 Or run all checks at once:
 ```bash
 make format && make lint && make type-check && make test
+```
+
+**Note**: `make format` automatically sorts imports using Ruff's isort rules. You can also check formatting without making changes:
+```bash
+make format-check
 ```
 
 **Note**: If you've set up pre-commit hooks (recommended), these checks will run automatically before each commit. You can also run them manually:
@@ -173,15 +178,17 @@ Then create a pull request on GitHub following the PR template.
 We use automated tools to enforce code style:
 
 - **Black**: Code formatting (line length: 100 characters)
-- **Ruff**: Linting and import sorting
+- **Ruff**: Linting and import sorting (isort integration)
 - **MyPy**: Type checking
 
 Run these tools with:
 ```bash
-make format     # Auto-format with Black
+make format     # Auto-format with Black and sort imports with Ruff
 make lint       # Check with Ruff
 make type-check # Type checking with MyPy
 ```
+
+**Import Sorting**: Ruff automatically sorts imports using isort rules. The `make format` command includes import sorting as part of the auto-fix process. See the [Code Organization](#code-organization) section for import ordering standards.
 
 ### Naming Conventions
 
@@ -206,11 +213,13 @@ make type-check # Type checking with MyPy
 
 ### Code Organization
 
-**Import Order** (enforced by Ruff):
+**Import Order and Sorting** (automatically enforced by Ruff isort):
+
+Imports are automatically sorted and organized into these groups:
 1. Standard library imports
 2. Third-party imports
 3. Django imports
-4. Local application imports
+4. Local application imports (first-party)
 
 ```python
 import os
@@ -225,6 +234,43 @@ from django.db import models
 from apps.users.models import User
 from core.services.auth import AuthenticationService
 ```
+
+**Import Sorting Guidelines**:
+
+- **Automatic Formatting**: Run `make format` to automatically sort imports
+- **Pre-commit Hooks**: Imports are automatically sorted before each commit
+- **CI/CD Enforcement**: Import sorting violations will fail the CI/CD pipeline
+- **Blank Lines**: One blank line between import groups
+- **Alphabetical**: Imports within each group are alphabetized
+- **From Imports**: `from` imports come after regular imports within each group
+
+**Common Import Violations and Fixes**:
+
+```python
+# ❌ INCORRECT: Wrong order, no grouping
+from django.db import models
+import os
+from apps.users.models import User
+import requests
+
+# ✓ CORRECT: Properly sorted by Ruff
+import os
+
+import requests
+
+from django.db import models
+
+from apps.users.models import User
+```
+
+**How Import Sorting Prevents Bugs**:
+
+Consistent import ordering:
+- Makes code reviews easier (less noise in diffs)
+- Prevents merge conflicts in import statements
+- Makes missing imports easier to spot
+- Ensures consistent code style across the team
+- Catches circular import issues early
 
 **Module Structure**:
 ```python
