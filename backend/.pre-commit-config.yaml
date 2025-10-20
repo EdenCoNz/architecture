@@ -19,12 +19,13 @@ repos:
       - id: black
         name: Format code with Black
         language_version: python3.12
-        args: ["--config", "pyproject.toml"]
+        args: ["--config", "backend/pyproject.toml"]
+        files: ^backend/
         exclude: |
           (?x)(
-              ^migrations/|
-              ^\.venv/|
-              ^venv/|
+              ^backend/migrations/|
+              ^backend/\.venv/|
+              ^backend/venv/|
               ^\.git/|
               ^__pycache__/
           )
@@ -35,22 +36,25 @@ repos:
     hooks:
       - id: ruff
         name: Lint with Ruff
-        args: ["--fix", "--exit-non-zero-on-fix"]
+        args: ["--fix", "--exit-non-zero-on-fix", "--config", "backend/pyproject.toml"]
+        files: ^backend/
         exclude: |
           (?x)(
-              ^migrations/|
-              ^\.venv/|
-              ^venv/|
+              ^backend/migrations/|
+              ^backend/\.venv/|
+              ^backend/venv/|
               ^\.git/|
               ^__pycache__/
           )
       - id: ruff-format
         name: Format imports with Ruff
+        args: ["--config", "backend/pyproject.toml"]
+        files: ^backend/
         exclude: |
           (?x)(
-              ^migrations/|
-              ^\.venv/|
-              ^venv/|
+              ^backend/migrations/|
+              ^backend/\.venv/|
+              ^backend/venv/|
               ^\.git/|
               ^__pycache__/
           )
@@ -65,13 +69,14 @@ repos:
           - django-stubs==5.1.1
           - djangorestframework-stubs==3.15.1
           - types-requests
-        args: ["--config-file", "pyproject.toml"]
+        args: ["--config-file", "backend/pyproject.toml"]
+        files: ^backend/
         exclude: |
           (?x)(
-              ^migrations/|
-              ^tests/|
-              ^\.venv/|
-              ^venv/|
+              ^backend/migrations/|
+              ^backend/tests/|
+              ^backend/\.venv/|
+              ^backend/venv/|
               ^\.git/
           )
 
@@ -90,7 +95,6 @@ repos:
         name: Ensure files end with newline
       - id: check-yaml
         name: Validate YAML files
-        args: ["--safe"]
       - id: check-json
         name: Validate JSON files
       - id: check-toml

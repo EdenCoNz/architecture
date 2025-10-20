@@ -1,7 +1,5 @@
 """Views for user preferences API."""
 
-from typing import Any
-
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.request import Request
@@ -80,9 +78,7 @@ class ThemePreferenceView(APIView):
             user=request.user, defaults={"theme": "auto"}
         )
 
-        serializer = UserPreferencesSerializer(
-            preferences, data=request.data, partial=True
-        )
+        serializer = UserPreferencesSerializer(preferences, data=request.data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
