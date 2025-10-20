@@ -354,31 +354,7 @@ This will:
 
 Wait for the implementation to complete.
 
-### Step 5: Mark Issue as Fixed Pending Merge
-
-After successful implementation and commit, mark the GitHub issue with the `fixed-pending-merge` label to prevent it from being re-processed by future `/fix` runs.
-
-First, extract the commit hash and branch name:
-```bash
-git log -1 --format='%h'  # Get short commit hash
-git rev-parse --abbrev-ref HEAD  # Get branch name
-```
-
-Then, add the label and post a comment (two separate commands):
-```bash
-gh issue edit {issue_number} --add-label "fixed-pending-merge"
-gh issue comment {issue_number} --body "🤖 Fix implemented in commit {commit_hash} on branch {branch_name}. This issue will auto-close when the PR merges to main/master."
-```
-
-This step:
-- Adds the `fixed-pending-merge` label to the issue
-- Posts a comment explaining the fix status
-- Prevents the issue from being picked up by the next `/fix` run
-- Does NOT close the issue (it will auto-close on PR merge via "Fixes #N")
-
-**Important**: Only execute this step if implementation completed successfully. If implementation was partial or blocked, skip this step and leave the issue unlabeled so it can be re-attempted.
-
-### Step 6: Verify Issue Auto-Close
+### Step 5: Verify Issue Auto-Close
 
 After implementation completes, verify that the commit message includes the correct issue reference for auto-closing.
 
@@ -426,10 +402,9 @@ git log -1 --format='%B' | grep -q "Fixes #${issue_number}" && echo "VALID" || e
 Report to the user:
 - Confirm that the commit message includes "Fixes #{issue_number}" (or warn if missing)
 - Explain that the issue will auto-close upon merge to main/master (if reference found)
-- Confirm that the `fixed-pending-merge` label was added
-- If implementation was partial or blocked, note that the issue will remain open and unlabeled
+- If implementation was partial or blocked, note that the issue will remain open
 
-### Step 7: Report
+### Step 6: Report
 
 Provide a comprehensive summary that includes:
 - GitHub issue number and title
@@ -440,9 +415,7 @@ Provide a comprehensive summary that includes:
 - Commit message verification status:
   - If verified: "Commit message includes 'Fixes #{issue_number}' - issue will auto-close on merge"
   - If not verified: "Warning: Commit message missing 'Fixes #{issue_number}' reference - manual close required"
-- `fixed-pending-merge` label status (added/not added with reason)
 - Note that issue will auto-close when PR is merged to main/master (if Fixes reference found)
-- Note that issue won't be re-processed by future `/fix` runs (if labeled)
 - Any errors or issues encountered
 
 ## Error Handling

@@ -1,1 +1,0 @@
-"""User preferences Django app."""
