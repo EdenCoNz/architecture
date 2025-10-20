@@ -1,0 +1,390 @@
+name: Create Issue from Log
+
+# Reusable workflow for creating tracking issues from failure log files
+# This workflow can be triggered in two ways:
+# 1. As a reusable workflow (workflow_call) for integration with other workflows
+# 2. Via workflow_dispatch for independent execution per log file
+
+on:
+  workflow_call:
+    inputs:
+      log_filename:
+        description: 'Path to the issue log file to process'
+        required: true
+        type: string
+      run_id:
+        description: 'Workflow run ID that triggered this issue creation'
+        required: true
+        type: string
+      job_id:
+        description: 'Job ID that failed'
+        required: true
+        type: string
+
+  workflow_dispatch:
+    inputs:
+      log_filename:
+        description: 'Path to the issue log file to process'
+        required: true
+        type: string
+      run_id:
+        description: 'Workflow run ID that triggered this issue creation'
+        required: true
+        type: string
+      job_id:
+        description: 'Job ID that failed'
+        required: true
+        type: string
+
+# Minimal required permissions for issue creation workflow
+# issues: write is required to create tracking issues
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  process-issue-log:
+    name: Process Issue Log
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify log file exists
+        id: verify-log
+        run: |
+          if [ ! -f "${{ inputs.log_filename }}" ]; then
+            echo "Error: Log file not found: ${{ inputs.log_filename }}"
+            exit 1
+          fi
+
+          echo "Log file verified: ${{ inputs.log_filename }}"
+          echo "log_exists=true" >> $GITHUB_OUTPUT
+
+      - name: Extract workflow execution metadata
+        id: extract-metadata
+        run: |
+          RUN_ID="${{ inputs.run_id }}"
+          JOB_ID="${{ inputs.job_id }}"
+
+          echo "## Extracting Workflow Execution Metadata" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: $RUN_ID" >> $GITHUB_STEP_SUMMARY
+          echo "**Job ID**: $JOB_ID" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Fetch workflow run details
+          RUN_JSON=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/runs/$RUN_ID")
+
+          # Extract run-level metadata
+          RUN_URL=$(echo "$RUN_JSON" | jq -r '.html_url')
+          WORKFLOW_NAME=$(echo "$RUN_JSON" | jq -r '.name')
+          RUN_NUMBER=$(echo "$RUN_JSON" | jq -r '.run_number')
+          HEAD_SHA=$(echo "$RUN_JSON" | jq -r '.head_sha')
+          HEAD_BRANCH=$(echo "$RUN_JSON" | jq -r '.head_branch')
+
+          # Construct commit URL
+          COMMIT_URL="https://github.com/${{ github.repository }}/commit/$HEAD_SHA"
+
+          # Extract PR URL if available
+          PR_NUMBER=$(echo "$RUN_JSON" | jq -r '.pull_requests[0].number // empty')
+          if [ -n "$PR_NUMBER" ]; then
+            PR_URL="https://github.com/${{ github.repository }}/pull/$PR_NUMBER"
+          else
+            PR_URL="N/A"
+          fi
+
+          # Fetch job details
+          JOB_JSON=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/jobs/$JOB_ID")
+
+          # Extract job-level metadata
+          JOB_NAME=$(echo "$JOB_JSON" | jq -r '.name')
+          JOB_URL=$(echo "$JOB_JSON" | jq -r '.html_url')
+          JOB_STATUS=$(echo "$JOB_JSON" | jq -r '.status')
+          JOB_CONCLUSION=$(echo "$JOB_JSON" | jq -r '.conclusion')
+          JOB_STARTED_AT=$(echo "$JOB_JSON" | jq -r '.started_at')
+          JOB_COMPLETED_AT=$(echo "$JOB_JSON" | jq -r '.completed_at')
+
+          # Find the first failed step
+          FAILED_STEP_NAME=$(echo "$JOB_JSON" | jq -r '.steps[] | select(.conclusion == "failure") | .name' | head -n 1)
+          FAILED_STEP_NUMBER=$(echo "$JOB_JSON" | jq -r '.steps[] | select(.conclusion == "failure") | .number' | head -n 1)
+
+          # If no failed step found, use job-level failure
+          if [ -z "$FAILED_STEP_NAME" ]; then
+            FAILED_STEP_NAME="Job-level failure"
+            FAILED_STEP_NUMBER="0"
+          fi
+
+          # Extract log line numbers from failed step (if available)
+          # GitHub doesn't provide direct line number access via API, but we can note this for future log extraction
+          LOG_LINE_NUMBERS="See workflow run URL for complete logs"
+
+          # Output all extracted metadata to GITHUB_OUTPUT for use in subsequent steps
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
+          echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
+          echo "run_number=$RUN_NUMBER" >> $GITHUB_OUTPUT
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "head_branch=$HEAD_BRANCH" >> $GITHUB_OUTPUT
+          echo "commit_url=$COMMIT_URL" >> $GITHUB_OUTPUT
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+          echo "job_name=$JOB_NAME" >> $GITHUB_OUTPUT
+          echo "job_url=$JOB_URL" >> $GITHUB_OUTPUT
+          echo "job_status=$JOB_STATUS" >> $GITHUB_OUTPUT
+          echo "job_conclusion=$JOB_CONCLUSION" >> $GITHUB_OUTPUT
+          echo "job_started_at=$JOB_STARTED_AT" >> $GITHUB_OUTPUT
+          echo "job_completed_at=$JOB_COMPLETED_AT" >> $GITHUB_OUTPUT
+          echo "step_name=$FAILED_STEP_NAME" >> $GITHUB_OUTPUT
+          echo "step_number=$FAILED_STEP_NUMBER" >> $GITHUB_OUTPUT
+          echo "log_line_numbers=$LOG_LINE_NUMBERS" >> $GITHUB_OUTPUT
+
+          # Create summary of extracted metadata
+          echo "### Extracted Metadata" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Run Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run Identifier**: $RUN_ID" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow Name**: $WORKFLOW_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run Number**: $RUN_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run URL**: $RUN_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Job Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job ID**: $JOB_ID" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Name**: $JOB_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job URL**: $JOB_URL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: $JOB_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Conclusion**: $JOB_CONCLUSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Started**: $JOB_STARTED_AT" >> $GITHUB_STEP_SUMMARY
+          echo "- **Completed**: $JOB_COMPLETED_AT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Step Name**: $FAILED_STEP_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Step Number**: $FAILED_STEP_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Related Links" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pull Request**: $PR_URL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit URL**: $COMMIT_URL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow Run URL**: $RUN_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Extract log excerpt from failed step
+        id: extract-logs
+        run: |
+          JOB_ID="${{ inputs.job_id }}"
+          STEP_NUMBER="${{ steps.extract-metadata.outputs.step_number }}"
+
+          echo "## Extracting Log Excerpt" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Downloading logs for Job ID: $JOB_ID, Step: $STEP_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Download job logs
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs" > job_logs.txt || {
+              echo "Warning: Could not download logs, will use placeholder text"
+              echo "LOG_EXCERPT=Log excerpt unavailable. Please see workflow run URL for complete logs." >> $GITHUB_OUTPUT
+              exit 0
+            }
+
+          # Find the failed step section in the logs
+          # GitHub logs include timestamps and step markers
+          # We'll extract approximately 20-30 lines before and after the failure indicators
+
+          # Look for common failure patterns (error messages, exit codes, etc.)
+          # Extract context around these failures
+          if grep -qi "error\|failed\|exception\|fatal" job_logs.txt; then
+            # Find the first error/failure line number
+            FIRST_ERROR_LINE=$(grep -ni "error\|failed\|exception\|fatal" job_logs.txt | head -n 1 | cut -d: -f1)
+
+            # Calculate range (30 lines before, 20 lines after)
+            START_LINE=$((FIRST_ERROR_LINE - 30))
+            if [ $START_LINE -lt 1 ]; then
+              START_LINE=1
+            fi
+            END_LINE=$((FIRST_ERROR_LINE + 20))
+
+            # Extract the excerpt
+            LOG_EXCERPT=$(sed -n "${START_LINE},${END_LINE}p" job_logs.txt)
+
+            echo "Extracted log excerpt from lines $START_LINE to $END_LINE (centered on line $FIRST_ERROR_LINE)" >> $GITHUB_STEP_SUMMARY
+          else
+            # If no clear error pattern, extract last 50 lines
+            LOG_EXCERPT=$(tail -n 50 job_logs.txt)
+            echo "No clear error pattern found, extracted last 50 lines of logs" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Store excerpt in output (handle multiline with EOF delimiter)
+          echo "log_excerpt<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG_EXCERPT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Add excerpt preview to summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Log Excerpt Preview (first 10 lines)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$LOG_EXCERPT" | head -n 10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Populate issue log template with metadata
+        id: populate-template
+        run: |
+          LOG_FILE="${{ inputs.log_filename }}"
+
+          # Extract metadata from previous step outputs
+          WORKFLOW_NAME="${{ steps.extract-metadata.outputs.workflow_name }}"
+          JOB_NAME="${{ steps.extract-metadata.outputs.job_name }}"
+          STEP_NAME="${{ steps.extract-metadata.outputs.step_name }}"
+          RUN_ID="${{ steps.extract-metadata.outputs.run_id }}"
+          JOB_ID="${{ steps.extract-metadata.outputs.job_id }}"
+          PR_URL="${{ steps.extract-metadata.outputs.pr_url }}"
+          COMMIT_URL="${{ steps.extract-metadata.outputs.commit_url }}"
+          RUN_URL="${{ steps.extract-metadata.outputs.run_url }}"
+          LOG_LINE_NUMBERS="${{ steps.extract-metadata.outputs.log_line_numbers }}"
+          LOG_EXCERPT="${{ steps.extract-logs.outputs.log_excerpt }}"
+
+          # Generate issue title
+          TITLE="Workflow Failure: $WORKFLOW_NAME - $JOB_NAME - $STEP_NAME"
+
+          echo "## Populating Issue Log Template" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Template File**: \`$LOG_FILE\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Create populated template using sed to replace empty fields
+          # The template has the format: | field | value |
+          # We need to replace the empty value cells with actual data
+
+          cp "$LOG_FILE" "${LOG_FILE}.tmp"
+
+          # Populate each field in the table
+          # Using @ as sed delimiter to avoid conflicts with URLs containing /
+          sed -i "s@| title |  |@| title | $TITLE |@" "${LOG_FILE}.tmp"
+          sed -i "s@| featureID |  |@| featureID | N/A (auto-detected failure) |@" "${LOG_FILE}.tmp"
+          sed -i "s@| featureName |  |@| featureName | N/A (auto-detected failure) |@" "${LOG_FILE}.tmp"
+          sed -i "s@| jobName |  |@| jobName | $JOB_NAME |@" "${LOG_FILE}.tmp"
+          sed -i "s@| stepName |  |@| stepName | $STEP_NAME |@" "${LOG_FILE}.tmp"
+          sed -i "s@| logLineNumbers |  |@| logLineNumbers | $LOG_LINE_NUMBERS |@" "${LOG_FILE}.tmp"
+          sed -i "s@| PRURL |  |@| PRURL | $PR_URL |@" "${LOG_FILE}.tmp"
+          sed -i "s@| commitURL |  |@| commitURL | $COMMIT_URL |@" "${LOG_FILE}.tmp"
+          sed -i "s@| runURL |  |@| runURL | $RUN_URL |@" "${LOG_FILE}.tmp"
+
+          # Append log excerpt to the template
+          # The template has a section "## Failed Step Log Excerpt" followed by description
+          # We'll append the actual log excerpt after that section
+          echo "" >> "${LOG_FILE}.tmp"
+          echo '```' >> "${LOG_FILE}.tmp"
+          echo "$LOG_EXCERPT" >> "${LOG_FILE}.tmp"
+          echo '```' >> "${LOG_FILE}.tmp"
+
+          # Replace original log file with populated version
+          mv "${LOG_FILE}.tmp" "$LOG_FILE"
+
+          echo "**Status**: ✓ Template successfully populated with metadata" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Verify no empty fields remain
+          EMPTY_FIELDS=$(grep -c "|  |" "$LOG_FILE" || true)
+          if [ "$EMPTY_FIELDS" -gt 0 ]; then
+            echo "**Warning**: $EMPTY_FIELDS empty field(s) remain in template" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Validation**: ✓ All fields populated, no empty placeholders remain" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create tracking issue
+        id: create-issue
+        run: |
+          LOG_FILE="${{ inputs.log_filename }}"
+
+          # Extract title from populated template
+          ISSUE_TITLE=$(grep "^| title |" "$LOG_FILE" | sed 's/^| title | \(.*\) |$/\1/')
+
+          # Extract job name and workflow name for labels
+          JOB_NAME="${{ steps.extract-metadata.outputs.job_name }}"
+          WORKFLOW_NAME="${{ steps.extract-metadata.outputs.workflow_name }}"
+          RUN_ID="${{ steps.extract-metadata.outputs.run_id }}"
+
+          # Sanitize names for labels (lowercase, replace spaces with hyphens, remove special chars)
+          JOB_LABEL=$(echo "$JOB_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
+          WORKFLOW_LABEL=$(echo "$WORKFLOW_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
+
+          echo "## Creating Tracking Issue" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue Title**: $ISSUE_TITLE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Create labels for the issue
+          # Labels enable searching by workflow, job, and run information
+          LABELS="workflow-failure,workflow:${WORKFLOW_LABEL},job:${JOB_LABEL},run:${RUN_ID}"
+
+          echo "**Labels**: $LABELS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Read the populated log file as the issue body
+          ISSUE_BODY=$(cat "$LOG_FILE")
+
+          # Create the issue using gh CLI
+          ISSUE_URL=$(gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$ISSUE_BODY" \
+            --label "$LABELS")
+
+          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
+
+          echo "**Status**: ✓ Issue created successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue URL**: $ISSUE_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract issue number from URL
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+
+          echo "**Issue Number**: #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Display issue creation summary
+        if: always()
+        run: |
+          echo "## Issue Creation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.create-issue.outcome }}" == "success" ]; then
+            echo "✓ **Tracking issue created successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Issue URL**: ${{ steps.create-issue.outputs.issue_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Issue Number**: #${{ steps.create-issue.outputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Log File**: \`${{ inputs.log_filename }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Workflow Run**: ${{ steps.extract-metadata.outputs.run_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Search Capabilities" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "You can find this issue using the following labels:" >> $GITHUB_STEP_SUMMARY
+            echo "- \`workflow-failure\`: All automated failure issues" >> $GITHUB_STEP_SUMMARY
+            echo "- \`workflow:*\`: Filter by workflow name" >> $GITHUB_STEP_SUMMARY
+            echo "- \`job:*\`: Filter by job name" >> $GITHUB_STEP_SUMMARY
+            echo "- \`run:*\`: Filter by specific run ID" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Issue creation failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY

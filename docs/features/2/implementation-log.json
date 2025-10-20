@@ -1,0 +1,118 @@
+[
+  {
+    "storyNumber": 1,
+    "storyTitle": "Add Unit Test Job to GitHub Workflow",
+    "completedAt": "2025-10-20T00:00:00Z",
+    "filesModified": [
+      ".github/workflows/frontend-ci.yml"
+    ],
+    "filesCreated": [],
+    "actionsTaken": [
+      "Added new 'test' job to frontend-ci.yml workflow that runs npm run test:run",
+      "Configured job to run on ubuntu-22.04 with 10-minute timeout",
+      "Set up job to run in parallel with lint and typecheck jobs (no dependencies)",
+      "Added test job as dependency to build job to ensure tests pass before building",
+      "Added test job as dependency to deployment-check job for complete validation",
+      "Updated job numbering in comments (Build: Job 3 -> Job 4, Security: Job 4 -> Job 5, Deployment: Job 5 -> Job 6)",
+      "Validated YAML syntax using Python yaml.safe_load() - confirmed valid"
+    ],
+    "issuesEncountered": [],
+    "resolutionNotes": [],
+    "status": "completed",
+    "acceptanceCriteria": [
+      "\u2713 A new 'test' job is added to .github/workflows/frontend-ci.yml that runs npm run test:run",
+      "\u2713 Job runs in parallel with lint and typecheck jobs (not dependent on them)",
+      "\u2713 Job has appropriate timeout (10 minutes) and runs on ubuntu-22.04",
+      "\u2713 Test failures cause the workflow to fail and block merging (build job depends on test job)"
+    ]
+  },
+  {
+    "storyNumber": 2,
+    "storyTitle": "Add Test Coverage Reporting to GitHub Workflow",
+    "completedAt": "2025-10-20T00:00:00Z",
+    "filesModified": [
+      ".github/workflows/frontend-ci.yml",
+      "frontend/vite.config.ts",
+      "frontend/package.json"
+    ],
+    "filesCreated": [],
+    "actionsTaken": [
+      "Modified test job to run npm run test:coverage instead of npm run test:run",
+      "Updated test job name from 'Unit Tests' to 'Unit Tests with Coverage' for clarity",
+      "Added 'Upload coverage reports' step using actions/upload-artifact@v4",
+      "Configured coverage artifacts with 30-day retention period and error on missing files",
+      "Added 'Generate coverage summary' step that parses coverage-summary.json",
+      "Implemented coverage summary table in GitHub Step Summary showing Lines, Statements, Functions, and Branches metrics",
+      "Used jq to parse JSON coverage data and format as markdown table",
+      "Added 'if: always()' condition to coverage summary step to ensure it runs even if tests fail",
+      "Updated frontend/vite.config.ts to include 'json-summary' reporter for Vitest coverage",
+      "Added @vitest/coverage-v8 package to frontend/package.json devDependencies (version ^3.2.4)",
+      "Validated YAML syntax using Python yaml.safe_load() - confirmed valid"
+    ],
+    "issuesEncountered": [],
+    "resolutionNotes": [],
+    "status": "completed",
+    "acceptanceCriteria": [
+      "\u2713 Test job runs npm run test:coverage to generate coverage reports",
+      "\u2713 Coverage artifacts are uploaded using actions/upload-artifact@v4 with 30-day retention",
+      "\u2713 Coverage summary is added to GitHub Step Summary showing overall coverage percentage for Lines, Statements, Functions, and Branches",
+      "\u2713 Coverage reports are available for download from workflow run artifacts with name coverage-report-{sha}"
+    ]
+  },
+  {
+    "storyNumber": 3,
+    "storyTitle": "Add Test Coverage Comments to Pull Requests",
+    "completedAt": "2025-10-20T10:03:58Z",
+    "filesModified": [
+      ".github/workflows/frontend-ci.yml",
+      "frontend/vite.config.ts"
+    ],
+    "filesCreated": [],
+    "actionsTaken": [
+      "Added lcov reporter to Vitest coverage configuration in frontend/vite.config.ts",
+      "Added new step \"Post coverage report to PR\" to test job in frontend-ci.yml",
+      "Configured step to use romeovs/lcov-reporter-action@v0.3.1 for posting coverage comments",
+      "Set up action to read LCOV file from frontend/coverage/lcov.info",
+      "Configured action to use GITHUB_TOKEN for authentication (already available with pull-requests: write permission)",
+      "Enabled delete-old-comments: true to update existing comments on subsequent commits",
+      "Added conditional if: github.event_name == \"pull_request\" to only run on PR events",
+      "Validated YAML syntax using Python yaml.safe_load() - confirmed valid"
+    ],
+    "issuesEncountered": [],
+    "resolutionNotes": [],
+    "status": "completed",
+    "acceptanceCriteria": [
+      "\u2713 Coverage report is posted as a comment on pull requests showing coverage metrics",
+      "\u2713 Comment includes overall coverage percentage and file-level breakdown (provided by romeovs/lcov-reporter-action)",
+      "\u2713 Comment updates on subsequent commits via delete-old-comments: true (not creating duplicate comments)",
+      "\u2713 Uses romeovs/lcov-reporter-action as specified in acceptance criteria"
+    ]
+  },
+  {
+    "storyNumber": 4,
+    "storyTitle": "Add Build Status Badge to Frontend README",
+    "completedAt": "2025-10-20T23:20:00Z",
+    "filesModified": [
+      "frontend/README.md"
+    ],
+    "filesCreated": [],
+    "actionsTaken": [
+      "Added GitHub Actions workflow status badge to frontend/README.md",
+      "Positioned badge prominently at the top of the README, immediately after the title and before the description",
+      "Configured badge to display status of frontend-ci.yml workflow",
+      "Badge URL format: https://github.com/EdenCoNz/architecture/actions/workflows/frontend-ci.yml/badge.svg",
+      "Badge automatically links to workflow runs page when clicked",
+      "Badge displays real-time status: green for passing, red for failing, yellow for in-progress",
+      "Followed GitHub Actions badge best practices from context/devops/github-actions.md"
+    ],
+    "issuesEncountered": [],
+    "resolutionNotes": [],
+    "status": "completed",
+    "acceptanceCriteria": [
+      "\u2713 GitHub Actions badge is added to frontend/README.md showing workflow status",
+      "\u2713 Badge displays current status of frontend-ci.yml workflow",
+      "\u2713 Badge is positioned prominently near the top of README (line 3, immediately after title)",
+      "\u2713 Badge correctly links to the workflow runs page (automatic when using GitHub Actions badge URL format)"
+    ]
+  }
+]

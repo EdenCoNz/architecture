@@ -83,12 +83,99 @@ jobs:
       - name: Run TypeScript type check
         run: npx tsc -b --noEmit
 
-  # Job 3: Build
+  # Job 3: Unit Tests with Coverage
+  test:
+    name: Unit Tests with Coverage
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: frontend/coverage/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Generate coverage summary
+        if: always()
+        run: |
+          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract coverage summary from text report
+          if [ -f "coverage/coverage-summary.json" ]; then
+            echo "### Overall Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Parse JSON coverage summary and format as table
+            echo "| Metric | Coverage | Covered/Total |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|----------|---------------|" >> $GITHUB_STEP_SUMMARY
+
+            # Extract metrics using jq (available on ubuntu runners)
+            TOTAL=$(cat coverage/coverage-summary.json | jq '.total')
+
+            LINES_PCT=$(echo "$TOTAL" | jq -r '.lines.pct')
+            LINES_COV=$(echo "$TOTAL" | jq -r '.lines.covered')
+            LINES_TOT=$(echo "$TOTAL" | jq -r '.lines.total')
+            echo "| Lines | ${LINES_PCT}% | ${LINES_COV}/${LINES_TOT} |" >> $GITHUB_STEP_SUMMARY
+
+            STATEMENTS_PCT=$(echo "$TOTAL" | jq -r '.statements.pct')
+            STATEMENTS_COV=$(echo "$TOTAL" | jq -r '.statements.covered')
+            STATEMENTS_TOT=$(echo "$TOTAL" | jq -r '.statements.total')
+            echo "| Statements | ${STATEMENTS_PCT}% | ${STATEMENTS_COV}/${STATEMENTS_TOT} |" >> $GITHUB_STEP_SUMMARY
+
+            FUNCTIONS_PCT=$(echo "$TOTAL" | jq -r '.functions.pct')
+            FUNCTIONS_COV=$(echo "$TOTAL" | jq -r '.functions.covered')
+            FUNCTIONS_TOT=$(echo "$TOTAL" | jq -r '.functions.total')
+            echo "| Functions | ${FUNCTIONS_PCT}% | ${FUNCTIONS_COV}/${FUNCTIONS_TOT} |" >> $GITHUB_STEP_SUMMARY
+
+            BRANCHES_PCT=$(echo "$TOTAL" | jq -r '.branches.pct')
+            BRANCHES_COV=$(echo "$TOTAL" | jq -r '.branches.covered')
+            BRANCHES_TOT=$(echo "$TOTAL" | jq -r '.branches.total')
+            echo "| Branches | ${BRANCHES_PCT}% | ${BRANCHES_COV}/${BRANCHES_TOT} |" >> $GITHUB_STEP_SUMMARY
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Full coverage reports are available as workflow artifacts." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Coverage summary file not found. Coverage report may not have been generated." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Post coverage report to PR
+        if: github.event_name == 'pull_request'
+        uses: romeovs/lcov-reporter-action@v0.3.1
+        with:
+          lcov-file: ./frontend/coverage/lcov.info
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          delete-old-comments: true
+
+  # Job 4: Build
   build:
     name: Build Application
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-    needs: [lint, typecheck]  # Only build if lint and typecheck pass
+    needs: [lint, typecheck, test]  # Only build if lint, typecheck, and test pass
 
     defaults:
       run:
@@ -135,7 +222,7 @@ jobs:
           find dist -name "*.js" -o -name "*.css" | xargs du -h | sort -rh | head -10 >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 4: Security Audit
+  # Job 5: Security Audit
   security:
     name: Security Audit
     runs-on: ubuntu-22.04
@@ -172,12 +259,12 @@ jobs:
           npm audit --audit-level=moderate || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 5: Deployment Readiness (only on main branch)
+  # Job 6: Deployment Readiness (only on main branch)
   deployment-check:
     name: Deployment Readiness Check
     runs-on: ubuntu-22.04
     timeout-minutes: 5
-    needs: [lint, typecheck, build, security]
+    needs: [lint, typecheck, test, build, security]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:

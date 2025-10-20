@@ -24,6 +24,36 @@
           "designBriefUpdated": true
         }
       ]
+    },
+    {
+      "featureID": "2",
+      "title": "Enhanced GitHub Workflow for Frontend Application",
+      "createdAt": "2025-10-20T00:00:00Z",
+      "userStoriesCreated": "2025-10-20T00:00:00Z",
+      "userStoriesImplemented": "2025-10-20T23:25:00Z",
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": []
+    },
+    {
+      "featureID": "3",
+      "title": "Automated Git Workflow for Feature Command",
+      "createdAt": "2025-10-20T23:30:00Z",
+      "userStoriesCreated": "2025-10-20T23:30:00Z",
+      "userStoriesImplemented": "2025-10-20T12:15:45Z",
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": []
+    },
+    {
+      "featureID": "4",
+      "title": "Automated Issue Creation for Failed Workflow Jobs",
+      "createdAt": "2025-10-21T00:00:00Z",
+      "userStoriesCreated": "2025-10-21T00:00:00Z",
+      "userStoriesImplemented": "2025-10-21T10:45:00Z",
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": []
     }
   ]
 }

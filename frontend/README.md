@@ -1,5 +1,7 @@
 # Frontend Web Application
 
+![CI/CD Pipeline](https://github.com/EdenCoNz/architecture/actions/workflows/frontend-ci.yml/badge.svg)
+
 A modern, scalable frontend web application built with React 19, TypeScript, Material UI, and Vite. This project follows Test-Driven Development (TDD) principles and industry best practices for maintainability, performance, and accessibility.
 
 ## Table of Contents

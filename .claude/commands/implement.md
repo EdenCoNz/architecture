@@ -22,7 +22,7 @@ Execute user stories for a specific feature by launching appropriate agents in t
 
 - Check if user-stories file exists before proceeding
 - Skip stories that are already completed (found in implementation logs)
-- Execute ALL user stories regardless of agent type (ui-ux-designer, frontend-developer, backend-developer, devops-engineer, etc.)
+- Execute ALL user stories regardless of agent type
 - Respect execution order: sequential phases run one-by-one, parallel phases run simultaneously
 - Each agent MUST record their work in the implementation log
 - Update feature log only when ALL stories are completed
@@ -56,7 +56,7 @@ For each phase in the execution order:
 
 ### Step 4: Pass Story Context to Agents
 
-For each agent (regardless of type), provide:
+For each agent, provide:
 
 ```
 Feature ID: $ID
@@ -71,28 +71,17 @@ Acceptance Criteria:
 
 Execute this implementation following best practices and ensure all acceptance criteria are met.
 
-IMPORTANT: After completing this user story, you MUST:
+IMPORTANT: After completing this user story, you MUST record your work in docs/features/$ID/implementation-log.json with:
+- Story number and title
+- Timestamp of completion
+- All files created or modified
+- All actions taken (tool calls, decisions made)
+- Any issues encountered and how they were resolved
+- Status (completed/partial/blocked)
+- If the file already exists, append to it. If it doesn't exist, create it as a JSON array.
 
-1. Record your work in docs/features/$ID/implementation-log.json:
-   - Story number and title
-   - Timestamp of completion
-   - All files created or modified
-   - All actions taken (tool calls, decisions made)
-   - Any issues encountered and how they were resolved
-   - Status (completed/partial/blocked)
-   - If the file already exists, append to it. If it doesn't exist, create it as a JSON array.
-
-2. If this is a design story (ui-ux-designer agent) and you updated the design brief:
-   - Update docs/features/feature-log.json
-   - Find the feature entry with matching featureID
-   - Append to the "actions" array:
-     ```json
-     {
-       "actionType": "design",
-       "completedAt": "{YYYY-MM-DDTHH:mm:ssZ}",
-       "designBriefUpdated": true
-     }
-     ```
+If this is a design story (ui-ux-designer agent) and you updated the design brief, also update docs/features/feature-log.json by appending to the "actions" array:
+{"actionType": "design", "completedAt": "{YYYY-MM-DDTHH:mm:ssZ}", "designBriefUpdated": true}
 ```
 
 ### Step 5: Verify Completion and Update Feature Log

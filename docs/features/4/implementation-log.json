@@ -1,0 +1,994 @@
+[
+  {
+    "story_number": 1,
+    "story_title": "Detect Workflow Job Failures",
+    "status": "completed",
+    "timestamp": "2025-10-21T00:00:00Z",
+    "files_created": [
+      ".github/workflows/detect-workflow-failures.yml"
+    ],
+    "files_modified": [],
+    "actions_taken": [
+      {
+        "action": "Created detect-workflow-failures.yml workflow",
+        "details": "Implemented GitHub Actions workflow that uses workflow_run trigger to detect failures in completed workflows",
+        "reasoning": "workflow_run trigger is the recommended approach for monitoring workflow completions and provides access to workflow run metadata"
+      },
+      {
+        "action": "Implemented failure detection logic",
+        "details": "Uses GitHub API (gh api) to fetch all jobs for a workflow run and identifies failed jobs by filtering on conclusion == 'failure'",
+        "reasoning": "GitHub API provides comprehensive job details including individual step failures, timestamps, and URLs for complete context"
+      },
+      {
+        "action": "Added support for detecting multiple failures",
+        "details": "Workflow iterates through all jobs in the workflow run and independently detects each failure, capturing job name, ID, timestamps, and step details",
+        "reasoning": "Acceptance criteria requires detecting each failure independently when multiple jobs fail in a single workflow"
+      },
+      {
+        "action": "Implemented step-level failure detection",
+        "details": "For each failed job, the workflow identifies which specific steps failed with their number, name, and timing details",
+        "reasoning": "Step-level granularity provides debugging context and will be needed for future stories (issue creation with detailed logs)"
+      },
+      {
+        "action": "Created comprehensive failure report",
+        "details": "Generates structured GITHUB_STEP_SUMMARY with total jobs, failed jobs, cancelled jobs, and detailed information for each failure",
+        "reasoning": "Structured output enables human review and provides data structure for future automation (issue creation)"
+      },
+      {
+        "action": "Added conditional execution",
+        "details": "Workflow only runs when conclusion is 'failure' or 'cancelled', preventing unnecessary executions on successful workflows",
+        "reasoning": "Acceptance criteria specifies no detection should occur when all jobs succeed, optimizing for cost and clarity"
+      },
+      {
+        "action": "Validated YAML syntax",
+        "details": "Ran python3 yaml.safe_load() validation confirming syntax correctness",
+        "reasoning": "Mandatory DevOps best practice to validate all workflow files before completion"
+      }
+    ],
+    "implementation_details": {
+      "trigger_mechanism": "workflow_run with types: [completed]",
+      "monitored_workflows": [
+        "Frontend CI/CD"
+      ],
+      "detection_method": "GitHub REST API via gh api tool",
+      "permissions_required": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "output_format": "GITHUB_STEP_SUMMARY with structured markdown",
+      "extensibility": "New workflows can be added to the workflows array in the on.workflow_run trigger"
+    },
+    "acceptance_criteria_validation": {
+      "criterion_1": {
+        "description": "When any job completes with failure status, then failure should be detected",
+        "met": true,
+        "evidence": "Workflow uses 'if: github.event.workflow_run.conclusion == failure' and fetches all jobs via API to detect failures"
+      },
+      "criterion_2": {
+        "description": "When all jobs succeed, then no failure detection should occur",
+        "met": true,
+        "evidence": "Conditional 'if' statement prevents workflow execution when conclusion is 'success'"
+      },
+      "criterion_3": {
+        "description": "When multiple jobs fail, then each failure should be detected independently",
+        "met": true,
+        "evidence": "Workflow iterates through jobs array and processes each failed job independently, capturing individual job IDs, names, and step details"
+      }
+    },
+    "issues_encountered": [],
+    "technical_decisions": [
+      {
+        "decision": "Use workflow_run trigger instead of creating a composite action",
+        "rationale": "workflow_run provides automatic triggering after workflow completion with full access to run metadata without requiring modifications to existing workflows"
+      },
+      {
+        "decision": "Use gh api CLI tool instead of actions/github-script",
+        "rationale": "gh api is available by default on GitHub runners, provides simpler syntax, and aligns with DevOps best practices for GitHub Actions"
+      },
+      {
+        "decision": "Store job data in GITHUB_OUTPUT for reusability",
+        "rationale": "Makes detected failure data accessible to subsequent steps and future workflow extensions (e.g., issue creation in later stories)"
+      },
+      {
+        "decision": "Include both failed and cancelled jobs",
+        "rationale": "Cancelled jobs may indicate infrastructure issues or workflow problems that need attention, providing comprehensive failure visibility"
+      },
+      {
+        "decision": "Set timeout to 5 minutes",
+        "rationale": "Detection workflow performs API calls and processing; 5 minutes provides sufficient time while preventing runaway jobs"
+      }
+    ],
+    "testing_recommendations": [
+      "Trigger a workflow failure in Frontend CI/CD workflow to verify detection",
+      "Test with single job failure to verify detection works",
+      "Test with multiple job failures to verify independent detection",
+      "Test with successful workflow to verify no false positives",
+      "Verify GITHUB_STEP_SUMMARY output format is readable and complete",
+      "Verify failed_job_names and failed_job_ids outputs are correctly formatted"
+    ],
+    "future_considerations": [
+      "Story #2 will use the detected failure data to create local issue log files",
+      "Story #3 will trigger reusable workflow for issue creation",
+      "Consider adding notifications (Slack, email) for critical failures",
+      "Consider adding retry logic for transient API failures",
+      "Consider adding filtering to ignore expected/known failures"
+    ]
+  },
+  {
+    "story_number": 2,
+    "story_title": "Create Local Issue Log File from Template",
+    "status": "completed",
+    "timestamp": "2025-10-20T19:54:15Z",
+    "files_created": [],
+    "files_modified": [
+      ".github/workflows/detect-workflow-failures.yml"
+    ],
+    "actions_taken": [
+      {
+        "action": "Designed filename format with identifiers",
+        "details": "Implemented filename format 'issue-log-run-{run_id}-job-{job_id}-step-{step_number}.md' that includes all required identifiers",
+        "reasoning": "Format provides clear identification of run, job, and step, is filesystem-safe, human-readable, and sortable"
+      },
+      {
+        "action": "Created issue log file generation step",
+        "details": "Added 'Create issue log files from template' step that processes each failed job and generates a local log file using the template",
+        "reasoning": "Integrating into existing detect-workflow-failures.yml workflow ensures log files are created immediately upon failure detection"
+      },
+      {
+        "action": "Implemented template preservation logic",
+        "details": "Uses 'cp' command to copy template file to new log file, preserving all template structure and empty fields exactly as-is",
+        "reasoning": "Simple copy operation ensures template structure is preserved perfectly with no modifications, ready for population in future stories"
+      },
+      {
+        "action": "Added step number detection",
+        "details": "Extracts the first failed step number from each failed job using jq filtering on steps array with conclusion == 'failure'",
+        "reasoning": "Step number is required for filename and provides granular failure identification; defaults to '0' for job-level failures"
+      },
+      {
+        "action": "Implemented issue-logs directory creation",
+        "details": "Creates 'issue-logs' directory to organize all generated log files in a dedicated location",
+        "reasoning": "Separation of log files into dedicated directory enables clean organization and easier artifact management"
+      },
+      {
+        "action": "Added log file tracking and output",
+        "details": "Stores created log filenames in GITHUB_OUTPUT (log_files_created) and adds summary to GITHUB_STEP_SUMMARY",
+        "reasoning": "Output enables subsequent steps/workflows to access log files; summary provides visibility into created files"
+      },
+      {
+        "action": "Validated YAML syntax",
+        "details": "Ran python3 yaml.safe_load() validation confirming syntax correctness after modifications",
+        "reasoning": "Mandatory DevOps best practice to validate all workflow files before completion"
+      }
+    ],
+    "implementation_details": {
+      "filename_format": "issue-log-run-{run_id}-job-{job_id}-step-{step_number}.md",
+      "storage_location": "issue-logs/",
+      "template_source": "docs/templates/issue-log-template.md",
+      "step_detection_method": "jq filter on jobs.steps array with conclusion == 'failure'",
+      "fallback_step_number": "0 (for job-level failures without specific step failure)",
+      "conditional_execution": "Only runs if failed_jobs > 0",
+      "outputs": {
+        "log_files_created": "Comma-separated list of created log file paths"
+      }
+    },
+    "acceptance_criteria_validation": {
+      "criterion_1": {
+        "description": "When job failure is detected, then local file should be created using template structure",
+        "met": true,
+        "evidence": "Step executes when failed_jobs > 0 and uses 'cp' to copy template file to local issue-logs directory"
+      },
+      "criterion_2": {
+        "description": "When local file is created, then filename should include identifiers for run, job, and step",
+        "met": true,
+        "evidence": "Filename format 'issue-log-run-{run_id}-job-{job_id}-step-{step_number}.md' includes all three required identifiers"
+      },
+      "criterion_3": {
+        "description": "When log file is created, then it should preserve template structure with empty fields ready for population",
+        "met": true,
+        "evidence": "Uses 'cp' command to directly copy template, preserving exact structure and all empty fields without modification"
+      }
+    },
+    "issues_encountered": [],
+    "technical_decisions": [
+      {
+        "decision": "Use run_id, job_id, and step_number (not step_name) in filename",
+        "rationale": "IDs are guaranteed unique and stable, while names may contain special characters or spaces; step number is concise and sortable"
+      },
+      {
+        "decision": "Create one log file per failed job (not per failed step)",
+        "rationale": "User story specifies 'when a failure is detected' and focuses on job-level logging; using first failed step provides primary failure context"
+      },
+      {
+        "decision": "Use simple 'cp' instead of templating library",
+        "rationale": "Acceptance criteria requires preserving template with empty fields; copy operation is simplest approach and has no dependencies"
+      },
+      {
+        "decision": "Store log files in 'issue-logs' directory instead of root",
+        "rationale": "Organizational clarity and easier cleanup; separates generated files from source code"
+      },
+      {
+        "decision": "Use step number 0 for job-level failures",
+        "rationale": "Provides consistent filename format even when no specific step failed; '0' indicates job-level or initialization failure"
+      },
+      {
+        "decision": "Track log files in bash array and output to GITHUB_OUTPUT",
+        "rationale": "Enables future steps (Story 3: trigger reusable workflow) to access list of created log files for processing"
+      }
+    ],
+    "testing_recommendations": [
+      "Trigger workflow failure to verify log files are created in issue-logs directory",
+      "Verify filename includes correct run_id, job_id, and step_number",
+      "Verify log file content exactly matches template structure",
+      "Verify empty fields in template are preserved (no population occurs)",
+      "Test with multiple job failures to verify one log file created per failed job",
+      "Verify GITHUB_OUTPUT contains comma-separated list of created log files",
+      "Verify GITHUB_STEP_SUMMARY shows created log file paths"
+    ],
+    "future_considerations": [
+      "Story #3 will use log_files_created output to trigger reusable workflow for each log file",
+      "Story #4 and #5 will populate the template fields with actual metadata and logs",
+      "Consider adding log file artifact upload for persistence across workflow runs",
+      "Consider adding log file validation to ensure template was copied correctly",
+      "May need to handle log file conflicts if same job fails multiple times"
+    ]
+  },
+  {
+    "story_number": 3,
+    "story_title": "Trigger Reusable Issue Creation Workflow",
+    "status": "completed",
+    "timestamp": "2025-10-20T19:59:09Z",
+    "files_created": [
+      ".github/workflows/create-issue-from-log.yml"
+    ],
+    "files_modified": [
+      ".github/workflows/detect-workflow-failures.yml"
+    ],
+    "actions_taken": [
+      {
+        "action": "Created reusable workflow for issue creation",
+        "details": "Implemented create-issue-from-log.yml workflow with both workflow_call and workflow_dispatch triggers to support reusable workflow pattern and independent execution",
+        "reasoning": "Dual trigger support enables the workflow to be called as a reusable workflow (workflow_call) and also triggered independently via workflow_dispatch for each log file"
+      },
+      {
+        "action": "Defined workflow inputs for log filename and metadata",
+        "details": "Workflow accepts log_filename, run_id, and job_id as inputs, enabling it to process specific log files with full context",
+        "reasoning": "Acceptance criteria requires log filename to be passed as input; additional metadata (run_id, job_id) provides context for future stories"
+      },
+      {
+        "action": "Implemented log file verification step",
+        "details": "Workflow verifies log file exists before processing and fails with clear error if file is missing",
+        "reasoning": "Defensive programming ensures workflow fails fast with clear error message if log file is not accessible"
+      },
+      {
+        "action": "Added placeholder for future issue creation logic",
+        "details": "Workflow currently displays log file contents and documents that Stories 4-6 will add metadata extraction, template population, and issue creation",
+        "reasoning": "Story 3 focuses on workflow triggering mechanism; actual issue processing will be implemented in subsequent stories"
+      },
+      {
+        "action": "Uploaded log files as workflow artifacts",
+        "details": "Added upload-artifact step in detect-workflow-failures.yml to persist log files with 7-day retention",
+        "reasoning": "Artifacts enable log files to be accessed by triggered workflow_dispatch runs and provide audit trail"
+      },
+      {
+        "action": "Created prepare-issue-creation job",
+        "details": "Added dedicated job to extract and structure failed job metadata into JSON array for downstream processing",
+        "reasoning": "Separating metadata preparation enables clean data structure for triggering multiple independent workflows"
+      },
+      {
+        "action": "Implemented trigger-issue-creation job",
+        "details": "Created job that iterates through each failed job and triggers independent workflow_dispatch run of create-issue-from-log.yml",
+        "reasoning": "Using workflow_dispatch creates separate, independent workflow runs for each log file, satisfying acceptance criteria for independent processes"
+      },
+      {
+        "action": "Added job outputs to detect-failures",
+        "details": "Exposed total_jobs, failed_jobs, run_id, jobs_json, and other metadata as job outputs for downstream job access",
+        "reasoning": "Job outputs enable subsequent jobs to access detected failure data without re-fetching from API"
+      },
+      {
+        "action": "Updated workflow permissions",
+        "details": "Changed actions permission from 'read' to 'write' to enable triggering workflow_dispatch",
+        "reasoning": "workflow_dispatch API requires actions:write permission; this is the minimum permission needed to trigger workflows"
+      },
+      {
+        "action": "Validated YAML syntax for both workflows",
+        "details": "Ran python3 yaml.safe_load() validation on both detect-workflow-failures.yml and create-issue-from-log.yml",
+        "reasoning": "Mandatory DevOps best practice to validate all workflow files before completion"
+      }
+    ],
+    "implementation_details": {
+      "reusable_workflow": ".github/workflows/create-issue-from-log.yml",
+      "trigger_mechanism": "workflow_dispatch via gh workflow run command",
+      "trigger_location": "trigger-issue-creation job in detect-workflow-failures.yml",
+      "inputs_passed": {
+        "log_filename": "Path to issue log file (e.g., issue-logs/issue-log-run-123-job-456-step-1.md)",
+        "run_id": "Workflow run ID from failed workflow",
+        "job_id": "Job ID from failed job"
+      },
+      "artifact_storage": {
+        "name": "issue-logs",
+        "path": "issue-logs/",
+        "retention_days": 7
+      },
+      "permissions_required": {
+        "contents": "read",
+        "actions": "write"
+      },
+      "independence_mechanism": "Each log file triggers separate workflow_dispatch run, creating independent workflow execution",
+      "job_dependency_chain": "detect-failures \u2192 prepare-issue-creation \u2192 trigger-issue-creation"
+    },
+    "acceptance_criteria_validation": {
+      "criterion_1": {
+        "description": "When local log file is created and launcher completes, then separate reusable workflow should be triggered",
+        "met": true,
+        "evidence": "trigger-issue-creation job executes after log files are created and triggers create-issue-from-log.yml workflow for each log file using workflow_dispatch"
+      },
+      "criterion_2": {
+        "description": "When reusable workflow is triggered, then it should receive log filename as input",
+        "met": true,
+        "evidence": "gh workflow run command passes log_filename, run_id, and job_id as inputs (-f flags) to create-issue-from-log.yml workflow"
+      },
+      "criterion_3": {
+        "description": "When multiple workflows fail simultaneously, then each should trigger its own independent issue creation process",
+        "met": true,
+        "evidence": "Loop iterates through each failed job and triggers separate workflow_dispatch run for each log file, creating independent workflow executions"
+      }
+    },
+    "issues_encountered": [
+      {
+        "issue": "GitHub Actions doesn't support calling reusable workflows (uses:) inside matrix strategy or loops",
+        "resolution": "Used workflow_dispatch trigger approach instead, which creates independent workflow runs via GitHub API",
+        "impact": "Solution requires dual trigger support (workflow_call + workflow_dispatch) in create-issue-from-log.yml"
+      },
+      {
+        "issue": "Duplicate 'actions' key in permissions caused YAML syntax error",
+        "resolution": "Combined actions permission as single 'write' permission (write includes read access)",
+        "impact": "Simplified permissions configuration while maintaining required access"
+      }
+    ],
+    "technical_decisions": [
+      {
+        "decision": "Use workflow_dispatch instead of workflow_call in a matrix",
+        "rationale": "GitHub Actions doesn't allow uses: (reusable workflows) inside matrix strategies; workflow_dispatch creates truly independent runs"
+      },
+      {
+        "decision": "Support both workflow_call and workflow_dispatch triggers",
+        "rationale": "Enables future flexibility - workflow can be called as reusable workflow OR triggered independently; maintains compatibility with both patterns"
+      },
+      {
+        "decision": "Upload log files as artifacts before triggering workflows",
+        "rationale": "Triggered workflow_dispatch runs need access to log files; artifacts provide persistence across workflow runs with 7-day retention"
+      },
+      {
+        "decision": "Create separate prepare-issue-creation job",
+        "rationale": "Separating metadata preparation from triggering enables cleaner job outputs and makes the data structure accessible to multiple downstream jobs"
+      },
+      {
+        "decision": "Use gh workflow run CLI instead of REST API",
+        "rationale": "gh CLI provides simpler syntax, automatic authentication via GITHUB_TOKEN, and better error handling compared to raw REST API calls"
+      },
+      {
+        "decision": "Extract run_id and job_id from log filename in trigger step",
+        "rationale": "Enables passing correct metadata to triggered workflow; filename format provides all necessary identifiers"
+      },
+      {
+        "decision": "Set actions permission to 'write' instead of separate read/write",
+        "rationale": "YAML doesn't allow duplicate keys; 'write' permission includes read access, providing all necessary capabilities"
+      },
+      {
+        "decision": "Add continue on error for individual workflow triggers",
+        "rationale": "If one workflow trigger fails, others should still be triggered; ensures maximum coverage even with partial failures"
+      },
+      {
+        "decision": "Set timeout to 10 minutes for trigger-issue-creation job",
+        "rationale": "Triggering multiple workflows may take time; 10 minutes provides sufficient buffer while preventing runaway execution"
+      }
+    ],
+    "testing_recommendations": [
+      "Trigger workflow failure with single job to verify one workflow_dispatch is created",
+      "Trigger workflow failure with multiple jobs to verify independent workflow_dispatch runs are created for each",
+      "Verify log files are uploaded as artifacts and accessible to triggered workflows",
+      "Verify create-issue-from-log.yml workflow receives correct inputs (log_filename, run_id, job_id)",
+      "Check Actions UI to confirm separate workflow runs are created (not just steps in same run)",
+      "Verify workflow runs even if one trigger fails (continue-on-error behavior)",
+      "Test manual trigger of create-issue-from-log.yml via workflow_dispatch to verify dual trigger support works",
+      "Verify GITHUB_STEP_SUMMARY shows all triggered workflows with correct log files"
+    ],
+    "future_considerations": [
+      "Story #4 will implement metadata extraction in create-issue-from-log.yml workflow",
+      "Story #5 will populate the log file template with extracted metadata",
+      "Story #6 will create GitHub issues using the populated log files",
+      "Consider adding workflow_dispatch inputs validation in create-issue-from-log.yml",
+      "Consider implementing retry logic for failed workflow_dispatch triggers",
+      "May need to handle rate limiting if many workflows fail simultaneously (GitHub API limits)",
+      "Consider adding workflow run URL tracking to link launcher to triggered workflows",
+      "Could implement repository_dispatch as alternative triggering mechanism for cross-repository scenarios"
+    ],
+    "workflow_architecture": {
+      "launcher_workflow": ".github/workflows/detect-workflow-failures.yml",
+      "reusable_workflow": ".github/workflows/create-issue-from-log.yml",
+      "trigger_pattern": "workflow_dispatch via GitHub CLI",
+      "data_flow": "detect-failures (creates logs) \u2192 upload artifacts \u2192 prepare metadata \u2192 trigger workflows (one per log file)",
+      "independence_guarantee": "Each workflow_dispatch creates separate workflow run with own execution context, job ID, and run ID"
+    }
+  },
+  {
+    "story_number": 4,
+    "story_title": "Extract Workflow Execution Metadata",
+    "status": "completed",
+    "timestamp": "2025-10-21T09:30:00Z",
+    "files_created": [],
+    "files_modified": [
+      ".github/workflows/create-issue-from-log.yml"
+    ],
+    "actions_taken": [
+      {
+        "action": "Implemented metadata extraction step in create-issue-from-log.yml",
+        "details": "Added 'Extract workflow execution metadata' step that uses GitHub REST API to fetch comprehensive workflow run and job information",
+        "reasoning": "GitHub REST API provides all required metadata including run details, job information, step failures, and related URLs"
+      },
+      {
+        "action": "Extracted run identifier and workflow information",
+        "details": "Fetches workflow run details via /repos/{owner}/{repo}/actions/runs/{run_id} endpoint, extracting run_id, workflow_name, run_number, run_url, head_sha, and head_branch",
+        "reasoning": "Acceptance criteria requires run identifier retrieval; additional run metadata provides complete context for issue reporting"
+      },
+      {
+        "action": "Extracted job name and execution URLs",
+        "details": "Fetches job details via /repos/{owner}/{repo}/actions/jobs/{job_id} endpoint, extracting job_name, job_url, job_status, job_conclusion, and timing information",
+        "reasoning": "Acceptance criteria requires job name and execution URLs; job-level metadata enables precise failure identification"
+      },
+      {
+        "action": "Extracted step name and failure details",
+        "details": "Parses job JSON to identify first failed step, extracting step_name and step_number; defaults to 'Job-level failure' and step 0 for job-level failures",
+        "reasoning": "Acceptance criteria requires step name retrieval; step-level granularity provides debugging context"
+      },
+      {
+        "action": "Constructed PR URL, commit URL, and workflow run URL",
+        "details": "Extracts PR number from workflow run pull_requests array and constructs PR URL; builds commit URL from head_sha; retrieves workflow run html_url",
+        "reasoning": "Acceptance criteria requires links to PR, commit, and workflow run; these URLs enable quick navigation to related resources"
+      },
+      {
+        "action": "Stored all metadata in GITHUB_OUTPUT",
+        "details": "Outputs 20 metadata fields to GITHUB_OUTPUT including run_id, run_url, workflow_name, job_name, job_url, step_name, pr_url, commit_url, and additional context",
+        "reasoning": "GITHUB_OUTPUT enables subsequent steps (Story 5: template population) to access extracted metadata without re-fetching from API"
+      },
+      {
+        "action": "Created structured metadata summary",
+        "details": "Generates comprehensive GITHUB_STEP_SUMMARY with sections for Run Information, Job Information, Step Information, and Related Links",
+        "reasoning": "Structured summary provides human-readable verification of extracted metadata and enables troubleshooting"
+      },
+      {
+        "action": "Validated YAML syntax",
+        "details": "Ran python3 yaml.safe_load() validation confirming syntax correctness after modifications",
+        "reasoning": "Mandatory DevOps best practice to validate all workflow files before completion"
+      }
+    ],
+    "implementation_details": {
+      "api_endpoints_used": {
+        "workflow_run": "/repos/{owner}/{repo}/actions/runs/{run_id}",
+        "job_details": "/repos/{owner}/{repo}/actions/jobs/{job_id}"
+      },
+      "metadata_extracted": {
+        "run_level": [
+          "run_id",
+          "run_url",
+          "workflow_name",
+          "run_number",
+          "head_sha",
+          "head_branch"
+        ],
+        "job_level": [
+          "job_id",
+          "job_name",
+          "job_url",
+          "job_status",
+          "job_conclusion",
+          "job_started_at",
+          "job_completed_at"
+        ],
+        "step_level": [
+          "step_name",
+          "step_number"
+        ],
+        "related_links": [
+          "pr_url",
+          "pr_number",
+          "commit_url",
+          "run_url"
+        ],
+        "other": [
+          "log_line_numbers"
+        ]
+      },
+      "api_authentication": "GITHUB_TOKEN via GH_TOKEN environment variable",
+      "api_version": "2022-11-28",
+      "json_parsing": "jq for extracting fields from API responses",
+      "pr_handling": "Checks pull_requests[0].number from workflow run; defaults to 'N/A' if no PR associated",
+      "step_failure_detection": "Filters steps array with conclusion == 'failure' and selects first match",
+      "fallback_behavior": "Uses 'Job-level failure' and step 0 when no specific step failed",
+      "output_mechanism": "GITHUB_OUTPUT for inter-step communication"
+    },
+    "acceptance_criteria_validation": {
+      "criterion_1": {
+        "description": "When workflow run has failed, then run identifier should be retrieved",
+        "met": true,
+        "evidence": "Step fetches workflow run via GitHub API and outputs run_id to GITHUB_OUTPUT; visible in summary as 'Run Identifier'"
+      },
+      "criterion_2": {
+        "description": "When workflow run has failed, then job name, step name, and execution URLs should be retrieved",
+        "met": true,
+        "evidence": "Step extracts job_name, job_url from job API endpoint and step_name from steps array; all URLs (job_url, run_url) included in outputs"
+      },
+      "criterion_3": {
+        "description": "When metadata extraction completes, then it should include links to PR, commit, and workflow run",
+        "met": true,
+        "evidence": "Step constructs pr_url from pull_requests array, commit_url from head_sha, and retrieves run_url from API; all three links displayed in 'Related Links' section"
+      }
+    },
+    "issues_encountered": [],
+    "technical_decisions": [
+      {
+        "decision": "Use two separate API calls (run and job endpoints)",
+        "rationale": "Run endpoint provides workflow-level metadata and PR associations; job endpoint provides job-specific and step-level details; separation matches GitHub API structure"
+      },
+      {
+        "decision": "Extract PR URL from pull_requests array instead of separate API call",
+        "rationale": "Workflow run response includes pull_requests array with PR numbers; constructing URL from number avoids additional API call and rate limit consumption"
+      },
+      {
+        "decision": "Default to 'N/A' for PR URL when no PR exists",
+        "rationale": "Not all workflow runs are triggered by PRs (e.g., direct pushes to main); 'N/A' clearly indicates no PR association rather than empty field"
+      },
+      {
+        "decision": "Extract first failed step only (not all failed steps)",
+        "rationale": "Template has single step_name field; first failed step typically indicates root cause; subsequent failures often cascade from first failure"
+      },
+      {
+        "decision": "Use 'See workflow run URL for complete logs' for log_line_numbers",
+        "rationale": "GitHub API doesn't provide direct access to log line numbers; logs must be downloaded separately; workflow run URL provides access to full logs"
+      },
+      {
+        "decision": "Store extensive metadata beyond minimum requirements",
+        "rationale": "Additional fields (run_number, job_status, timestamps, branch) provide context for debugging and future feature enhancements"
+      },
+      {
+        "decision": "Use gh api CLI tool instead of curl or actions/github-script",
+        "rationale": "gh api provides automatic authentication, simpler syntax, and better error handling; aligns with DevOps best practices for GitHub Actions"
+      },
+      {
+        "decision": "Create structured GITHUB_STEP_SUMMARY with sections",
+        "rationale": "Organized summary enables quick verification of extracted metadata; sections (Run/Job/Step/Links) match logical groupings for troubleshooting"
+      }
+    ],
+    "testing_recommendations": [
+      "Trigger workflow failure to verify metadata extraction executes",
+      "Verify run_id, run_url, and workflow_name are correctly extracted from workflow run API",
+      "Verify job_name, job_url, and step_name are correctly extracted from job API",
+      "Test with PR-triggered failure to verify pr_url is correctly constructed",
+      "Test with direct push (no PR) to verify pr_url defaults to 'N/A'",
+      "Verify commit_url is correctly constructed with head_sha",
+      "Test with job-level failure (no specific step failure) to verify fallback to step 0 and 'Job-level failure'",
+      "Test with step-level failure to verify correct step_name and step_number extraction",
+      "Verify all metadata is available in GITHUB_OUTPUT for subsequent steps",
+      "Verify GITHUB_STEP_SUMMARY displays all extracted metadata in organized sections",
+      "Test with multiple failed steps to verify first failed step is selected"
+    ],
+    "future_considerations": [
+      "Story #5 will use extracted metadata outputs to populate issue log template fields",
+      "Story #6 will include populated metadata in GitHub issue body",
+      "Consider adding log excerpt extraction by downloading job logs via API",
+      "Consider adding retry logic for transient API failures",
+      "Consider caching API responses to avoid redundant calls",
+      "May need to handle rate limiting for high-volume failure scenarios",
+      "Consider extracting metadata for all failed steps (not just first) for comprehensive reporting",
+      "Could add feature name/ID extraction from branch name or commit message for automated categorization"
+    ],
+    "metadata_extraction_architecture": {
+      "data_sources": {
+        "workflow_run_api": "Provides run-level metadata, PR associations, commit information",
+        "job_api": "Provides job-level metadata, step details, execution URLs"
+      },
+      "extraction_flow": "Fetch run JSON \u2192 Extract run metadata \u2192 Fetch job JSON \u2192 Extract job metadata \u2192 Parse steps \u2192 Identify failed step \u2192 Construct URLs \u2192 Output to GITHUB_OUTPUT",
+      "output_format": "Key-value pairs in GITHUB_OUTPUT, structured markdown in GITHUB_STEP_SUMMARY",
+      "error_handling": "Defaults to fallback values (N/A for PR, 0 for step) when data unavailable",
+      "dependencies": [
+        "gh CLI",
+        "jq",
+        "GITHUB_TOKEN"
+      ]
+    }
+  },
+  {
+    "story_number": 5,
+    "story_title": "Populate Issue Log Template with Metadata",
+    "status": "completed",
+    "timestamp": "2025-10-21T10:15:00Z",
+    "files_created": [],
+    "files_modified": [
+      ".github/workflows/create-issue-from-log.yml"
+    ],
+    "actions_taken": [
+      {
+        "action": "Implemented log excerpt extraction step",
+        "details": "Added 'Extract log excerpt from failed step' step that downloads job logs via GitHub API and extracts 20-30 lines of context around failure points",
+        "reasoning": "Acceptance criteria requires log excerpt with context; downloading full logs and extracting relevant sections provides debugging context without overwhelming the issue"
+      },
+      {
+        "action": "Implemented intelligent log excerpt selection",
+        "details": "Searches for common failure patterns (error, failed, exception, fatal) and extracts 30 lines before and 20 lines after first occurrence; falls back to last 50 lines if no pattern found",
+        "reasoning": "Contextual log excerpts centered on actual failures provide better debugging information than arbitrary log sections"
+      },
+      {
+        "action": "Created template population step",
+        "details": "Added 'Populate issue log template with metadata' step that replaces all empty template fields with extracted metadata values using sed",
+        "reasoning": "Acceptance criteria requires all template fields to be filled with actual values; sed provides reliable text replacement for structured template format"
+      },
+      {
+        "action": "Populated all template metadata fields",
+        "details": "Replaces empty fields in template table: title, featureID, featureName, jobName, stepName, logLineNumbers, PRURL, commitURL, runURL with actual metadata from Story 4 outputs",
+        "reasoning": "Acceptance criteria requires no empty placeholders; each field gets populated with actual data or explicit 'N/A' values for unavailable data"
+      },
+      {
+        "action": "Generated descriptive issue title",
+        "details": "Creates title in format 'Workflow Failure: {workflow_name} - {job_name} - {step_name}' for clear identification",
+        "reasoning": "Descriptive titles enable quick failure identification in issue lists and provide structured naming for searchability"
+      },
+      {
+        "action": "Appended log excerpt to template",
+        "details": "Adds extracted log excerpt as code block after the 'Failed Step Log Excerpt' section in the template",
+        "reasoning": "Acceptance criteria requires relevant log excerpt to be included; appending to template section maintains template structure while adding actual log content"
+      },
+      {
+        "action": "Implemented empty field validation",
+        "details": "Validates populated template by counting remaining empty fields and reports validation status in summary",
+        "reasoning": "Acceptance criteria requires no empty placeholders; validation ensures all fields are populated before issue creation"
+      },
+      {
+        "action": "Added error handling for log download failures",
+        "details": "If log download fails, uses placeholder text 'Log excerpt unavailable' and continues processing",
+        "reasoning": "Defensive programming ensures workflow completes even if API fails; placeholder clearly indicates unavailable data"
+      },
+      {
+        "action": "Created comprehensive step summaries",
+        "details": "Each step adds detailed summary sections showing extraction progress, populated fields, and validation results",
+        "reasoning": "Detailed summaries enable troubleshooting and verification that template population completed correctly"
+      },
+      {
+        "action": "Validated YAML syntax",
+        "details": "Ran python3 yaml.safe_load() validation confirming syntax correctness after modifications",
+        "reasoning": "Mandatory DevOps best practice to validate all workflow files before completion"
+      }
+    ],
+    "implementation_details": {
+      "log_extraction": {
+        "api_endpoint": "/repos/{owner}/{repo}/actions/jobs/{job_id}/logs",
+        "extraction_strategy": "Pattern-based (search for error/failed/exception/fatal)",
+        "context_lines": "30 lines before, 20 lines after first failure",
+        "fallback_strategy": "Last 50 lines if no pattern found",
+        "output_format": "Multiline string in GITHUB_OUTPUT using EOF delimiter"
+      },
+      "template_population": {
+        "method": "sed text replacement with @ delimiter",
+        "fields_populated": [
+          "title",
+          "featureID",
+          "featureName",
+          "jobName",
+          "stepName",
+          "logLineNumbers",
+          "PRURL",
+          "commitURL",
+          "runURL"
+        ],
+        "title_format": "Workflow Failure: {workflow_name} - {job_name} - {step_name}",
+        "na_values": "featureID and featureName set to 'N/A (auto-detected failure)' for automated failures",
+        "log_excerpt_location": "Appended after '## Failed Step Log Excerpt' section as code block"
+      },
+      "validation": {
+        "method": "grep -c for empty field pattern '|  |'",
+        "success_criteria": "0 empty fields remaining",
+        "reporting": "Validation status included in GITHUB_STEP_SUMMARY"
+      },
+      "metadata_source": "All metadata from Story 4 extract-metadata step outputs",
+      "file_modification": "In-place replacement using temporary file approach (cp, modify, mv)"
+    },
+    "acceptance_criteria_validation": {
+      "criterion_1": {
+        "description": "When workflow metadata has been extracted, then all template fields should be filled with corresponding metadata values",
+        "met": true,
+        "evidence": "Step populates all 9 template fields using sed replacement; validation confirms no empty fields remain; summary shows 'All fields populated, no empty placeholders remain'"
+      },
+      "criterion_2": {
+        "description": "When log line numbers indicate failure location, then relevant log excerpt should be included with context",
+        "met": true,
+        "evidence": "Step downloads job logs, searches for failure patterns, extracts 30 lines before and 20 lines after failure point, and appends excerpt to template in code block"
+      },
+      "criterion_3": {
+        "description": "When log file is populated, then all fields should contain actual values with no empty placeholders",
+        "met": true,
+        "evidence": "Validation step counts empty fields; if 0, reports success; featureID/featureName use explicit 'N/A' instead of empty; all URL fields populated from metadata"
+      }
+    },
+    "issues_encountered": [],
+    "technical_decisions": [
+      {
+        "decision": "Use sed for template field replacement instead of templating library",
+        "rationale": "Template has simple table structure with predictable patterns; sed is available on all runners; no external dependencies needed; @ delimiter avoids conflicts with URLs"
+      },
+      {
+        "decision": "Extract 30 lines before and 20 lines after failure point",
+        "rationale": "More context before failure helps understand what led to the error; 20 lines after capture immediate consequences; total ~50 lines balances detail vs readability"
+      },
+      {
+        "decision": "Search for multiple failure patterns (error|failed|exception|fatal)",
+        "rationale": "Different technologies use different error indicators; multiple patterns increase likelihood of finding actual failure point; case-insensitive search handles variations"
+      },
+      {
+        "decision": "Fall back to last 50 lines if no pattern found",
+        "rationale": "Ensures log excerpt is always included even for unusual failure types; last lines typically contain failure information; 50 lines provides reasonable context"
+      },
+      {
+        "decision": "Set featureID and featureName to 'N/A (auto-detected failure)'",
+        "rationale": "Auto-detected failures don't have associated feature IDs; explicit 'N/A' clarifies this is intentional, not missing data; future enhancement could parse from branch/commit"
+      },
+      {
+        "decision": "Use temporary file approach for in-place modification",
+        "rationale": "Safer than direct in-place editing; allows rollback if any step fails; atomic replacement with mv ensures consistency"
+      },
+      {
+        "decision": "Append log excerpt after template section rather than inline replacement",
+        "rationale": "Template section already has descriptive text; appending preserves that context while adding actual logs; easier to implement than inline replacement"
+      },
+      {
+        "decision": "Continue processing if log download fails",
+        "rationale": "Template population should succeed even if logs unavailable; placeholder text clearly indicates issue; workflow run URL still provides log access"
+      },
+      {
+        "decision": "Use multiline output with EOF delimiter for log excerpt",
+        "rationale": "Log excerpts contain multiple lines with potential special characters; EOF delimiter safely handles multiline content in GITHUB_OUTPUT without escaping issues"
+      },
+      {
+        "decision": "Display populated template in step summary",
+        "rationale": "Enables manual verification that population worked correctly; helps troubleshoot any field population issues; provides audit trail of what will go into issue"
+      }
+    ],
+    "testing_recommendations": [
+      "Trigger workflow failure to verify log excerpt extraction executes",
+      "Verify log excerpt contains 30 lines before and 20 lines after failure pattern",
+      "Test with failure that has clear error pattern to verify pattern-based extraction",
+      "Test with unusual failure to verify fallback to last 50 lines works",
+      "Verify all 9 template fields are populated with actual values",
+      "Verify title follows format 'Workflow Failure: {workflow} - {job} - {step}'",
+      "Verify featureID and featureName show 'N/A (auto-detected failure)'",
+      "Verify URL fields (PRURL, commitURL, runURL) contain valid links",
+      "Verify validation reports 0 empty fields remaining",
+      "Verify log excerpt is appended after 'Failed Step Log Excerpt' section",
+      "Test with log download failure to verify placeholder text is used",
+      "Verify populated template displays in step summary",
+      "Manually inspect populated log file to confirm no empty placeholders remain"
+    ],
+    "future_considerations": [
+      "Story #6 will use the populated log file to create GitHub issues",
+      "Consider extracting featureID from branch name (e.g., feature/123-description)",
+      "Consider parsing commit messages for feature IDs or issue references",
+      "Consider adding log excerpt highlighting for error lines",
+      "Could add multiple log excerpts if multiple failures in same step",
+      "Could extract step-specific logs instead of entire job logs for better precision",
+      "Consider adding log line numbers to excerpt for easier correlation with full logs",
+      "Could implement log filtering to remove timestamps/noise before extraction",
+      "Consider caching downloaded logs to avoid re-downloading for multiple steps"
+    ],
+    "template_population_architecture": {
+      "input_sources": {
+        "metadata": "Story 4 extract-metadata step outputs (20 fields)",
+        "logs": "GitHub API job logs endpoint (full job logs)",
+        "template": "Local log file created by Story 2 (empty template)"
+      },
+      "processing_flow": "Download logs → Extract excerpt → Load metadata → Populate fields → Append excerpt → Validate → Replace original",
+      "output": "Fully populated issue log file with all fields filled and log excerpt included",
+      "validation": "Empty field count verification ensures no placeholders remain",
+      "error_handling": "Continues with placeholder text if log download fails; all other steps required to succeed"
+    }
+  },
+  {
+    "story_number": 6,
+    "story_title": "Create Tracking Issue Automatically",
+    "status": "completed",
+    "timestamp": "2025-10-21T10:45:00Z",
+    "files_created": [],
+    "files_modified": [
+      ".github/workflows/create-issue-from-log.yml"
+    ],
+    "actions_taken": [
+      {
+        "action": "Added issues:write permission to workflow",
+        "details": "Updated permissions block to include 'issues: write' alongside 'contents: read', enabling the workflow to create GitHub issues",
+        "reasoning": "Acceptance criteria requires creating issues in the issue tracker; GITHUB_TOKEN needs explicit issues:write permission to create issues"
+      },
+      {
+        "action": "Implemented issue creation step using gh CLI",
+        "details": "Added 'Create tracking issue' step that extracts the title from populated log file, reads complete log file as issue body, and creates issue using 'gh issue create' command",
+        "reasoning": "gh CLI provides simple, authenticated issue creation; acceptance criteria requires complete populated log file as issue body"
+      },
+      {
+        "action": "Extracted issue title from populated template",
+        "details": "Uses grep and sed to extract the title field value from the populated log file's markdown table structure",
+        "reasoning": "Title was populated in Story 5 with format 'Workflow Failure: {workflow} - {job} - {step}'; extracting ensures consistent, descriptive issue titles"
+      },
+      {
+        "action": "Implemented label-based searchability",
+        "details": "Creates four labels for each issue: 'workflow-failure' (generic), 'workflow:{name}', 'job:{name}', and 'run:{id}' with sanitization for GitHub label format",
+        "reasoning": "Acceptance criteria requires issues to be identifiable by feature, job, and run information; labels enable filtering and searching by these dimensions"
+      },
+      {
+        "action": "Added label sanitization logic",
+        "details": "Converts workflow and job names to lowercase, replaces special characters with hyphens, removes consecutive hyphens and leading/trailing hyphens",
+        "reasoning": "GitHub labels have character restrictions; sanitization ensures label creation succeeds for all workflow/job name combinations"
+      },
+      {
+        "action": "Captured issue URL and number in outputs",
+        "details": "Stores created issue URL and extracted issue number in GITHUB_OUTPUT for potential downstream processing or notifications",
+        "reasoning": "Enables future enhancements like Slack notifications, metric tracking, or issue linking; provides audit trail of created issues"
+      },
+      {
+        "action": "Created comprehensive issue creation summary",
+        "details": "Added 'Display issue creation summary' step that shows success/failure status, issue URL, issue number, and searchability documentation",
+        "reasoning": "Provides immediate feedback on issue creation; documents label usage for team members; enables troubleshooting if creation fails"
+      },
+      {
+        "action": "Documented search capabilities in summary",
+        "details": "Summary includes explanation of label filtering: workflow-failure for all issues, workflow:* for specific workflows, job:* for specific jobs, run:* for specific runs",
+        "reasoning": "Educates team on how to find and filter automated failure issues; reduces support burden by documenting search patterns"
+      },
+      {
+        "action": "Validated YAML syntax",
+        "details": "Ran python3 yaml.safe_load() validation confirming syntax correctness after modifications",
+        "reasoning": "Mandatory DevOps best practice to validate all workflow files before completion"
+      }
+    ],
+    "implementation_details": {
+      "issue_creation_method": "gh issue create CLI command",
+      "authentication": "GITHUB_TOKEN via GH_TOKEN environment variable",
+      "title_extraction": "grep + sed from populated log file markdown table",
+      "body_source": "Complete populated log file (cat $LOG_FILE)",
+      "label_strategy": {
+        "generic_label": "workflow-failure",
+        "workflow_label": "workflow:{sanitized-workflow-name}",
+        "job_label": "job:{sanitized-job-name}",
+        "run_label": "run:{run-id}",
+        "sanitization": "lowercase, alphanumeric + hyphens only, no consecutive/leading/trailing hyphens"
+      },
+      "outputs": {
+        "issue_url": "Full URL to created GitHub issue",
+        "issue_number": "Issue number extracted from URL"
+      },
+      "error_handling": "if: always() on summary step ensures status reported even if creation fails"
+    },
+    "acceptance_criteria_validation": {
+      "criterion_1": {
+        "description": "When log file has been populated with metadata, then new issue should appear in issue tracker",
+        "met": true,
+        "evidence": "Step uses 'gh issue create' to create issue after template population step; issue appears immediately in repository issue tracker"
+      },
+      "criterion_2": {
+        "description": "When I view the issue, then it should contain the complete populated log file as the issue body",
+        "met": true,
+        "evidence": "Issue body is set to complete contents of populated log file using 'cat $LOG_FILE' and '--body' parameter; includes metadata table and log excerpt"
+      },
+      "criterion_3": {
+        "description": "When I search for issues, then it should be identifiable by feature, job, and run information in title or labels",
+        "met": true,
+        "evidence": "Issue title format includes workflow, job, and step names; labels include workflow:{name}, job:{name}, and run:{id} for precise filtering and searching"
+      }
+    },
+    "issues_encountered": [],
+    "technical_decisions": [
+      {
+        "decision": "Use gh CLI instead of GitHub REST API or actions/github-script",
+        "rationale": "gh CLI provides simplest syntax, automatic authentication via GITHUB_TOKEN, and built-in error handling; aligns with DevOps best practices for GitHub Actions"
+      },
+      {
+        "decision": "Extract title from populated log file rather than reconstructing",
+        "rationale": "Title was already constructed in Story 5; extracting ensures consistency and reduces duplication; single source of truth for title format"
+      },
+      {
+        "decision": "Use complete log file as issue body without modification",
+        "rationale": "Acceptance criteria explicitly requires 'complete populated log file as issue body'; maintains all context including table and log excerpt"
+      },
+      {
+        "decision": "Create four distinct labels (generic + workflow + job + run)",
+        "rationale": "Enables multiple search strategies: all failures (workflow-failure), workflow-specific, job-specific, and run-specific; provides maximum flexibility"
+      },
+      {
+        "decision": "Sanitize workflow and job names for label compatibility",
+        "rationale": "GitHub labels allow limited characters; sanitization prevents label creation failures while maintaining readability and searchability"
+      },
+      {
+        "decision": "Use run_id as numeric label instead of sanitizing",
+        "rationale": "Run IDs are already numeric and GitHub-compatible; no sanitization needed; enables precise filtering by exact run"
+      },
+      {
+        "decision": "Store issue URL and number in GITHUB_OUTPUT",
+        "rationale": "Enables future extensions like notifications, metrics tracking, or cross-workflow integrations; provides audit trail"
+      },
+      {
+        "decision": "Use if: always() for summary step",
+        "rationale": "Ensures creation status reported even if issue creation fails; enables troubleshooting and maintains transparency"
+      },
+      {
+        "decision": "Extract issue number from URL using grep",
+        "rationale": "gh issue create returns URL; issue number is last numeric segment; simple extraction provides clean number for references"
+      },
+      {
+        "decision": "Document search capabilities in summary",
+        "rationale": "Self-documenting workflow reduces onboarding time; team members learn label usage through workflow output"
+      }
+    ],
+    "testing_recommendations": [
+      "Trigger workflow failure to verify issue is created automatically",
+      "Verify issue title matches format 'Workflow Failure: {workflow} - {job} - {step}'",
+      "Verify issue body contains complete populated log file with metadata table and log excerpt",
+      "Test label filtering: search for 'label:workflow-failure' to find all automated issues",
+      "Test workflow-specific search: 'label:workflow:frontend-ci-cd' (with actual workflow name)",
+      "Test job-specific search: 'label:job:build' (with actual job name)",
+      "Test run-specific search: 'label:run:123456' (with actual run ID)",
+      "Verify label sanitization works with workflow/job names containing spaces and special characters",
+      "Test with workflow names containing uppercase letters to verify lowercase conversion",
+      "Verify issue URL is captured in GITHUB_OUTPUT and displayed in summary",
+      "Verify issue number is extracted correctly and displayed in summary",
+      "Test failure scenario: remove issues:write permission and verify clear error message",
+      "Verify summary displays search capabilities documentation with label examples"
+    ],
+    "future_considerations": [
+      "Consider adding automatic issue assignment to workflow author or PR creator",
+      "Consider adding project board automation (add to triage board automatically)",
+      "Consider adding milestone association based on feature ID or sprint",
+      "Could implement duplicate detection (search for existing open issue for same failure)",
+      "Consider adding auto-close logic when follow-up workflow succeeds",
+      "Could add notification step (Slack, email) with issue URL after creation",
+      "Consider adding issue priority label based on failure frequency or impact",
+      "Could implement issue templates for different failure types (build, test, deploy)",
+      "Consider linking related issues (same workflow, similar failures)",
+      "Could add metric tracking (count of issues created per workflow/job)",
+      "Consider adding feature ID extraction from branch name for better categorization",
+      "Could implement issue body enrichment (add environment info, dependencies, recent changes)"
+    ],
+    "issue_creation_architecture": {
+      "data_flow": "Populated log file → Extract title → Read body → Sanitize labels → Create issue → Capture outputs → Display summary",
+      "authentication": "GITHUB_TOKEN with issues:write permission",
+      "title_source": "Extracted from populated log file (Story 5 output)",
+      "body_source": "Complete populated log file including metadata table and log excerpt",
+      "searchability": {
+        "title": "Contains workflow name, job name, and step name for text search",
+        "labels": {
+          "workflow-failure": "All automated failure issues",
+          "workflow:{name}": "Filter by specific workflow",
+          "job:{name}": "Filter by specific job",
+          "run:{id}": "Filter by specific workflow run"
+        }
+      },
+      "outputs": {
+        "issue_url": "For linking and notifications",
+        "issue_number": "For references and automation"
+      },
+      "error_handling": "Summary step always runs to report success or failure status"
+    },
+    "label_format_specification": {
+      "workflow-failure": "Static label, no transformation",
+      "workflow_label_format": "workflow:{lowercase-alphanumeric-hyphens}",
+      "job_label_format": "job:{lowercase-alphanumeric-hyphens}",
+      "run_label_format": "run:{numeric-run-id}",
+      "sanitization_rules": [
+        "Convert to lowercase using tr '[:upper:]' '[:lower:]'",
+        "Replace non-alphanumeric (except hyphens) with hyphens",
+        "Replace consecutive hyphens with single hyphen",
+        "Remove leading hyphens",
+        "Remove trailing hyphens"
+      ],
+      "examples": {
+        "Frontend CI/CD": "workflow:frontend-ci-cd",
+        "Build & Test": "job:build-test",
+        "Run Tests (Node 20)": "job:run-tests-node-20"
+      }
+    }
+  }
+]
