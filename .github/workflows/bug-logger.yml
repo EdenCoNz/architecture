@@ -106,269 +106,83 @@ jobs:
           echo "first_failed_job=$FIRST_FAILED_JOB" >> $GITHUB_OUTPUT
           echo "First failed job: $FIRST_FAILED_JOB"
 
-      - name: Install yq for YAML parsing
-        run: |
-          echo "Installing yq for dynamic job mapping extraction..."
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
-          echo "yq installed successfully"
-
-      - name: Fetch workflow logs
-        id: fetch-logs
+      - name: Get failed job details
+        id: get-job-details
         run: |
           # ============================================================================
-          # Dynamic Job Mapping - Extract job mappings from source workflow file
+          # Get Failed Job Details from Workflow Run
           # ============================================================================
-          # This step eliminates hardcoded job mappings by dynamically extracting
-          # job IDs and names from the workflow file at runtime.
-          #
-          # Why dynamic extraction?
-          # - Single source of truth (workflow file is authoritative)
-          # - Zero maintenance (adding/renaming jobs automatically updates mapping)
-          # - Fail-fast (missing job names cause explicit failures, not silent bugs)
-          #
-          # Architecture:
-          # 1. Detect which workflow triggered this run (backend-ci.yml vs frontend-ci.yml)
-          # 2. Extract job mappings using yq: job_id=job_name
-          # 3. Build associative array for lookup
-          # 4. Use mapping to match failed job with GitHub API response
-          # 5. Fail explicitly if any step fails (no silent fallbacks)
+          # This step gets job details from the current workflow run context
+          # without fetching logs (which aren't available while workflow is running).
+          # Instead, we build URLs to the job logs in the GitHub UI.
           # ============================================================================
 
           echo "=========================================="
-          echo "Step 1: Detect Source Workflow"
+          echo "Step 1: Fetch Workflow Run Metadata"
           echo "=========================================="
 
           # Fetch workflow run details using GitHub CLI
           echo "Fetching workflow run metadata for run ID: ${{ inputs.run_id }}"
           gh run view ${{ inputs.run_id }} --json workflowName,jobs > workflow_run_metadata.json
 
-          # Extract workflow name to determine source file
+          # Extract workflow name
           WORKFLOW_NAME=$(cat workflow_run_metadata.json | jq -r '.workflowName')
           echo "Source workflow: $WORKFLOW_NAME"
-
-          # Map workflow name to workflow file
-          # This mapping must be updated when adding new CI/CD workflows
-          case "$WORKFLOW_NAME" in
-            "Backend CI/CD")
-              WORKFLOW_FILE=".github/workflows/backend-ci.yml"
-              ;;
-            "Frontend CI/CD")
-              WORKFLOW_FILE=".github/workflows/frontend-ci.yml"
-              ;;
-            *)
-              echo "::error::FATAL: Unknown workflow name: '$WORKFLOW_NAME'"
-              echo ""
-              echo "This error indicates one of the following:"
-              echo "  1. A new CI/CD workflow was added but not registered in bug-logger.yml"
-              echo "  2. Workflow name was changed without updating bug-logger.yml"
-              echo "  3. GitHub API returned unexpected workflow metadata"
-              echo ""
-              echo "Available workflow names:"
-              echo "  - Backend CI/CD"
-              echo "  - Frontend CI/CD"
-              echo ""
-              echo "To fix:"
-              echo "  1. If this is a new workflow, add case to WORKFLOW_FILE mapping above"
-              echo "  2. If workflow was renamed, update the case statement"
-              echo "  3. Review .github/DEVOPS_GUIDELINES.md for workflow naming conventions"
-              exit 1
-              ;;
-          esac
-
-          echo "Workflow file: $WORKFLOW_FILE"
-
-          # Validate workflow file exists
-          if [ ! -f "$WORKFLOW_FILE" ]; then
-            echo "::error::FATAL: Workflow file not found: $WORKFLOW_FILE"
-            echo ""
-            echo "This error indicates:"
-            echo "  1. Workflow file was moved or deleted"
-            echo "  2. Repository structure changed"
-            echo "  3. File path mapping is incorrect"
-            echo ""
-            echo "Expected location: $WORKFLOW_FILE"
-            echo "Current directory: $(pwd)"
-            exit 1
-          fi
-
-          echo "✓ Workflow file found: $WORKFLOW_FILE"
           echo ""
 
           echo "=========================================="
-          echo "Step 2: Extract Dynamic Job Mappings"
-          echo "=========================================="
-
-          # Extract job mappings from workflow file using yq
-          # Format: job_id=job_name (one per line)
-          echo "Extracting job mappings from $WORKFLOW_FILE..."
-          yq eval '.jobs | to_entries | .[] | .key + "=" + .value.name' "$WORKFLOW_FILE" > job_mapping.txt
-
-          # Validate extraction succeeded
-          if [ ! -s job_mapping.txt ]; then
-            echo "::error::FATAL: Failed to extract job mappings from $WORKFLOW_FILE"
-            echo ""
-            echo "This error indicates:"
-            echo "  1. Workflow file has no jobs defined"
-            echo "  2. YAML parsing failed (syntax error)"
-            echo "  3. yq command failed"
-            echo ""
-            echo "Workflow file contents (first 50 lines):"
-            head -50 "$WORKFLOW_FILE"
-            exit 1
-          fi
-
-          echo "Extracted job mappings:"
-          cat job_mapping.txt
-          echo ""
-
-          # Validate all jobs have non-empty names
-          INVALID_MAPPINGS=$(grep -E '=[[:space:]]*$|=null$' job_mapping.txt || true)
-          if [ -n "$INVALID_MAPPINGS" ]; then
-            echo "::error::FATAL: Some jobs are missing 'name' fields in $WORKFLOW_FILE"
-            echo ""
-            echo "Jobs with missing or null names:"
-            echo "$INVALID_MAPPINGS"
-            echo ""
-            echo "This error indicates:"
-            echo "  1. One or more jobs don't have a 'name:' field defined"
-            echo "  2. Job name field is empty or null"
-            echo ""
-            echo "To fix:"
-            echo "  1. Add 'name:' field to each job in $WORKFLOW_FILE"
-            echo "  2. Ensure job names are descriptive and unique"
-            echo "  3. Review .github/DEVOPS_GUIDELINES.md for naming conventions"
-            echo "  4. Validation workflow should catch this - verify it's enabled"
-            exit 1
-          fi
-
-          echo "✓ All jobs have valid name fields"
-          echo ""
-
-          # Build associative array for job ID → job name lookup
-          echo "Building job mapping table..."
-          declare -A JOB_ID_TO_NAME_MAP
-          while IFS='=' read -r JOB_ID JOB_NAME; do
-            if [ -n "$JOB_ID" ] && [ -n "$JOB_NAME" ]; then
-              JOB_ID_TO_NAME_MAP[$JOB_ID]="$JOB_NAME"
-              echo "  $JOB_ID → $JOB_NAME"
-            fi
-          done < job_mapping.txt
-
-          echo ""
-          echo "✓ Job mapping table built with ${#JOB_ID_TO_NAME_MAP[@]} entries"
-          echo ""
-
-          echo "=========================================="
-          echo "Step 3: Identify Failed Job"
+          echo "Step 2: Find Failed Job"
           echo "=========================================="
 
           # Get the failed job ID (YAML key like "lint", "format", etc.)
           FAILED_JOB_ID="${{ steps.parse-failures.outputs.first_failed_job }}"
           echo "Failed job ID from workflow results: $FAILED_JOB_ID"
 
-          # Look up job name using dynamic mapping
-          FAILED_JOB_NAME="${JOB_ID_TO_NAME_MAP[$FAILED_JOB_ID]}"
-
-          # EXPLICIT FAILURE: Job ID not found in mapping
-          if [ -z "$FAILED_JOB_NAME" ] || [ "$FAILED_JOB_NAME" = "null" ]; then
-            echo "::error::FATAL: Could not find job name for failed job ID '$FAILED_JOB_ID'"
-            echo ""
-            echo "This indicates one of the following issues:"
-            echo "  1. Job ID '$FAILED_JOB_ID' does not exist in $WORKFLOW_FILE"
-            echo "  2. Job ID mismatch between workflow file and job_results"
-            echo "  3. Dynamic extraction failed to capture this job"
-            echo ""
-            echo "Available job mappings in $WORKFLOW_FILE:"
-            cat job_mapping.txt | sed 's/^/  /'
-            echo ""
-            echo "Failed job ID from job_results: $FAILED_JOB_ID"
-            echo ""
-            echo "Debugging steps:"
-            echo "  1. Verify job '$FAILED_JOB_ID' exists in $WORKFLOW_FILE"
-            echo "  2. Check job has 'name:' field defined and is not empty"
-            echo "  3. Ensure job ID matches YAML key exactly (case-sensitive)"
-            echo "  4. Review .github/DEVOPS_GUIDELINES.md for troubleshooting"
-            exit 1
-          fi
-
-          echo "✓ Mapped job ID '$FAILED_JOB_ID' → job name '$FAILED_JOB_NAME'"
-          echo ""
-
-          echo "=========================================="
-          echo "Step 4: Match Job with GitHub API"
-          echo "=========================================="
-
           # Get workflow run jobs from API
-          echo "Fetching job details from GitHub API..."
+          echo "Extracting job details from workflow run metadata..."
           cat workflow_run_metadata.json | jq '.jobs' > workflow_jobs.json
 
           echo "Available jobs in workflow run:"
-          cat workflow_jobs.json | jq -r '.[] | "  - \(.name) (database ID: \(.databaseId), conclusion: \(.conclusion // "none"))"'
+          cat workflow_jobs.json | jq -r '.[] | "  - \(.name) (database ID: \(.databaseId), conclusion: \(.conclusion // \"none\"))"'
           echo ""
 
-          # Extract the job database ID for the failed job by matching the exact name
-          echo "Searching for job with name: $FAILED_JOB_NAME"
-          JOB_DATABASE_ID=$(cat workflow_jobs.json | jq -r ".[] | select(.name == \"$FAILED_JOB_NAME\") | .databaseId" | head -1)
+          # Find the failed job by searching for a job name that contains the job ID
+          # or matches common patterns
+          echo "Searching for failed job..."
 
-          # EXPLICIT FAILURE: Job name not found in GitHub API response
+          # Try exact ID match in name first (e.g., job ID "lint" might have name "Lint Check")
+          JOB_DATABASE_ID=$(cat workflow_jobs.json | jq -r ".[] | select(.conclusion == \"failure\") | .databaseId" | head -1)
+          FAILED_JOB_NAME=$(cat workflow_jobs.json | jq -r ".[] | select(.conclusion == \"failure\") | .name" | head -1)
+
           if [ -z "$JOB_DATABASE_ID" ] || [ "$JOB_DATABASE_ID" = "null" ]; then
-            echo "::error::FATAL: Could not find job database ID for job name '$FAILED_JOB_NAME'"
+            echo "::error::FATAL: Could not find failed job in workflow run"
             echo ""
-            echo "This indicates one of the following issues:"
-            echo "  1. Job name mismatch between workflow file and GitHub API response"
-            echo "  2. GitHub API returned incomplete or unexpected data"
-            echo "  3. Job was skipped or didn't run"
-            echo ""
-            echo "Expected job name: $FAILED_JOB_NAME"
-            echo "Available jobs in API response:"
-            cat workflow_jobs.json | jq -r '.[] | "  - \(.name)"'
-            echo ""
-            echo "Debugging steps:"
-            echo "  1. Check if job name in $WORKFLOW_FILE matches GitHub Actions UI"
-            echo "  2. Verify workflow run completed and job executed"
-            echo "  3. Review workflow run at: https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}"
+            echo "Expected to find a job with conclusion='failure'"
+            echo "Available jobs:"
+            cat workflow_jobs.json | jq -r '.[] | "  - \(.name) (conclusion: \(.conclusion // \"none\"))"'
             exit 1
           fi
 
-          echo "✓ Found job database ID: $JOB_DATABASE_ID"
+          echo "✓ Found failed job:"
+          echo "  Job ID: $FAILED_JOB_ID"
+          echo "  Job Name: $FAILED_JOB_NAME"
+          echo "  Database ID: $JOB_DATABASE_ID"
+          echo ""
+
+          # Build URL to the specific job logs
+          JOB_URL="https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/job/$JOB_DATABASE_ID"
+          echo "job_url=$JOB_URL" >> $GITHUB_OUTPUT
           echo "job_id=$JOB_DATABASE_ID" >> $GITHUB_OUTPUT
+          echo "job_name=$FAILED_JOB_NAME" >> $GITHUB_OUTPUT
+
+          echo "✓ Job logs URL: $JOB_URL"
           echo ""
 
           echo "=========================================="
-          echo "Step 5: Extract Failed Step Information"
+          echo "Step 3: Extract Failed Step Information"
           echo "=========================================="
-
-          # Debug: Show job steps
-          echo "Steps for job $JOB_DATABASE_ID:"
-          cat workflow_jobs.json | jq -r ".[] | select(.databaseId == $JOB_DATABASE_ID) | .steps[] | \"  \(.number): \(.name) (conclusion: \(.conclusion // \"none\"))\"" || true
-          echo ""
-
-          # Get the full logs for the failed job
-          echo "Fetching logs for job database ID: $JOB_DATABASE_ID"
-          gh run view --job=$JOB_DATABASE_ID --log > job_logs_full.txt || {
-            echo "::error::FATAL: Failed to fetch logs for job database ID: $JOB_DATABASE_ID"
-            echo ""
-            echo "This error indicates:"
-            echo "  1. GitHub API rate limit exceeded"
-            echo "  2. Job logs not yet available (job still running)"
-            echo "  3. Authentication/permission issue"
-            echo ""
-            echo "Job details:"
-            echo "  Database ID: $JOB_DATABASE_ID"
-            echo "  Job Name: $FAILED_JOB_NAME"
-            echo "  Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}"
-            exit 1
-          }
-
-          echo "✓ Logs fetched successfully"
-          echo ""
 
           # Extract the failed step name from the job
-          # GitHub Actions API returns step names in the .name field
-          # If a step doesn't have an explicit 'name:' field in the workflow YAML,
-          # GitHub will auto-generate one based on the action or command
           echo "Extracting failed step information..."
           FAILED_STEP=$(cat workflow_jobs.json | jq -r ".[] | select(.databaseId == $JOB_DATABASE_ID) | .steps[] | select(.conclusion == \"failure\") | .name" | head -1)
 
@@ -378,10 +192,8 @@ jobs:
             FAILED_STEP_NUMBER=$(cat workflow_jobs.json | jq -r ".[] | select(.databaseId == $JOB_DATABASE_ID) | .steps[] | select(.conclusion == \"failure\") | .number" | head -1)
             if [ -n "$FAILED_STEP_NUMBER" ] && [ "$FAILED_STEP_NUMBER" != "null" ]; then
               FAILED_STEP="Step $FAILED_STEP_NUMBER"
-              echo "Using step number: $FAILED_STEP"
             else
               FAILED_STEP="Unknown"
-              echo "Warning: Could not determine failed step name or number"
             fi
           fi
 
@@ -389,39 +201,16 @@ jobs:
           echo "✓ Failed step: $FAILED_STEP"
           echo ""
 
-          # Extract failure context (last 50 lines which usually contain the error)
-          echo "Extracting log excerpt (last 50 lines)..."
-          tail -50 job_logs_full.txt > log_excerpt.txt || echo "No logs available"
-
-          # Extract line numbers from the log excerpt (first and last line numbers)
-          # Line numbers are typically formatted as "2023-10-20T12:34:56.789Z ##[group]Run npm ci"
-          # Or as numbered lines in the GitHub Actions UI
-          FIRST_LINE=$(head -1 log_excerpt.txt | grep -oP '^\d+' || echo "1")
-          LAST_LINE=$(tail -1 log_excerpt.txt | grep -oP '^\d+' || echo "50")
-
-          # If we can't extract actual line numbers, calculate based on total lines
-          TOTAL_LINES=$(wc -l < job_logs_full.txt)
-          if [ "$FIRST_LINE" = "1" ] && [ "$LAST_LINE" = "50" ]; then
-            FIRST_LINE=$((TOTAL_LINES - 50 > 0 ? TOTAL_LINES - 50 : 1))
-            LAST_LINE=$TOTAL_LINES
-          fi
-
-          LOG_LINE_RANGE="L${FIRST_LINE}-L${LAST_LINE}"
-          echo "log_line_numbers=$LOG_LINE_RANGE" >> $GITHUB_OUTPUT
-          echo "✓ Log line numbers: $LOG_LINE_RANGE"
-          echo ""
-
           echo "=========================================="
-          echo "✅ Log Extraction Complete"
+          echo "✅ Job Details Extraction Complete"
           echo "=========================================="
           echo "Summary:"
           echo "  Source Workflow: $WORKFLOW_NAME"
-          echo "  Workflow File: $WORKFLOW_FILE"
           echo "  Failed Job ID: $FAILED_JOB_ID"
           echo "  Failed Job Name: $FAILED_JOB_NAME"
           echo "  Job Database ID: $JOB_DATABASE_ID"
           echo "  Failed Step: $FAILED_STEP"
-          echo "  Log Lines: $LOG_LINE_RANGE"
+          echo "  Job Logs URL: $JOB_URL"
           echo "=========================================="
         env:
           GH_TOKEN: ${{ github.token }}
@@ -434,8 +223,8 @@ jobs:
           FEATURE_ID="${{ steps.extract-info.outputs.feature_id }}"
           FEATURE_NAME="${{ steps.extract-info.outputs.feature_name }}"
           FAILED_JOB="${{ steps.parse-failures.outputs.first_failed_job }}"
-          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
-          LOG_LINE_NUMBERS="${{ steps.fetch-logs.outputs.log_line_numbers }}"
+          FAILED_STEP="${{ steps.get-job-details.outputs.failed_step }}"
+          JOB_URL="${{ steps.get-job-details.outputs.job_url }}"
           PR_URL="${{ inputs.pr_url }}"
           COMMIT_SHA="${{ github.sha }}"
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}"
@@ -451,31 +240,34 @@ jobs:
           | featureName | $FEATURE_NAME |
           | jobName | $FAILED_JOB |
           | stepName | $FAILED_STEP |
-          | logLineNumbers | $LOG_LINE_NUMBERS |
           | PRURL | $PR_URL |
           | commitURL | https://github.com/${{ github.repository }}/commit/$COMMIT_SHA |
           | runURL | $RUN_URL |
+          | jobURL | $JOB_URL |
 
-          ## Failed Step Log Excerpt
+          ## View Logs
 
-          The following shows the failed step's output (lines $LOG_LINE_NUMBERS). For the complete workflow logs, see the [workflow run]($RUN_URL).
+          **Failed Job:** $FAILED_JOB
+          **Failed Step:** $FAILED_STEP
 
-          \`\`\`
-          $(cat log_excerpt.txt)
-          \`\`\`
+          View the complete logs for this job:
+          🔗 **[View Job Logs]($JOB_URL)**
+
+          The logs are available in the GitHub Actions UI with full context, formatting, and search capabilities.
 
           ## How to Fix
 
-          1. Review the failure logs above
-          2. Check the [complete workflow run]($RUN_URL) for full context
+          1. Click the link above to review the failure logs
+          2. Identify the root cause of the failure in the $FAILED_STEP step
           3. Fix the issue in your branch
           4. Push changes to trigger a new CI/CD run
 
           ## Related Links
 
-          - Pull Request: $PR_URL
-          - Commit: https://github.com/${{ github.repository }}/commit/$COMMIT_SHA
-          - Workflow Run: $RUN_URL
+          - **Pull Request:** $PR_URL
+          - **Commit:** https://github.com/${{ github.repository }}/commit/$COMMIT_SHA
+          - **Workflow Run:** $RUN_URL
+          - **Job Logs:** $JOB_URL
           EOF
 
           echo "Bug log content created"
@@ -492,15 +284,13 @@ jobs:
           CURRENT_TITLE="[${{ inputs.branch_name }}] ${{ steps.parse-failures.outputs.first_failed_job }} job failed"
           CURRENT_FEATURE_ID="${{ steps.extract-info.outputs.feature_id }}"
           CURRENT_JOB_NAME="${{ steps.parse-failures.outputs.first_failed_job }}"
-          CURRENT_STEP_NAME="${{ steps.fetch-logs.outputs.failed_step }}"
-          CURRENT_LOG_LINES="${{ steps.fetch-logs.outputs.log_line_numbers }}"
+          CURRENT_STEP_NAME="${{ steps.get-job-details.outputs.failed_step }}"
 
           echo "Current failure context:"
           echo "  Title: $CURRENT_TITLE"
           echo "  Feature ID: $CURRENT_FEATURE_ID"
           echo "  Job Name: $CURRENT_JOB_NAME"
           echo "  Step Name: $CURRENT_STEP_NAME"
-          echo "  Log Lines: $CURRENT_LOG_LINES"
           echo ""
 
           # Initialize flags
@@ -541,20 +331,17 @@ jobs:
               PREV_FEATURE_ID=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*featureID\s*\|\s*\K[^\|]+' | tr -d ' ')
               PREV_JOB_NAME=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*jobName\s*\|\s*\K[^\|]+' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
               PREV_STEP_NAME=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*stepName\s*\|\s*\K[^\|]+' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-              PREV_LOG_LINES=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*logLineNumbers\s*\|\s*\K[^\|]+' | tr -d ' ')
 
               echo "  Previous issue context:"
               echo "    Feature ID: $PREV_FEATURE_ID"
               echo "    Job Name: $PREV_JOB_NAME"
               echo "    Step Name: $PREV_STEP_NAME"
-              echo "    Log Lines: $PREV_LOG_LINES"
 
-              # Compare all fields
+              # Compare feature ID, job name, and step name
               if [ "$CURRENT_FEATURE_ID" = "$PREV_FEATURE_ID" ] && \
                  [ "$CURRENT_JOB_NAME" = "$PREV_JOB_NAME" ] && \
-                 [ "$CURRENT_STEP_NAME" = "$PREV_STEP_NAME" ] && \
-                 [ "$CURRENT_LOG_LINES" = "$PREV_LOG_LINES" ]; then
-                echo "  Result: DUPLICATE DETECTED (all fields match)"
+                 [ "$CURRENT_STEP_NAME" = "$PREV_STEP_NAME" ]; then
+                echo "  Result: DUPLICATE DETECTED (feature ID, job name, and step name match)"
                 echo "is_duplicate=true" >> $GITHUB_OUTPUT
                 echo "duplicate_issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
                 IS_DUPLICATE=true
@@ -880,8 +667,7 @@ jobs:
             echo "### Duplicate Detection Details" >> $GITHUB_STEP_SUMMARY
             echo "- Feature ID: ${{ steps.extract-info.outputs.feature_id }}" >> $GITHUB_STEP_SUMMARY
             echo "- Job Name: ${{ steps.parse-failures.outputs.first_failed_job }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Step Name: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Log Line Numbers: ${{ steps.fetch-logs.outputs.log_line_numbers }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Step Name: ${{ steps.get-job-details.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "All fields matched the existing issue, indicating this is the same failure." >> $GITHUB_STEP_SUMMARY
           else
@@ -893,8 +679,8 @@ jobs:
             echo "- Issue Number: #${{ steps.create-issue.outputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
             echo "- Branch: ${{ inputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
             echo "- Failed Job: ${{ steps.parse-failures.outputs.first_failed_job }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Failed Step: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Log Lines: ${{ steps.fetch-logs.outputs.log_line_numbers }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed Step: ${{ steps.get-job-details.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Job Logs: ${{ steps.get-job-details.outputs.job_url }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
             # Add retry detection information
