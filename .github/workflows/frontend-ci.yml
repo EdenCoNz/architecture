@@ -286,7 +286,7 @@ jobs:
     needs: [lint, typecheck, build, security, docker]
     if: |
       failure()
-    uses: EdenCoNz/cicd-template/.github/workflows/bug-logger.yml@main
+    uses: ./.github/workflows/bug-logger.yml
     with:
       job_results: ${{ toJSON(needs) }}
       branch_name: ${{ github.head_ref || github.ref_name }}
@@ -294,4 +294,3 @@ jobs:
       pr_url: ${{ github.event.pull_request.html_url }}
       pr_author: ${{ github.event.pull_request.user.login }}
       run_id: ${{ github.run_id }}
-    secrets: inherit

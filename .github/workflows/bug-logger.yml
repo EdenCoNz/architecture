@@ -1,0 +1,248 @@
+name: Bug Logger - Create GitHub Issues for CI/CD Failures
+
+# This is a reusable workflow that creates GitHub issues when CI/CD jobs fail
+# It can be called from any workflow in this repository
+# See: https://docs.github.com/en/actions/using-workflows/reusing-workflows
+
+on:
+  workflow_call:
+    inputs:
+      job_results:
+        description: 'JSON string containing the results of all jobs from the calling workflow'
+        required: true
+        type: string
+      branch_name:
+        description: 'Name of the branch where the failure occurred'
+        required: true
+        type: string
+      pr_number:
+        description: 'Pull request number (if applicable)'
+        required: false
+        type: string
+      pr_url:
+        description: 'Pull request URL (if applicable)'
+        required: false
+        type: string
+      pr_author:
+        description: 'Pull request author username'
+        required: false
+        type: string
+      run_id:
+        description: 'GitHub Actions run ID'
+        required: true
+        type: string
+
+# Minimal permissions for bug logging (principle of least privilege)
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  create-bug-issue:
+    name: Create Bug Issue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract feature/bug information
+        id: extract-info
+        run: |
+          BRANCH_NAME="${{ inputs.branch_name }}"
+          echo "Branch name: $BRANCH_NAME"
+
+          # Extract feature ID from branch name (e.g., feature/123-description -> 123)
+          if [[ "$BRANCH_NAME" =~ ^feature/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
+            echo "Extracted feature ID: $FEATURE_ID"
+          elif [[ "$BRANCH_NAME" =~ ^bug/([0-9]+) ]]; then
+            BUG_ID="${BASH_REMATCH[1]}"
+            echo "feature_id=$BUG_ID" >> $GITHUB_OUTPUT
+            echo "Extracted bug ID: $BUG_ID"
+          else
+            echo "feature_id=" >> $GITHUB_OUTPUT
+            echo "No feature/bug ID found in branch name"
+          fi
+
+          # Extract feature name from branch name (e.g., feature/123-my-feature -> my-feature)
+          if [[ "$BRANCH_NAME" =~ ^(feature|bug)/[0-9]+-(.+)$ ]]; then
+            FEATURE_NAME="${BASH_REMATCH[2]}"
+            echo "feature_name=$FEATURE_NAME" >> $GITHUB_OUTPUT
+            echo "Extracted feature name: $FEATURE_NAME"
+          else
+            echo "feature_name=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Parse job results and identify failures
+        id: parse-failures
+        run: |
+          # Parse the job_results JSON to find failed jobs
+          JOB_RESULTS='${{ inputs.job_results }}'
+          echo "Job results: $JOB_RESULTS"
+
+          # Extract failed job names
+          FAILED_JOBS=$(echo "$JOB_RESULTS" | jq -r 'to_entries | map(select(.value.result == "failure")) | .[].key' | tr '\n' ',' | sed 's/,$//')
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+          echo "Failed jobs: $FAILED_JOBS"
+
+          # Count failed jobs
+          FAILURE_COUNT=$(echo "$FAILED_JOBS" | grep -o ',' | wc -l)
+          FAILURE_COUNT=$((FAILURE_COUNT + 1))
+          echo "failure_count=$FAILURE_COUNT" >> $GITHUB_OUTPUT
+          echo "Number of failures: $FAILURE_COUNT"
+
+          # Get first failed job for the title
+          FIRST_FAILED_JOB=$(echo "$FAILED_JOBS" | cut -d',' -f1)
+          echo "first_failed_job=$FIRST_FAILED_JOB" >> $GITHUB_OUTPUT
+          echo "First failed job: $FIRST_FAILED_JOB"
+
+      - name: Fetch workflow logs
+        id: fetch-logs
+        run: |
+          # Fetch workflow run details using GitHub CLI
+          echo "Fetching workflow run logs for run ID: ${{ inputs.run_id }}"
+
+          # Get workflow run details
+          gh run view ${{ inputs.run_id }} --json jobs > workflow_jobs.json
+
+          # Get the failed job details
+          FAILED_JOB_NAME="${{ steps.parse-failures.outputs.first_failed_job }}"
+          echo "Looking for job: $FAILED_JOB_NAME"
+
+          # Extract the job ID for the failed job
+          JOB_ID=$(cat workflow_jobs.json | jq -r ".jobs[] | select(.name | contains(\"$FAILED_JOB_NAME\")) | .databaseId" | head -1)
+          echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+          echo "Failed job ID: $JOB_ID"
+
+          # Get the logs for the failed job (limited excerpt)
+          if [ -n "$JOB_ID" ]; then
+            echo "Fetching logs for job ID: $JOB_ID"
+            gh run view --job=$JOB_ID --log > job_logs.txt || echo "Could not fetch logs"
+
+            # Extract failure context (last 50 lines which usually contain the error)
+            tail -50 job_logs.txt > log_excerpt.txt || echo "No logs available"
+
+            # Save log excerpt for later use
+            echo "Log excerpt saved"
+          else
+            echo "Could not find job ID for failed job"
+            echo "No logs available" > log_excerpt.txt
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create bug log content
+        id: create-bug-log
+        run: |
+          # Create bug log based on template
+          BRANCH_NAME="${{ inputs.branch_name }}"
+          FEATURE_ID="${{ steps.extract-info.outputs.feature_id }}"
+          FEATURE_NAME="${{ steps.extract-info.outputs.feature_name }}"
+          FAILED_JOB="${{ steps.parse-failures.outputs.first_failed_job }}"
+          PR_URL="${{ inputs.pr_url }}"
+          COMMIT_SHA="${{ github.sha }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}"
+
+          # Generate bug log content
+          cat > bug_log.md <<EOF
+          # Bug Log - CI/CD Failure
+
+          | Field | Value |
+          |-------|-------|
+          | Title | [$BRANCH_NAME] $FAILED_JOB job failed |
+          | Feature ID | $FEATURE_ID |
+          | Feature Name | $FEATURE_NAME |
+          | Job Name | $FAILED_JOB |
+          | Branch | $BRANCH_NAME |
+          | PR URL | $PR_URL |
+          | Commit URL | https://github.com/${{ github.repository }}/commit/$COMMIT_SHA |
+          | Run URL | $RUN_URL |
+          | Failed Jobs | ${{ steps.parse-failures.outputs.failed_jobs }} |
+          | Failure Count | ${{ steps.parse-failures.outputs.failure_count }} |
+
+          ## Failed Step Log Excerpt
+
+          The following shows the failed step's output. For the complete workflow logs, see the [workflow run]($RUN_URL).
+
+          \`\`\`
+          $(cat log_excerpt.txt)
+          \`\`\`
+
+          ## How to Fix
+
+          1. Review the failure logs above
+          2. Check the [complete workflow run]($RUN_URL) for full context
+          3. Fix the issue in your branch
+          4. Push changes to trigger a new CI/CD run
+
+          ## Related Links
+
+          - Pull Request: $PR_URL
+          - Commit: https://github.com/${{ github.repository }}/commit/$COMMIT_SHA
+          - Workflow Run: $RUN_URL
+          EOF
+
+          echo "Bug log content created"
+          cat bug_log.md
+
+      - name: Create GitHub issue
+        id: create-issue
+        run: |
+          # Create issue title
+          BRANCH_NAME="${{ inputs.branch_name }}"
+          FAILED_JOB="${{ steps.parse-failures.outputs.first_failed_job }}"
+          ISSUE_TITLE="[$BRANCH_NAME] $FAILED_JOB job failed"
+
+          # Create issue body from bug log
+          ISSUE_BODY=$(cat bug_log.md)
+
+          # Assign issue to PR author if available
+          ASSIGNEE=""
+          if [ -n "${{ inputs.pr_author }}" ]; then
+            ASSIGNEE="--assignee ${{ inputs.pr_author }}"
+          fi
+
+          # Create the issue using GitHub CLI
+          echo "Creating GitHub issue..."
+          ISSUE_URL=$(gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$ISSUE_BODY" \
+            --label "bug,ci-failure" \
+            $ASSIGNEE \
+            --repo ${{ github.repository }})
+
+          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
+          echo "Issue created: $ISSUE_URL"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Comment on PR with issue link
+        if: inputs.pr_number != ''
+        run: |
+          ISSUE_URL="${{ steps.create-issue.outputs.issue_url }}"
+          COMMENT_BODY="CI/CD workflow failed. A bug report has been created: $ISSUE_URL"
+
+          echo "Adding comment to PR #${{ inputs.pr_number }}"
+          gh pr comment ${{ inputs.pr_number }} \
+            --body "$COMMENT_BODY" \
+            --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Summary
+        run: |
+          echo "## Bug Logging Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A GitHub issue has been created for the CI/CD failure:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Issue: ${{ steps.create-issue.outputs.issue_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ inputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Failed Jobs: ${{ steps.parse-failures.outputs.failed_jobs }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.pr_number }}" ]; then
+            echo "A comment has been added to PR #${{ inputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+          fi
