@@ -38,9 +38,11 @@ on:
 
 # Minimal required permissions for issue creation workflow
 # issues: write is required to create tracking issues
+# actions: read is required to download artifacts from other workflow runs
 permissions:
   contents: read
   issues: write
+  actions: read
 
 jobs:
   process-issue-log:
