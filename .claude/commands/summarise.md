@@ -58,64 +58,16 @@ For each unsummarised feature with an implementation log:
 
 ### Step 4: Generate Summary
 
-Create or update `docs/features/implementation-log-summary.json` with summaries for each feature. The JSON structure should be:
+Create or update `docs/features/implementation-log-summary.json` with summaries for each feature.
 
-```json
-{
-  "summaries": [
-    {
-      "featureId": "{id}",
-      "featureTitle": "{feature title from feature-log.json}",
-      "summarisedAt": "{ISO 8601 timestamp}",
-      "overview": "{2-3 sentence summary of what this feature was meant to accomplish}",
-      "completedWork": {
-        "storiesCompleted": {
-          "count": 0,
-          "total": 0,
-          "stories": [
-            {
-              "storyNumber": 1,
-              "title": "{story title}",
-              "summary": "{one-line summary}"
-            }
-          ]
-        },
-        "filesModified": [
-          {
-            "path": "{file_path}",
-            "description": "{brief description of changes}"
-          }
-        ],
-        "keyTechnicalDecisions": [
-          "{Decision and rationale}"
-        ]
-      },
-      "incompleteWork": {
-        "storiesNotCompleted": [
-          {
-            "storyNumber": 0,
-            "title": "{story title}",
-            "status": "{partial/blocked/not started}",
-            "reason": "{why it wasn't completed}",
-            "whatWasDone": "{if partial, what was accomplished}"
-          }
-        ],
-        "knownIssues": [
-          "{unresolved issues or technical debt}"
-        ]
-      },
-      "implementationInsights": "{patterns, learnings, or important context}",
-      "recommendations": [
-        "{suggestions for future work}"
-      ]
-    }
-  ],
-  "metadata": {
-    "lastUpdated": "{ISO 8601 timestamp}",
-    "totalFeaturesSummarised": 0
-  }
-}
-```
+**Summary Structure**: See `docs/feature-log-schema.json` for complete schema reference. Each summary should include:
+- Feature ID and title
+- Timestamp
+- Overview of what was meant to be accomplished
+- Completed work (stories, files, technical decisions)
+- Incomplete work (stories not completed, status, reasons)
+- Implementation insights
+- Recommendations for future work
 
 ### Step 5: Update Feature Log
 
