@@ -2,7 +2,52 @@
 
 This directory contains automated workflows for the architecture repository.
 
+## Documentation
+
+- **Automated CI/CD Failure Resolution**: [AUTOMATED_CI_CD_FAILURE_RESOLUTION.md](./AUTOMATED_CI_CD_FAILURE_RESOLUTION.md) - Complete system documentation
+- **Quick Reference**: [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) - Quick start guide for developers
+- **Duplicate Detection**: [DUPLICATE_DETECTION_FLOW.md](./DUPLICATE_DETECTION_FLOW.md) - Duplicate detection flow details
+
 ## Available Workflows
+
+### 🤖 Automated CI/CD Failure Resolution System
+
+**Purpose**: Automatically detects, logs, and manages CI/CD failures in GitHub Actions workflows.
+
+**Core Workflows**:
+- `bug-logger.yml` - Creates GitHub issues for CI/CD failures
+- `bug-resolver.yml` - Manages issue labels based on fix outcomes
+- `issue-event-listener.yml` - Detects CI failure issues and triggers automation
+- `fix-trigger.yml` - Adds automation markers to issues for manual fix execution
+
+**Application Workflows**:
+- `frontend-ci.yml` - Frontend CI/CD pipeline with failure logging
+- `backend-ci.yml` - Backend CI/CD pipeline with failure logging
+
+**Features**:
+- Automatic issue creation when CI jobs fail
+- Intelligent duplicate detection to prevent noise
+- Retry tracking for fix attempts
+- Automated fix triggering and status management
+- Complete issue lifecycle management
+
+**Getting Started**:
+- For developers: See [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)
+- For system details: See [AUTOMATED_CI_CD_FAILURE_RESOLUTION.md](./AUTOMATED_CI_CD_FAILURE_RESOLUTION.md)
+
+**Quick Start**:
+```bash
+# View your CI failure issues
+gh issue list --label "ci-failure" --state open --assignee @me
+
+# Run automated fix (if using Claude CLI)
+claude /fix gha
+
+# Or manually fix and commit
+git commit -m "Implementation of bug-github-issue-NUMBER-description"
+```
+
+---
 
 ### 🔄 Sync to Proform Repository
 

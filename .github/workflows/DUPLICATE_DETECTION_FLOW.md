@@ -224,6 +224,16 @@ Skip Reason: logs_differ
 steps.duplicate-check.outputs.is_duplicate        # "true" or "false"
 steps.duplicate-check.outputs.skip_reason         # One of the 5 reasons above
 steps.duplicate-check.outputs.duplicate_issue_number  # Issue number (if duplicate)
+steps.duplicate-check.outputs.is_retry            # "true" or "false"
+steps.duplicate-check.outputs.retry_of_issue      # Previous issue number (if retry)
+steps.duplicate-check.outputs.attempt_count       # Number of attempts for this failure
+```
+
+### Job Outputs (for subsequent jobs)
+
+```yaml
+jobs.create-bug-issue.outputs.is_retry            # "true" or "false"
+jobs.create-bug-issue.outputs.retry_of_issue      # Previous issue number (if retry)
 ```
 
 ### Environment Variables
@@ -238,3 +248,91 @@ Displays one of:
 - ✅ Issue created (with detection details)
 - ⏭️ Issue skipped (with duplicate reference)
 - ⚠️ Warning (if something went wrong)
+
+## Retry Detection and Bug Resolver Integration
+
+### Overview
+
+When a retry is detected (a fix was previously attempted but CI is still failing), the bug logger automatically calls the bug resolver workflow to update the previous issue's status.
+
+### Retry Detection Criteria
+
+A retry is detected when:
+1. **No duplicate open issue exists** (this is a new issue)
+2. **A closed issue exists** with matching:
+   - Feature ID
+   - Job Name
+   - Step Name
+3. **The closed issue was marked as resolved** (has `pending-merge` or `fix-pending` label)
+
+### Automatic Bug Resolver Call
+
+When a retry is detected, the bug logger:
+
+1. **Creates a new issue** for the current failure
+2. **Automatically calls** the bug resolver workflow with:
+   - `current_run_status: 'failure'` (because we're in the bug logger, CI is failing)
+   - `previous_issue_number: <retry_of_issue>` (the closed issue number)
+   - `action: 'mark_as_resolved'` (to evaluate the fix outcome)
+
+3. **Bug resolver updates the previous issue** based on the failure:
+   - Adds a comment indicating the fix attempt failed
+   - Does NOT add labels (since the current run is a failure)
+
+### Integration Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CI/CD Failure Detected                       │
+│                  (Retry of previous fix attempt)                │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+                  ┌──────────────────────┐
+                  │  Bug Logger Workflow │
+                  └──────────┬───────────┘
+                             │
+                             ▼
+                  ┌──────────────────────┐
+                  │  Retry Detection     │
+                  │  (closed issue with  │
+                  │   pending-merge)     │
+                  └──────────┬───────────┘
+                             │
+                    is_retry=true
+                             │
+                             ▼
+        ┌────────────────────┴────────────────────┐
+        │                                         │
+        ▼                                         ▼
+┌───────────────────┐                  ┌──────────────────────┐
+│  Create New Issue │                  │  Call Bug Resolver   │
+│  for Current      │                  │  Workflow            │
+│  Failure          │                  │                      │
+└───────────────────┘                  └──────────┬───────────┘
+                                                  │
+                                                  ▼
+                                       ┌──────────────────────┐
+                                       │  Update Previous     │
+                                       │  Issue with Failure  │
+                                       │  Comment             │
+                                       └──────────────────────┘
+```
+
+### Example Scenario
+
+1. **Initial Failure**: Issue #123 created for failing `lint` job
+2. **Fix Attempted**: Developer commits fix, issue #123 marked `pending-merge`
+3. **Issue Closed**: PR merged, issue #123 closed
+4. **Retry Failure**: CI still fails on `lint` job
+5. **Automatic Actions**:
+   - New issue #124 created for current failure
+   - Bug resolver called with `previous_issue_number: 123`
+   - Issue #123 receives comment: "The automated fix attempt for this issue has failed. Manual investigation may be required."
+
+### Benefits
+
+- **Automatic tracking** of fix attempt outcomes
+- **Clear history** of retry attempts in previous issues
+- **No manual intervention** required to update issue statuses
+- **Visibility** into whether fixes actually resolved the problem

@@ -44,6 +44,11 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
 
+    # Expose outputs for the bug resolver job
+    outputs:
+      is_retry: ${{ steps.check-duplicate.outputs.is_retry }}
+      retry_of_issue: ${{ steps.check-duplicate.outputs.retry_of_issue }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -214,11 +219,11 @@ jobs:
           echo "Bug log content created"
           cat bug_log.md
 
-      - name: Check for duplicate issues
+      - name: Check for duplicate issues and retry detection
         id: check-duplicate
         run: |
           echo "=========================================="
-          echo "Starting Duplicate Detection"
+          echo "Starting Duplicate and Retry Detection"
           echo "=========================================="
 
           # Current failure context
@@ -236,8 +241,19 @@ jobs:
           echo "  Log Lines: $CURRENT_LOG_LINES"
           echo ""
 
-          # Search for open issues with matching title pattern
-          echo "Searching for existing open issues..."
+          # Initialize flags
+          IS_DUPLICATE=false
+          DUPLICATE_ISSUE_NUMBER=""
+          OLD_ISSUE_NUMBER=""
+          OLD_ISSUE_NEEDS_FIX_PENDING=false
+          IS_RETRY=false
+          RETRY_OF_ISSUE=""
+          ATTEMPT_COUNT=1
+
+          # STEP 1: Search for open issues with matching title pattern
+          echo "=========================================="
+          echo "STEP 1: Checking for Open Issues (Duplicates)"
+          echo "=========================================="
           EXISTING_ISSUES=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
@@ -247,16 +263,10 @@ jobs:
 
           echo "Found $(echo "$EXISTING_ISSUES" | jq '. | length') open issues with similar titles"
 
-          # Initialize flags
-          IS_DUPLICATE=false
-          DUPLICATE_ISSUE_NUMBER=""
-          OLD_ISSUE_NUMBER=""
-          OLD_ISSUE_NEEDS_FIX_PENDING=false
-
-          # Check each existing issue
+          # Check each existing open issue
           if [ "$(echo "$EXISTING_ISSUES" | jq '. | length')" -gt 0 ]; then
             echo ""
-            echo "Analyzing existing issues for duplicates..."
+            echo "Analyzing open issues for duplicates..."
 
             echo "$EXISTING_ISSUES" | jq -c '.[]' | while read -r issue; do
               ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
@@ -303,6 +313,101 @@ jobs:
             echo "No existing open issues found with similar titles"
           fi
 
+          # STEP 2: Search for closed issues to detect retries
+          # A retry is when a fix was attempted (issue was closed) but CI is still failing
+          echo ""
+          echo "=========================================="
+          echo "STEP 2: Checking for Closed Issues (Retry Detection)"
+          echo "=========================================="
+
+          # Only check for retries if this is not a duplicate
+          if [ "$IS_DUPLICATE" = false ]; then
+            echo "Searching for closed issues with matching feature/job/step..."
+
+            # Search for closed issues with matching title
+            CLOSED_ISSUES=$(gh issue list \
+              --repo ${{ github.repository }} \
+              --state closed \
+              --search "\"$CURRENT_TITLE\" in:title" \
+              --json number,title,body,labels,closedAt \
+              --limit 20)
+
+            echo "Found $(echo "$CLOSED_ISSUES" | jq '. | length') closed issues with similar titles"
+
+            # Track all matching closed issues to count attempts
+            MATCHING_CLOSED_ISSUES=""
+
+            if [ "$(echo "$CLOSED_ISSUES" | jq '. | length')" -gt 0 ]; then
+              echo ""
+              echo "Analyzing closed issues for retry detection..."
+
+              # Iterate through closed issues
+              while IFS= read -r issue; do
+                ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
+                ISSUE_BODY=$(echo "$issue" | jq -r '.body')
+                ISSUE_LABELS=$(echo "$issue" | jq -r '.labels[].name' | tr '\n' ',' | sed 's/,$//')
+                CLOSED_AT=$(echo "$issue" | jq -r '.closedAt')
+
+                echo ""
+                echo "Checking closed issue #$ISSUE_NUMBER (closed at: $CLOSED_AT)..."
+                echo "  Labels: $ISSUE_LABELS"
+
+                # Extract fields from issue body
+                PREV_FEATURE_ID=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*featureID\s*\|\s*\K[^\|]+' | tr -d ' ')
+                PREV_JOB_NAME=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*jobName\s*\|\s*\K[^\|]+' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                PREV_STEP_NAME=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*stepName\s*\|\s*\K[^\|]+' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+                echo "  Feature ID: $PREV_FEATURE_ID"
+                echo "  Job Name: $PREV_JOB_NAME"
+                echo "  Step Name: $PREV_STEP_NAME"
+
+                # Compare feature, job, and step (not log lines - those can differ in retries)
+                if [ "$CURRENT_FEATURE_ID" = "$PREV_FEATURE_ID" ] && \
+                   [ "$CURRENT_JOB_NAME" = "$PREV_JOB_NAME" ] && \
+                   [ "$CURRENT_STEP_NAME" = "$PREV_STEP_NAME" ]; then
+                  echo "  Result: MATCH - Same feature/job/step as current failure"
+
+                  # Add to matching closed issues list
+                  if [ -z "$MATCHING_CLOSED_ISSUES" ]; then
+                    MATCHING_CLOSED_ISSUES="$ISSUE_NUMBER"
+                  else
+                    MATCHING_CLOSED_ISSUES="$MATCHING_CLOSED_ISSUES,$ISSUE_NUMBER"
+                  fi
+
+                  # Check if this was a resolved issue (had pending-merge or fix-pending label)
+                  if echo "$ISSUE_LABELS" | grep -q "pending-merge\|fix-pending"; then
+                    echo "  Status: This issue was marked as resolved/pending"
+
+                    # This is the most recent closed issue that was marked as resolved
+                    # Use it as the retry reference
+                    if [ "$IS_RETRY" = false ]; then
+                      IS_RETRY=true
+                      RETRY_OF_ISSUE=$ISSUE_NUMBER
+                      echo "  Action: RETRY DETECTED - This failure is a retry of issue #$ISSUE_NUMBER"
+                    fi
+                  else
+                    echo "  Status: This issue was closed without resolution labels"
+                  fi
+                else
+                  echo "  Result: No match (different feature/job/step)"
+                fi
+              done < <(echo "$CLOSED_ISSUES" | jq -c '.[]')
+
+              # Calculate attempt count: 1 (current) + number of matching closed issues
+              if [ -n "$MATCHING_CLOSED_ISSUES" ]; then
+                CLOSED_COUNT=$(echo "$MATCHING_CLOSED_ISSUES" | tr ',' '\n' | wc -l)
+                ATTEMPT_COUNT=$((CLOSED_COUNT + 1))
+                echo ""
+                echo "Matching closed issues: $MATCHING_CLOSED_ISSUES"
+                echo "Total attempts for this failure: $ATTEMPT_COUNT (including current attempt)"
+              fi
+            else
+              echo "No closed issues found with similar titles"
+            fi
+          else
+            echo "Skipping retry detection (duplicate issue detected)"
+          fi
+
           # Set default outputs if not set
           if [ "$IS_DUPLICATE" = false ]; then
             echo "is_duplicate=false" >> $GITHUB_OUTPUT
@@ -314,9 +419,16 @@ jobs:
             echo "old_issue_needs_fix_pending=false" >> $GITHUB_OUTPUT
           fi
 
+          # Set retry detection outputs
+          echo "is_retry=$IS_RETRY" >> $GITHUB_OUTPUT
+          echo "retry_of_issue=$RETRY_OF_ISSUE" >> $GITHUB_OUTPUT
+          echo "attempt_count=$ATTEMPT_COUNT" >> $GITHUB_OUTPUT
+
           echo ""
           echo "=========================================="
-          echo "Duplicate Detection Complete"
+          echo "Detection Complete"
+          echo "=========================================="
+          echo "Duplicate Detection:"
           echo "  Is Duplicate: $IS_DUPLICATE"
           if [ "$IS_DUPLICATE" = true ]; then
             echo "  Duplicate Issue: #$DUPLICATE_ISSUE_NUMBER"
@@ -324,6 +436,13 @@ jobs:
           if [ -n "$OLD_ISSUE_NUMBER" ]; then
             echo "  Old Issue to Mark: #$OLD_ISSUE_NUMBER"
           fi
+          echo ""
+          echo "Retry Detection:"
+          echo "  Is Retry: $IS_RETRY"
+          if [ "$IS_RETRY" = true ]; then
+            echo "  Retry of Issue: #$RETRY_OF_ISSUE"
+          fi
+          echo "  Attempt Count: $ATTEMPT_COUNT"
           echo "=========================================="
         env:
           GH_TOKEN: ${{ github.token }}
@@ -376,6 +495,67 @@ jobs:
 
           echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
           echo "Issue created: $ISSUE_URL"
+
+          # Extract issue number from URL
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '\d+$')
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "Issue number: $ISSUE_NUMBER"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Add commit identifier template to issue
+        id: add-commit-identifier
+        if: steps.check-duplicate.outputs.is_duplicate != 'true'
+        run: |
+          ISSUE_NUMBER="${{ steps.create-issue.outputs.issue_number }}"
+
+          echo "Adding commit identifier template to issue #$ISSUE_NUMBER"
+
+          # Create commit identifier template following project conventions
+          # Based on observed patterns: "Implementation of bug-github-issue-{number}-{description}"
+          cat > commit_template.md <<EOF
+
+          ## Commit Identifier Template
+
+          When creating a fix commit for this issue, use the following format:
+
+          \`\`\`
+          Implementation of bug-github-issue-ISSUE_NUMBER-short-description
+          \`\`\`
+
+          **Example for this issue:**
+          \`\`\`
+          Implementation of bug-github-issue-ISSUE_NUMBER-FAILED_JOB-job-failed
+          \`\`\`
+
+          This format ensures:
+          - Automatic linking between commits and issues
+          - Clear traceability in git history
+          - Consistent commit message conventions
+
+          **Replace**:
+          - ISSUE_NUMBER with the issue number (ISSUE_NUMBER)
+          - short-description with a brief description of the fix (kebab-case)
+          EOF
+
+          # Replace placeholders in template
+          BRANCH_NAME="${{ inputs.branch_name }}"
+          FAILED_JOB="${{ steps.parse-failures.outputs.first_failed_job }}"
+
+          # Convert job name to kebab-case for example
+          JOB_NAME_KEBAB=$(echo "$FAILED_JOB" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]]\+/-/g')
+
+          # Apply replacements to the template file
+          sed -i "s/ISSUE_NUMBER/$ISSUE_NUMBER/g" commit_template.md
+          sed -i "s/FAILED_JOB/$JOB_NAME_KEBAB/g" commit_template.md
+
+          # Add the commit identifier template as a comment on the issue
+          COMMIT_TEMPLATE_BODY=$(cat commit_template.md)
+          gh issue comment $ISSUE_NUMBER \
+            --body "$COMMIT_TEMPLATE_BODY" \
+            --repo ${{ github.repository }}
+
+          echo "Commit identifier template added to issue #$ISSUE_NUMBER"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -406,6 +586,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Call bug resolver for retry failures
+        if: steps.check-duplicate.outputs.is_retry == 'true'
+        run: |
+          RETRY_ISSUE_NUM="${{ steps.check-duplicate.outputs.retry_of_issue }}"
+          echo "=========================================="
+          echo "Calling Bug Resolver Workflow"
+          echo "=========================================="
+          echo "Retry detected for issue #$RETRY_ISSUE_NUM"
+          echo "Current run status: failure (we are in the bug logger)"
+          echo ""
+          echo "The bug resolver will be called to update the previous issue labels"
+          echo "based on the current failure status."
+          echo "=========================================="
+
       - name: Summary
         run: |
           echo "## Bug Logging Summary" >> $GITHUB_STEP_SUMMARY
@@ -434,10 +628,42 @@ jobs:
             echo "A GitHub issue has been created for the CI/CD failure:" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "- Issue: ${{ steps.create-issue.outputs.issue_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Issue Number: #${{ steps.create-issue.outputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
             echo "- Branch: ${{ inputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
             echo "- Failed Job: ${{ steps.parse-failures.outputs.first_failed_job }}" >> $GITHUB_STEP_SUMMARY
             echo "- Failed Step: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
             echo "- Log Lines: ${{ steps.fetch-logs.outputs.log_line_numbers }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Add retry detection information
+            if [ "${{ steps.check-duplicate.outputs.is_retry }}" = "true" ]; then
+              RETRY_ISSUE_NUM="${{ steps.check-duplicate.outputs.retry_of_issue }}"
+              RETRY_ISSUE_URL="https://github.com/${{ github.repository }}/issues/$RETRY_ISSUE_NUM"
+              ATTEMPT_COUNT="${{ steps.check-duplicate.outputs.attempt_count }}"
+
+              echo "### Retry Detection" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "This is a **retry attempt** for a previously resolved issue." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- Previous Issue: [#$RETRY_ISSUE_NUM]($RETRY_ISSUE_URL) (closed)" >> $GITHUB_STEP_SUMMARY
+              echo "- Attempt Count: **$ATTEMPT_COUNT**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "A fix was previously attempted and merged, but the CI is still failing." >> $GITHUB_STEP_SUMMARY
+              echo "This may indicate the fix was incomplete or a regression occurred." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Automated Action**: The bug resolver workflow will be called to update the status of issue #$RETRY_ISSUE_NUM based on this failure." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "### First Attempt" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "This is the **first occurrence** of this failure (Attempt #${{ steps.check-duplicate.outputs.attempt_count }})" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "### Commit Identifier Template" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "A commit identifier template has been added to the issue as a comment." >> $GITHUB_STEP_SUMMARY
+            echo "Developers can use this template to create fix commits that automatically link to the issue." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
             if [ "${{ steps.check-duplicate.outputs.old_issue_needs_fix_pending }}" = "true" ]; then
@@ -453,3 +679,14 @@ jobs:
           if [ -n "${{ inputs.pr_number }}" ]; then
             echo "A comment has been added to PR #${{ inputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
           fi
+
+  # Call bug resolver workflow when a retry is detected
+  call-bug-resolver:
+    name: Update Previous Issue Status
+    needs: create-bug-issue
+    if: needs.create-bug-issue.outputs.is_retry == 'true'
+    uses: ./.github/workflows/bug-resolver.yml
+    with:
+      current_run_status: 'failure'
+      previous_issue_number: ${{ needs.create-bug-issue.outputs.retry_of_issue }}
+      action: 'mark_as_resolved'

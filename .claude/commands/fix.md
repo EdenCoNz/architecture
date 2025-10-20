@@ -380,11 +380,52 @@ This step:
 
 ### Step 6: Verify Issue Auto-Close
 
-The GitHub issue will automatically close when the commit from Step 4 is merged to the default branch (main/master), because the commit message includes "Fixes #{issue_number}".
+After implementation completes, verify that the commit message includes the correct issue reference for auto-closing.
+
+**Verification Steps:**
+
+1. Get the latest commit message from the implementation:
+```bash
+git log -1 --format='%B'
+```
+
+2. Check if the commit message contains "Fixes #{issue_number}":
+```bash
+git log -1 --format='%B' | grep -q "Fixes #${issue_number}" && echo "VALID" || echo "INVALID"
+```
+
+3. If output is "INVALID":
+   - Display warning message:
+   ```
+   Warning: Commit message missing issue reference
+
+   Expected: Commit message should include "Fixes #{issue_number}"
+   Status: Issue reference not found in latest commit
+   Impact: GitHub issue will not auto-close when PR is merged
+
+   Commit message format should be:
+   Implementation of bug-github-issue-{issue_number}-{title}
+
+   Completed user stories:
+   - Story #1: {title}
+
+   Files modified:
+   - {files}
+
+   Fixes #{issue_number}
+
+   This typically indicates /implement command did not follow the expected format.
+   The issue can still be manually closed after PR merge.
+   ```
+   - Note this in the final report
+
+4. If output is "VALID":
+   - Confirm that the commit message includes "Fixes #{issue_number}"
+   - The GitHub issue will automatically close when the commit is merged to the default branch (main/master)
 
 Report to the user:
-- Confirm that the commit message includes "Fixes #{issue_number}"
-- Explain that the issue will auto-close upon merge to main/master
+- Confirm that the commit message includes "Fixes #{issue_number}" (or warn if missing)
+- Explain that the issue will auto-close upon merge to main/master (if reference found)
 - Confirm that the `fixed-pending-merge` label was added
 - If implementation was partial or blocked, note that the issue will remain open and unlabeled
 
@@ -396,9 +437,11 @@ Provide a comprehensive summary that includes:
 - User stories path created
 - Number of user stories implemented
 - Implementation status (completed/partial/blocked)
-- Commit message with "Fixes #{issue_number}" included
+- Commit message verification status:
+  - If verified: "Commit message includes 'Fixes #{issue_number}' - issue will auto-close on merge"
+  - If not verified: "Warning: Commit message missing 'Fixes #{issue_number}' reference - manual close required"
 - `fixed-pending-merge` label status (added/not added with reason)
-- Note that issue will auto-close when PR is merged to main/master
+- Note that issue will auto-close when PR is merged to main/master (if Fixes reference found)
 - Note that issue won't be re-processed by future `/fix` runs (if labeled)
 - Any errors or issues encountered
 

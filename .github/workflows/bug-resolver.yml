@@ -1,0 +1,233 @@
+name: Bug Resolver - Manage Issue Labels Based on Fix Outcomes
+
+# This is a reusable workflow that manages issue labeling based on fix attempt outcomes
+# It can be called from other workflows (like bug-logger) to apply appropriate labels
+# See: https://docs.github.com/en/actions/using-workflows/reusing-workflows
+
+on:
+  workflow_call:
+    inputs:
+      current_run_status:
+        description: 'Status of the current fix attempt run (success or failure)'
+        required: true
+        type: string
+      previous_issue_number:
+        description: 'GitHub issue number of the previous failure'
+        required: true
+        type: string
+      action:
+        description: 'Action to take: mark_previous_as_pending (new different failure) or mark_as_resolved (fix succeeded)'
+        required: true
+        type: string
+
+# Minimal permissions for issue labeling (principle of least privilege)
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  resolve-issue:
+    name: Apply Issue Labels
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate inputs
+        id: validate
+        run: |
+          echo "=========================================="
+          echo "Bug Resolver - Input Validation"
+          echo "=========================================="
+
+          # Validate current_run_status
+          CURRENT_STATUS="${{ inputs.current_run_status }}"
+          if [[ "$CURRENT_STATUS" != "success" && "$CURRENT_STATUS" != "failure" ]]; then
+            echo "ERROR: Invalid current_run_status. Must be 'success' or 'failure', got: $CURRENT_STATUS"
+            exit 1
+          fi
+          echo "Current run status: $CURRENT_STATUS"
+
+          # Validate previous_issue_number
+          ISSUE_NUMBER="${{ inputs.previous_issue_number }}"
+          if ! [[ "$ISSUE_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Invalid previous_issue_number. Must be a number, got: $ISSUE_NUMBER"
+            exit 1
+          fi
+          echo "Previous issue number: #$ISSUE_NUMBER"
+
+          # Validate action
+          ACTION="${{ inputs.action }}"
+          if [[ "$ACTION" != "mark_previous_as_pending" && "$ACTION" != "mark_as_resolved" ]]; then
+            echo "ERROR: Invalid action. Must be 'mark_previous_as_pending' or 'mark_as_resolved', got: $ACTION"
+            exit 1
+          fi
+          echo "Action to perform: $ACTION"
+
+          echo "=========================================="
+          echo "Input validation successful"
+          echo "=========================================="
+
+      - name: Check if issue exists
+        id: check-issue
+        run: |
+          ISSUE_NUMBER="${{ inputs.previous_issue_number }}"
+          echo "Checking if issue #$ISSUE_NUMBER exists..."
+
+          # Fetch issue details
+          ISSUE_DATA=$(gh issue view $ISSUE_NUMBER \
+            --repo ${{ github.repository }} \
+            --json number,title,state,labels 2>&1) || {
+            echo "ERROR: Failed to fetch issue #$ISSUE_NUMBER"
+            echo "issue_exists=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          # Parse issue state
+          ISSUE_STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
+          echo "Issue state: $ISSUE_STATE"
+
+          if [[ "$ISSUE_STATE" == "OPEN" ]]; then
+            echo "issue_exists=true" >> $GITHUB_OUTPUT
+            echo "Issue #$ISSUE_NUMBER is open and can be updated"
+          else
+            echo "issue_exists=false" >> $GITHUB_OUTPUT
+            echo "Issue #$ISSUE_NUMBER is not open (state: $ISSUE_STATE), skipping label update"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Mark previous issue as fix-pending
+        if: |
+          steps.check-issue.outputs.issue_exists == 'true' &&
+          inputs.action == 'mark_previous_as_pending'
+        run: |
+          ISSUE_NUMBER="${{ inputs.previous_issue_number }}"
+          echo "=========================================="
+          echo "Marking Issue #$ISSUE_NUMBER as fix-pending"
+          echo "=========================================="
+
+          # Add fix-pending label
+          gh issue edit $ISSUE_NUMBER \
+            --add-label "fix-pending" \
+            --repo ${{ github.repository }}
+
+          echo "Label 'fix-pending' added to issue #$ISSUE_NUMBER"
+
+          # Add explanatory comment
+          COMMENT_BODY="A new, different failure has been detected for the same feature/job/step combination. This suggests the original issue may have been resolved. This issue has been marked as \`fix-pending\` for verification."
+
+          gh issue comment $ISSUE_NUMBER \
+            --body "$COMMENT_BODY" \
+            --repo ${{ github.repository }}
+
+          echo "Comment added to issue #$ISSUE_NUMBER"
+          echo "=========================================="
+          echo "Successfully marked issue as fix-pending"
+          echo "=========================================="
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Mark issue as resolved (pending merge)
+        if: |
+          steps.check-issue.outputs.issue_exists == 'true' &&
+          inputs.action == 'mark_as_resolved' &&
+          inputs.current_run_status == 'success'
+        run: |
+          ISSUE_NUMBER="${{ inputs.previous_issue_number }}"
+          echo "=========================================="
+          echo "Marking Issue #$ISSUE_NUMBER as resolved"
+          echo "=========================================="
+
+          # Add pending-merge label
+          gh issue edit $ISSUE_NUMBER \
+            --add-label "pending-merge" \
+            --repo ${{ github.repository }}
+
+          echo "Label 'pending-merge' added to issue #$ISSUE_NUMBER"
+
+          # Add success comment
+          COMMENT_BODY="The fix attempt for this issue has completed successfully. The fix is now pending review and merge. Once merged, this issue can be closed."
+
+          gh issue comment $ISSUE_NUMBER \
+            --body "$COMMENT_BODY" \
+            --repo ${{ github.repository }}
+
+          echo "Comment added to issue #$ISSUE_NUMBER"
+          echo "=========================================="
+          echo "Successfully marked issue as pending merge"
+          echo "=========================================="
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Log failure to resolve issue
+        if: |
+          steps.check-issue.outputs.issue_exists == 'true' &&
+          inputs.action == 'mark_as_resolved' &&
+          inputs.current_run_status == 'failure'
+        run: |
+          ISSUE_NUMBER="${{ inputs.previous_issue_number }}"
+          echo "=========================================="
+          echo "Fix Attempt Failed for Issue #$ISSUE_NUMBER"
+          echo "=========================================="
+
+          # Add comment about failed fix attempt
+          COMMENT_BODY="The automated fix attempt for this issue has failed. Manual investigation may be required. Check the workflow logs for details."
+
+          gh issue comment $ISSUE_NUMBER \
+            --body "$COMMENT_BODY" \
+            --repo ${{ github.repository }}
+
+          echo "Failure comment added to issue #$ISSUE_NUMBER"
+          echo "=========================================="
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Handle non-existent issue
+        if: steps.check-issue.outputs.issue_exists == 'false'
+        run: |
+          ISSUE_NUMBER="${{ inputs.previous_issue_number }}"
+          echo "=========================================="
+          echo "WARNING: Issue #$ISSUE_NUMBER not found or not open"
+          echo "=========================================="
+          echo "Skipping label updates for non-existent or closed issue"
+          echo ""
+          echo "This can happen if:"
+          echo "  - Issue was already closed"
+          echo "  - Issue number is invalid"
+          echo "  - Issue was deleted"
+          echo "=========================================="
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Bug Resolver Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Input details
+          echo "### Input Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue Number**: #${{ inputs.previous_issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Current Run Status**: ${{ inputs.current_run_status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Action**: ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Action taken
+          if [[ "${{ steps.check-issue.outputs.issue_exists }}" == "true" ]]; then
+            echo "### Action Taken" >> $GITHUB_STEP_SUMMARY
+
+            if [[ "${{ inputs.action }}" == "mark_previous_as_pending" ]]; then
+              echo "- Label added: \`fix-pending\`" >> $GITHUB_STEP_SUMMARY
+              echo "- Comment added explaining status change" >> $GITHUB_STEP_SUMMARY
+            elif [[ "${{ inputs.action }}" == "mark_as_resolved" && "${{ inputs.current_run_status }}" == "success" ]]; then
+              echo "- Label added: \`pending-merge\`" >> $GITHUB_STEP_SUMMARY
+              echo "- Comment added indicating successful fix" >> $GITHUB_STEP_SUMMARY
+            elif [[ "${{ inputs.action }}" == "mark_as_resolved" && "${{ inputs.current_run_status }}" == "failure" ]]; then
+              echo "- Comment added indicating failed fix attempt" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "### Action Taken" >> $GITHUB_STEP_SUMMARY
+            echo "- No action taken (issue not found or not open)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Issue Link" >> $GITHUB_STEP_SUMMARY
+          echo "[View Issue #${{ inputs.previous_issue_number }}](https://github.com/${{ github.repository }}/issues/${{ inputs.previous_issue_number }})" >> $GITHUB_STEP_SUMMARY
