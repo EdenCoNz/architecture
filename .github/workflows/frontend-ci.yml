@@ -1,6 +1,6 @@
 name: Frontend CI/CD
 
-# Trigger on pull requests and pushes to main branch
+# Trigger on pull requests from feature branches and pushes to main branch
 on:
   push:
     branches: [main]
@@ -31,6 +31,8 @@ jobs:
     name: Lint and Format Check
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # Only run on feature branches for PRs, or always for pushes/manual triggers
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -61,6 +63,8 @@ jobs:
     name: TypeScript Type Check
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # Only run on feature branches for PRs, or always for pushes/manual triggers
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -88,6 +92,8 @@ jobs:
     name: Unit Tests with Coverage
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # Only run on feature branches for PRs, or always for pushes/manual triggers
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -176,6 +182,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     needs: [lint, typecheck, test]  # Only build if lint, typecheck, and test pass
+    # Only run on feature branches for PRs, or always for pushes/manual triggers
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -227,6 +235,8 @@ jobs:
     name: Security Audit
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # Only run on feature branches for PRs, or always for pushes/manual triggers
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:

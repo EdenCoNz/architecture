@@ -295,11 +295,21 @@ jobs:
 
           cp "$LOG_FILE" "${LOG_FILE}.tmp"
 
+          # Extract feature name from branch if it's a feature branch
+          HEAD_BRANCH="${{ steps.extract-metadata.outputs.head_branch }}"
+          if [[ "$HEAD_BRANCH" =~ ^feature/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            FEATURE_NAME="$HEAD_BRANCH"
+          else
+            FEATURE_ID="N/A (auto-detected failure)"
+            FEATURE_NAME="N/A (auto-detected failure)"
+          fi
+
           # Populate each field in the table
           # Using @ as sed delimiter to avoid conflicts with URLs containing /
           sed -i "s@| title |  |@| title | $TITLE |@" "${LOG_FILE}.tmp"
-          sed -i "s@| featureID |  |@| featureID | N/A (auto-detected failure) |@" "${LOG_FILE}.tmp"
-          sed -i "s@| featureName |  |@| featureName | N/A (auto-detected failure) |@" "${LOG_FILE}.tmp"
+          sed -i "s@| featureID |  |@| featureID | $FEATURE_ID |@" "${LOG_FILE}.tmp"
+          sed -i "s@| featureName |  |@| featureName | $FEATURE_NAME |@" "${LOG_FILE}.tmp"
           sed -i "s@| jobName |  |@| jobName | $JOB_NAME |@" "${LOG_FILE}.tmp"
           sed -i "s@| stepName |  |@| stepName | $STEP_NAME |@" "${LOG_FILE}.tmp"
           sed -i "s@| logLineNumbers |  |@| logLineNumbers | $LOG_LINE_NUMBERS |@" "${LOG_FILE}.tmp"
