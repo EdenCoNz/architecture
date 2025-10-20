@@ -86,6 +86,50 @@ After verifying implementation completion in Step 3:
 
 Note: This step prepares all changes for the commit operation that will be added in Story #3.
 
+### Step 5: Create Feature Commit
+
+After staging all changes in Step 4:
+
+1. **Read feature title**:
+   - Read the feature-log.json file
+   - Find the feature entry with matching featureID
+   - Extract the feature title for use in the commit message
+
+2. **Create commit with standardized message**:
+   - Use git commit to create a commit with the message format: "Feature {feature_id}: {feature_title}"
+   - Use a HEREDOC to ensure proper formatting of multi-line commit messages
+   - Include the Claude Code attribution footer in the commit message
+
+3. **Capture and verify commit**:
+   - Capture the commit hash from the git commit output
+   - Run git log -1 to verify the commit was created successfully
+   - Store the commit hash for reporting
+   - Confirm the commit message follows the correct format
+
+Note: This step creates a permanent record of the feature implementation with a standardized commit message format. The commit hash will be used for push operations in Story #4.
+
+### Step 6: Push to Remote Branch
+
+After creating the feature commit in Step 5:
+
+1. **Check remote tracking status**:
+   - Run git branch -vv to check if the current branch has remote tracking configured
+   - Parse the output to determine if the branch tracks a remote (e.g., [origin/branch-name])
+   - This determines whether to use git push or git push -u
+
+2. **Push to remote repository**:
+   - If branch has remote tracking: Use git push to push the commit
+   - If branch has no remote tracking: Use git push -u origin {branch-name} to create remote branch and set tracking
+   - The -u flag (--set-upstream) creates the remote branch and establishes tracking relationship
+
+3. **Verify push success**:
+   - Check the git push command exit code to verify success
+   - Capture any error output if the push fails
+   - Run git status to confirm the branch is up-to-date with remote
+   - Report push success or failure with detailed error information
+
+Note: This step ensures the feature commit is backed up to the remote repository and enables PR creation in Story #5. Push errors (network issues, permissions, conflicts) are caught and reported.
+
 ## Report
 
 Provide a summary that includes:
@@ -96,4 +140,6 @@ Provide a summary that includes:
 - Total stories completed vs. total stories
 - Feature log update confirmation
 - Git staging status (number of files staged, key files staged)
+- Git commit status (commit hash, commit message)
+- Git push status (success/failure, branch name, remote tracking status)
 - Any issues encountered during the process
