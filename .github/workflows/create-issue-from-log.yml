@@ -245,15 +245,16 @@ jobs:
           fi
 
           # Store excerpt in output (handle multiline with EOF delimiter)
+          # Use printf to safely output LOG_EXCERPT without command substitution
           echo "log_excerpt<<EOF" >> $GITHUB_OUTPUT
-          echo "$LOG_EXCERPT" >> $GITHUB_OUTPUT
+          printf '%s\n' "$LOG_EXCERPT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
           # Add excerpt preview to summary
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Log Excerpt Preview (first 10 lines)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$LOG_EXCERPT" | head -n 10 >> $GITHUB_STEP_SUMMARY
+          printf '%s\n' "$LOG_EXCERPT" | head -n 10 >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         env:
@@ -305,9 +306,10 @@ jobs:
           # Append log excerpt to the template
           # The template has a section "## Failed Step Log Excerpt" followed by description
           # We'll append the actual log excerpt after that section
+          # Use printf to safely output LOG_EXCERPT without command substitution
           echo "" >> "${LOG_FILE}.tmp"
           echo '```' >> "${LOG_FILE}.tmp"
-          echo "$LOG_EXCERPT" >> "${LOG_FILE}.tmp"
+          printf '%s\n' "$LOG_EXCERPT" >> "${LOG_FILE}.tmp"
           echo '```' >> "${LOG_FILE}.tmp"
 
           # Replace original log file with populated version
