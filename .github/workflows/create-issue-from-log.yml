@@ -331,58 +331,6 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
 
-      - name: Ensure labels exist
-        id: ensure-labels
-        run: |
-          # Extract job name and workflow name for labels
-          JOB_NAME="${{ steps.extract-metadata.outputs.job_name }}"
-          WORKFLOW_NAME="${{ steps.extract-metadata.outputs.workflow_name }}"
-          RUN_ID="${{ steps.extract-metadata.outputs.run_id }}"
-
-          # Sanitize names for labels (lowercase, replace spaces with hyphens, remove special chars)
-          JOB_LABEL=$(echo "$JOB_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
-          WORKFLOW_LABEL=$(echo "$WORKFLOW_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
-
-          echo "## Ensuring Labels Exist" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # List of all labels that will be needed
-          LABEL_NAMES=(
-            "workflow-failure"
-            "workflow:${WORKFLOW_LABEL}"
-            "job:${JOB_LABEL}"
-            "run:${RUN_ID}"
-          )
-
-          # Check and create each label if it doesn't exist
-          for label in "${LABEL_NAMES[@]}"; do
-            # Check if label exists
-            if gh label list --limit 1000 | grep -q "^${label}	"; then
-              echo "- ✓ Label exists: \`$label\`" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- ⚠ Label missing: \`$label\` - creating..." >> $GITHUB_STEP_SUMMARY
-
-              # Create the label with appropriate color based on type
-              if [[ "$label" == "workflow-failure" ]]; then
-                gh label create "$label" --description "Automated workflow failure tracking" --color "d73a4a" || true
-              elif [[ "$label" == workflow:* ]]; then
-                gh label create "$label" --description "Workflow: ${WORKFLOW_NAME}" --color "0075ca" || true
-              elif [[ "$label" == job:* ]]; then
-                gh label create "$label" --description "Job: ${JOB_NAME}" --color "a2eeef" || true
-              elif [[ "$label" == run:* ]]; then
-                gh label create "$label" --description "Run ID: ${RUN_ID}" --color "e4e669" || true
-              fi
-
-              echo "  - ✓ Created label: \`$label\`" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status**: ✓ All required labels verified/created" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - name: Create tracking issue
         id: create-issue
         run: |
@@ -391,25 +339,9 @@ jobs:
           # Extract title from populated template
           ISSUE_TITLE=$(grep "^| title |" "$LOG_FILE" | sed 's/^| title | \(.*\) |$/\1/')
 
-          # Extract job name and workflow name for labels
-          JOB_NAME="${{ steps.extract-metadata.outputs.job_name }}"
-          WORKFLOW_NAME="${{ steps.extract-metadata.outputs.workflow_name }}"
-          RUN_ID="${{ steps.extract-metadata.outputs.run_id }}"
-
-          # Sanitize names for labels (lowercase, replace spaces with hyphens, remove special chars)
-          JOB_LABEL=$(echo "$JOB_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
-          WORKFLOW_LABEL=$(echo "$WORKFLOW_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
-
           echo "## Creating Tracking Issue" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Issue Title**: $ISSUE_TITLE" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Create labels for the issue
-          # Labels enable searching by workflow, job, and run information
-          LABELS="workflow-failure,workflow:${WORKFLOW_LABEL},job:${JOB_LABEL},run:${RUN_ID}"
-
-          echo "**Labels**: $LABELS" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Read the populated log file as the issue body
@@ -418,8 +350,7 @@ jobs:
           # Create the issue using gh CLI
           ISSUE_URL=$(gh issue create \
             --title "$ISSUE_TITLE" \
-            --body "$ISSUE_BODY" \
-            --label "$LABELS")
+            --body "$ISSUE_BODY")
 
           echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
 
@@ -450,14 +381,6 @@ jobs:
             echo "- **Issue Number**: #${{ steps.create-issue.outputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
             echo "- **Log File**: \`${{ inputs.log_filename }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- **Workflow Run**: ${{ steps.extract-metadata.outputs.run_url }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Search Capabilities" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "You can find this issue using the following labels:" >> $GITHUB_STEP_SUMMARY
-            echo "- \`workflow-failure\`: All automated failure issues" >> $GITHUB_STEP_SUMMARY
-            echo "- \`workflow:*\`: Filter by workflow name" >> $GITHUB_STEP_SUMMARY
-            echo "- \`job:*\`: Filter by job name" >> $GITHUB_STEP_SUMMARY
-            echo "- \`run:*\`: Filter by specific run ID" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Issue creation failed**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
