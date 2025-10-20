@@ -143,7 +143,7 @@ jobs:
           cat workflow_run_metadata.json | jq '.jobs' > workflow_jobs.json
 
           echo "Available jobs in workflow run:"
-          cat workflow_jobs.json | jq -r '.[] | "  - \(.name) (database ID: \(.databaseId), conclusion: \(.conclusion // \"none\"))"'
+          cat workflow_jobs.json | jq -r '.[] | "  - " + .name + " (database ID: " + (.databaseId | tostring) + ", conclusion: " + (.conclusion // "none") + ")"'
           echo ""
 
           # Find the failed job by searching for a job name that contains the job ID
@@ -159,7 +159,7 @@ jobs:
             echo ""
             echo "Expected to find a job with conclusion='failure'"
             echo "Available jobs:"
-            cat workflow_jobs.json | jq -r '.[] | "  - \(.name) (conclusion: \(.conclusion // \"none\"))"'
+            cat workflow_jobs.json | jq -r '.[] | "  - " + .name + " (conclusion: " + (.conclusion // "none") + ")"'
             exit 1
           fi
 
