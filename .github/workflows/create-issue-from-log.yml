@@ -244,6 +244,10 @@ jobs:
             echo "No clear error pattern found, extracted last 50 lines of logs" >> $GITHUB_STEP_SUMMARY
           fi
 
+          # Sanitize log excerpt to remove ANSI escape codes and other problematic characters
+          # This prevents command injection and terminal escape sequence issues
+          LOG_EXCERPT=$(printf '%s\n' "$LOG_EXCERPT" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/`/'"'"'/g')
+
           # Store excerpt in output (handle multiline with EOF delimiter)
           # Use printf to safely output LOG_EXCERPT without command substitution
           echo "log_excerpt<<EOF" >> $GITHUB_OUTPUT
