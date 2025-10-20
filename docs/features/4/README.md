@@ -5,7 +5,7 @@
 ### Completed Stories
 
 #### Story #1: Detect Workflow Job Failures ✓
-**Status**: Completed
+**Status**: Completed.
 **Implementation Date**: 2025-10-21
 
 The workflow failure detection system automatically monitors configured workflows and detects when any job fails or is cancelled.
