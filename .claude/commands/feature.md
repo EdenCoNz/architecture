@@ -20,7 +20,58 @@ Transform a feature request into comprehensive user stories and automatically in
 
 ## Workflow
 
-### Step 1: Launch Product Owner Agent
+### Step 1: Pre-flight Checks
+
+Before starting any feature work, verify that the environment is clean and ready:
+
+1. **Check for active Pull Requests**:
+   - Use gh pr list command to check for any open PRs in the repository
+   - Parse the output to count the number of active PRs
+   - If any active PRs exist: STOP execution and inform the user with message: "Cannot start new feature - there are {count} active Pull Request(s). Please merge or close existing PRs before starting a new feature."
+
+2. **Check for active Issues**:
+   - Use gh issue list command to check for any open issues in the repository
+   - Parse the output to count the number of active issues
+   - If any active issues exist: STOP execution and inform the user with message: "Cannot start new feature - there are {count} active issue(s). Please close existing issues before starting a new feature."
+
+3. **Verify repository state**:
+   - Run git status to verify the repository is in a clean state
+   - If there are uncommitted changes: STOP execution and inform the user with message: "Cannot start new feature - repository has uncommitted changes. Please commit or stash changes before starting a new feature."
+
+4. **Pre-flight check results**:
+   - If ALL checks pass: Display "Pre-flight checks passed - ready to create feature" and CONTINUE to Step 2
+   - If ANY check fails: STOP execution and display the failure message with clear instructions on how to resolve
+
+### Step 2: Branch Setup
+
+After pre-flight checks pass, set up the feature branch:
+
+1. **Verify current branch**:
+   - Run git branch --show-current to get the current branch name
+   - If not on main branch: Run git checkout main to switch to main
+   - Capture any errors during checkout
+
+2. **Update main branch**:
+   - Run git pull origin main to fetch and merge latest changes from remote
+   - Verify pull success by checking the command exit code
+   - If pull fails: STOP execution and inform the user with message: "Failed to update main branch. Error: {error_message}. Please resolve manually."
+
+3. **Generate feature branch name**:
+   - IMPORTANT: This step creates a TEMPORARY branch name that will be REPLACED in Step 4 after feature ID is generated
+   - Create temporary branch name using format: `feature/temp-{timestamp}` where timestamp is current Unix timestamp
+   - This temporary branch will be renamed in Step 4 once we have the actual feature ID
+
+4. **Create feature branch**:
+   - Run git checkout -b {temp_branch_name} to create and switch to the temporary feature branch
+   - Verify branch creation by running git branch --show-current
+   - If branch creation fails: STOP execution and inform the user with message: "Failed to create feature branch. Error: {error_message}. Please resolve manually."
+
+5. **Branch setup confirmation**:
+   - Display confirmation message: "Feature branch created: {temp_branch_name}"
+   - Note that branch will be renamed to proper format after feature ID is generated
+   - CONTINUE to Step 3
+
+### Step 3: Launch Product Owner Agent
 
 Use the Task tool to launch the product-owner agent with the following instructions:
 
@@ -32,7 +83,30 @@ Then, analyze this feature request for a web application and create comprehensiv
 
 You MUST plan the user stories needed for this feature based on the available agents and feature requirements.
 
-### Step 2: Extract Feature ID and Auto-Implement
+### Step 4: Rename Feature Branch
+
+After the product-owner agent completes and creates the feature:
+
+1. **Extract feature information**:
+   - Look in the agent's output for "Feature #XXX" to extract the feature ID
+   - Check the docs/features/ directory to verify the feature folder was created
+   - Read the feature-log.json to extract the feature title for the branch name
+
+2. **Generate proper branch name**:
+   - Create branch name using format: `feature/{featureID}-{feature-description}`
+   - The feature-description should be a kebab-case version of the feature title (lowercase, hyphens between words, max 50 chars)
+   - Example: Feature #123 "User Authentication System" becomes `feature/123-user-authentication-system`
+
+3. **Rename the branch**:
+   - Run git branch -m {temp_branch_name} {proper_branch_name} to rename the temporary branch
+   - Verify rename success by running git branch --show-current
+   - If rename fails: Display warning but CONTINUE (we can proceed with temp branch name)
+
+4. **Branch rename confirmation**:
+   - Display confirmation message: "Feature branch renamed to: {proper_branch_name}"
+   - CONTINUE to Step 5
+
+### Step 5: Extract Feature ID and Auto-Implement
 
 After the product-owner agent completes and returns its output:
 
@@ -43,7 +117,7 @@ After the product-owner agent completes and returns its output:
 
 Note: All new features should have `isSummarised: false` by default, which allows the /summarise command to process them later.
 
-### Step 3: Detect Implementation Completion
+### Step 6: Detect Implementation Completion
 
 After the `/implement` command completes:
 
@@ -63,9 +137,9 @@ After the `/implement` command completes:
    - Find the feature entry with matching featureID
    - Confirm that `userStoriesImplemented` has been set to a timestamp (this should have been done by /implement)
 
-### Step 4: Stage All Feature Changes
+### Step 7: Stage All Feature Changes
 
-After verifying implementation completion in Step 3:
+After verifying implementation completion in Step 6:
 
 1. **Stage all modified files**:
    - Use git add to stage all modified files in the working directory
@@ -86,9 +160,9 @@ After verifying implementation completion in Step 3:
    - Count the number of files staged
    - Include staging confirmation in the final report
 
-### Step 5: Create Feature Commit
+### Step 8: Create Feature Commit
 
-After staging all changes in Step 4:
+After staging all changes in Step 7:
 
 1. **Read feature title**:
    - Read the feature-log.json file
@@ -110,11 +184,11 @@ After staging all changes in Step 4:
    - Capture the error message from git commit command
    - Provide manual recovery instructions based on failure type
    - If commit succeeded: CONTINUE to Step 6
-   - If commit failed: SKIP Steps 6-7 and jump to Report (cannot push/PR without commit)
+   - If commit failed: SKIP Steps 9-10 and jump to Report (cannot push/PR without commit)
 
-### Step 6: Push to Remote Branch
+### Step 9: Push to Remote Branch
 
-After creating the feature commit in Step 5 (SKIP this step if commit failed):
+After creating the feature commit in Step 8 (SKIP this step if commit failed):
 
 1. **Check remote tracking status**:
    - Run git branch -vv to check if the current branch has remote tracking configured
@@ -135,12 +209,12 @@ After creating the feature commit in Step 5 (SKIP this step if commit failed):
    - Capture the error message from git push command
    - Provide manual recovery instructions: "Push failed. Commit exists locally (hash: {commit_hash}). Retry with: git push"
    - Report PARTIAL SUCCESS: "Commit created locally but push failed"
-   - If push succeeded: CONTINUE to Step 7
-   - If push failed: SKIP Step 7 and jump to Report (cannot create PR without remote branch)
+   - If push succeeded: CONTINUE to Step 10
+   - If push failed: SKIP Step 10 and jump to Report (cannot create PR without remote branch)
 
-### Step 7: Create Pull Request
+### Step 10: Create Pull Request
 
-After successfully pushing to the remote branch in Step 6 (SKIP this step if push failed):
+After successfully pushing to the remote branch in Step 9 (SKIP this step if push failed):
 
 1. **Extract feature summary for PR body**:
    - Read the user-stories.md file at `docs/features/{feature_id}/user-stories.md`
@@ -167,6 +241,18 @@ After successfully pushing to the remote branch in Step 6 (SKIP this step if pus
 ## Report
 
 Provide a comprehensive summary with the following sections:
+
+### Pre-flight Checks
+- Active PRs check status (pass/fail)
+- Active issues check status (pass/fail)
+- Repository state check status (pass/fail)
+- Overall pre-flight status
+
+### Branch Setup
+- Previous branch (should be main)
+- Main branch update status
+- Feature branch name (final name after rename)
+- Branch creation status
 
 ### Feature Creation
 - Feature ID that was created
