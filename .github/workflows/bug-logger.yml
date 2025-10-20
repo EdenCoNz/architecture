@@ -119,10 +119,20 @@ jobs:
           FAILED_JOB_NAME="${{ steps.parse-failures.outputs.first_failed_job }}"
           echo "Looking for job: $FAILED_JOB_NAME"
 
+          # Debug: Show available jobs
+          echo "Available jobs in workflow:"
+          cat workflow_jobs.json | jq -r '.jobs[].name'
+
           # Extract the job ID for the failed job
           JOB_ID=$(cat workflow_jobs.json | jq -r ".jobs[] | select(.name | contains(\"$FAILED_JOB_NAME\")) | .databaseId" | head -1)
           echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
           echo "Failed job ID: $JOB_ID"
+
+          # Debug: Show job steps if job ID was found
+          if [ -n "$JOB_ID" ]; then
+            echo "Steps for job $JOB_ID:"
+            cat workflow_jobs.json | jq -r ".jobs[] | select(.databaseId == $JOB_ID) | .steps[] | \"\(.number): \(.name) (conclusion: \(.conclusion // \"none\"))\""
+          fi
 
           # Get the full logs for the failed job
           if [ -n "$JOB_ID" ]; then
@@ -130,7 +140,24 @@ jobs:
             gh run view --job=$JOB_ID --log > job_logs_full.txt || echo "Could not fetch logs"
 
             # Extract the failed step name from the job
+            # GitHub Actions API returns step names in the .name field
+            # If a step doesn't have an explicit 'name:' field in the workflow YAML,
+            # GitHub will auto-generate one based on the action or command
             FAILED_STEP=$(cat workflow_jobs.json | jq -r ".jobs[] | select(.databaseId == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" | head -1)
+
+            # If no step name found, try to get the first failed step's number
+            if [ -z "$FAILED_STEP" ] || [ "$FAILED_STEP" = "null" ]; then
+              echo "Warning: No step name found in API response, attempting to extract step number"
+              FAILED_STEP_NUMBER=$(cat workflow_jobs.json | jq -r ".jobs[] | select(.databaseId == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .number" | head -1)
+              if [ -n "$FAILED_STEP_NUMBER" ] && [ "$FAILED_STEP_NUMBER" != "null" ]; then
+                FAILED_STEP="Step $FAILED_STEP_NUMBER"
+                echo "Using step number: $FAILED_STEP"
+              else
+                FAILED_STEP="Unknown"
+                echo "Warning: Could not determine failed step name or number"
+              fi
+            fi
+
             echo "failed_step=$FAILED_STEP" >> $GITHUB_OUTPUT
             echo "Failed step: $FAILED_STEP"
 
