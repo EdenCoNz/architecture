@@ -190,63 +190,15 @@ Remediation:
 ```
 - STOP execution immediately
 
-#### Step 0.6: Ensure Fixed-Pending-Merge Label Exists
+#### Step 0.6: Check for Open GitHub Issues (Warning)
 
-Create the `fixed-pending-merge` label if it doesn't already exist (idempotent operation):
-
+Check if there are any open issues:
 ```bash
-gh label create "fixed-pending-merge" \
-  --description "Bug fix implemented, awaiting PR merge" \
-  --color "0E8A16" 2>&1 || true
+gh issue list --state open --limit 1 --json number
 ```
-
-This command:
-- Creates the label if it doesn't exist
-- Silently succeeds if the label already exists (via `|| true`)
-- Uses green color (0E8A16) to indicate positive status
-- Is safe to run multiple times
-
-Note: This step ensures the label is available for marking fixed issues, preventing them from being re-processed by future `/fix` runs.
-
-#### Step 0.7: Check for Open GitHub Issues (Warning)
-
-Check if there are any open issues that haven't been fixed yet:
-```bash
-gh issue list --state open --search "-label:fixed-pending-merge" --limit 1 --json number
-```
-
-This filters out issues that have already been fixed and are awaiting PR merge.
 
 If output shows no issues (empty array []):
-- Check if there are ANY open issues (including fixed ones):
-  ```bash
-  gh issue list --state open --limit 1 --json number
-  ```
-
-- If there are open issues but all have `fixed-pending-merge` label:
-  - Display informational message:
-  ```
-  Info: All open issues are fixed pending merge
-
-  Status: X open issue(s) found, all have fixes pending PR merge
-  Impact: No new issues available for /fix command to process
-  Command: /fix
-
-  Information:
-  All open issues have been fixed and are awaiting PR merge to main/master.
-  Once the PRs merge, these issues will auto-close via "Fixes #N" commit messages.
-
-  Next Steps:
-  1. Review and merge pending PRs to close fixed issues
-  2. Wait for new GitHub Actions failures to create new issues
-  3. Run /fix again when new issues are available
-
-  This is informational only - no action needed.
-  ```
-  - STOP execution (no work to do, but not an error)
-
-- If there are no open issues at all:
-  - Display warning message:
+- Display warning message:
   ```
   Warning: No open GitHub issues found
 
@@ -269,7 +221,7 @@ If output shows no issues (empty array []):
   ```
   - STOP execution (no work to do, but not an error)
 
-#### Step 0.8: Validate GitHub Integration Setup
+#### Step 0.7: Validate GitHub Integration Setup
 
 Check if .github/ directory exists:
 ```bash
@@ -294,7 +246,7 @@ You may continue, but the /fix command is most useful with GitHub Actions config
 ```
 - This is a WARNING - allow execution to continue
 
-#### Step 0.9: Validation Summary
+#### Step 0.8: Validation Summary
 
 If all validations pass:
 - Output: "Pre-flight validation passed - proceeding to fetch oldest GitHub issue"
@@ -308,22 +260,19 @@ If no open issues found:
 - Execution stopped (no work to do)
 - This is informational, not an error
 
-### Step 1: Fetch Oldest Unfixed GitHub Issue
+### Step 1: Fetch Oldest GitHub Issue
 
-Use the Bash tool to get the oldest open issue that hasn't been fixed yet (excludes issues with `fixed-pending-merge` label):
+Use the Bash tool to get the oldest open issue:
 
 ```bash
-gh issue list --state open --search "-label:fixed-pending-merge" --json number,title,body,createdAt,labels --limit 100 | python3 -c "import json, sys; issues = json.load(sys.stdin); oldest = min(issues, key=lambda x: x['createdAt']) if issues else None; print(json.dumps(oldest, indent=2)) if oldest else print('{}')"
+gh issue list --state open --json number,title,body,createdAt,labels --limit 100 | python3 -c "import json, sys; issues = json.load(sys.stdin); oldest = min(issues, key=lambda x: x['createdAt']) if issues else None; print(json.dumps(oldest, indent=2)) if oldest else print('{}')"
 ```
 
 This command:
-- Lists all open issues WITHOUT the `fixed-pending-merge` label using --search "-label:labelname" syntax
-- Filters out issues that have already been fixed and are awaiting PR merge
+- Lists all open issues
 - Sorts by creation date using Python (oldest first)
-- Returns the first (oldest) unfixed issue
+- Returns the first (oldest) issue
 - Does not require jq to be installed
-
-Note: The GitHub CLI does not support `--label '!labelname'` negation syntax. Use `--search "-label:labelname"` instead to exclude labels.
 
 If no issues are found, report to the user and stop.
 

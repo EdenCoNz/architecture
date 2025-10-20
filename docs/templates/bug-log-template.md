@@ -7,6 +7,7 @@
 | featureName |  |
 | jobName |  |
 | stepName |  |
+| logLineNumbers |  |
 | PRURL |  |
 | commitURL |  |
 | runURL |  |

@@ -118,19 +118,43 @@ jobs:
           echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
           echo "Failed job ID: $JOB_ID"
 
-          # Get the logs for the failed job (limited excerpt)
+          # Get the full logs for the failed job
           if [ -n "$JOB_ID" ]; then
             echo "Fetching logs for job ID: $JOB_ID"
-            gh run view --job=$JOB_ID --log > job_logs.txt || echo "Could not fetch logs"
+            gh run view --job=$JOB_ID --log > job_logs_full.txt || echo "Could not fetch logs"
+
+            # Extract the failed step name from the job
+            FAILED_STEP=$(cat workflow_jobs.json | jq -r ".jobs[] | select(.databaseId == $JOB_ID) | .steps[] | select(.conclusion == \"failure\") | .name" | head -1)
+            echo "failed_step=$FAILED_STEP" >> $GITHUB_OUTPUT
+            echo "Failed step: $FAILED_STEP"
 
             # Extract failure context (last 50 lines which usually contain the error)
-            tail -50 job_logs.txt > log_excerpt.txt || echo "No logs available"
+            tail -50 job_logs_full.txt > log_excerpt.txt || echo "No logs available"
+
+            # Extract line numbers from the log excerpt (first and last line numbers)
+            # Line numbers are typically formatted as "2023-10-20T12:34:56.789Z ##[group]Run npm ci"
+            # Or as numbered lines in the GitHub Actions UI
+            FIRST_LINE=$(head -1 log_excerpt.txt | grep -oP '^\d+' || echo "1")
+            LAST_LINE=$(tail -1 log_excerpt.txt | grep -oP '^\d+' || echo "50")
+
+            # If we can't extract actual line numbers, calculate based on total lines
+            TOTAL_LINES=$(wc -l < job_logs_full.txt)
+            if [ "$FIRST_LINE" = "1" ] && [ "$LAST_LINE" = "50" ]; then
+              FIRST_LINE=$((TOTAL_LINES - 50 > 0 ? TOTAL_LINES - 50 : 1))
+              LAST_LINE=$TOTAL_LINES
+            fi
+
+            LOG_LINE_RANGE="L${FIRST_LINE}-L${LAST_LINE}"
+            echo "log_line_numbers=$LOG_LINE_RANGE" >> $GITHUB_OUTPUT
+            echo "Log line numbers: $LOG_LINE_RANGE"
 
             # Save log excerpt for later use
             echo "Log excerpt saved"
           else
             echo "Could not find job ID for failed job"
             echo "No logs available" > log_excerpt.txt
+            echo "failed_step=Unknown" >> $GITHUB_OUTPUT
+            echo "log_line_numbers=L0-L0" >> $GITHUB_OUTPUT
           fi
         env:
           GH_TOKEN: ${{ github.token }}
@@ -143,6 +167,8 @@ jobs:
           FEATURE_ID="${{ steps.extract-info.outputs.feature_id }}"
           FEATURE_NAME="${{ steps.extract-info.outputs.feature_name }}"
           FAILED_JOB="${{ steps.parse-failures.outputs.first_failed_job }}"
+          FAILED_STEP="${{ steps.fetch-logs.outputs.failed_step }}"
+          LOG_LINE_NUMBERS="${{ steps.fetch-logs.outputs.log_line_numbers }}"
           PR_URL="${{ inputs.pr_url }}"
           COMMIT_SHA="${{ github.sha }}"
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}"
@@ -153,20 +179,19 @@ jobs:
 
           | Field | Value |
           |-------|-------|
-          | Title | [$BRANCH_NAME] $FAILED_JOB job failed |
-          | Feature ID | $FEATURE_ID |
-          | Feature Name | $FEATURE_NAME |
-          | Job Name | $FAILED_JOB |
-          | Branch | $BRANCH_NAME |
-          | PR URL | $PR_URL |
-          | Commit URL | https://github.com/${{ github.repository }}/commit/$COMMIT_SHA |
-          | Run URL | $RUN_URL |
-          | Failed Jobs | ${{ steps.parse-failures.outputs.failed_jobs }} |
-          | Failure Count | ${{ steps.parse-failures.outputs.failure_count }} |
+          | title | [$BRANCH_NAME] $FAILED_JOB job failed |
+          | featureID | $FEATURE_ID |
+          | featureName | $FEATURE_NAME |
+          | jobName | $FAILED_JOB |
+          | stepName | $FAILED_STEP |
+          | logLineNumbers | $LOG_LINE_NUMBERS |
+          | PRURL | $PR_URL |
+          | commitURL | https://github.com/${{ github.repository }}/commit/$COMMIT_SHA |
+          | runURL | $RUN_URL |
 
           ## Failed Step Log Excerpt
 
-          The following shows the failed step's output. For the complete workflow logs, see the [workflow run]($RUN_URL).
+          The following shows the failed step's output (lines $LOG_LINE_NUMBERS). For the complete workflow logs, see the [workflow run]($RUN_URL).
 
           \`\`\`
           $(cat log_excerpt.txt)
@@ -189,8 +214,143 @@ jobs:
           echo "Bug log content created"
           cat bug_log.md
 
+      - name: Check for duplicate issues
+        id: check-duplicate
+        run: |
+          echo "=========================================="
+          echo "Starting Duplicate Detection"
+          echo "=========================================="
+
+          # Current failure context
+          CURRENT_TITLE="[${{ inputs.branch_name }}] ${{ steps.parse-failures.outputs.first_failed_job }} job failed"
+          CURRENT_FEATURE_ID="${{ steps.extract-info.outputs.feature_id }}"
+          CURRENT_JOB_NAME="${{ steps.parse-failures.outputs.first_failed_job }}"
+          CURRENT_STEP_NAME="${{ steps.fetch-logs.outputs.failed_step }}"
+          CURRENT_LOG_LINES="${{ steps.fetch-logs.outputs.log_line_numbers }}"
+
+          echo "Current failure context:"
+          echo "  Title: $CURRENT_TITLE"
+          echo "  Feature ID: $CURRENT_FEATURE_ID"
+          echo "  Job Name: $CURRENT_JOB_NAME"
+          echo "  Step Name: $CURRENT_STEP_NAME"
+          echo "  Log Lines: $CURRENT_LOG_LINES"
+          echo ""
+
+          # Search for open issues with matching title pattern
+          echo "Searching for existing open issues..."
+          EXISTING_ISSUES=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --state open \
+            --search "\"$CURRENT_TITLE\" in:title" \
+            --json number,title,body \
+            --limit 10)
+
+          echo "Found $(echo "$EXISTING_ISSUES" | jq '. | length') open issues with similar titles"
+
+          # Initialize flags
+          IS_DUPLICATE=false
+          DUPLICATE_ISSUE_NUMBER=""
+          OLD_ISSUE_NUMBER=""
+          OLD_ISSUE_NEEDS_FIX_PENDING=false
+
+          # Check each existing issue
+          if [ "$(echo "$EXISTING_ISSUES" | jq '. | length')" -gt 0 ]; then
+            echo ""
+            echo "Analyzing existing issues for duplicates..."
+
+            echo "$EXISTING_ISSUES" | jq -c '.[]' | while read -r issue; do
+              ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
+              ISSUE_BODY=$(echo "$issue" | jq -r '.body')
+
+              echo ""
+              echo "Checking issue #$ISSUE_NUMBER..."
+
+              # Extract fields from issue body
+              PREV_FEATURE_ID=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*featureID\s*\|\s*\K[^\|]+' | tr -d ' ')
+              PREV_JOB_NAME=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*jobName\s*\|\s*\K[^\|]+' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              PREV_STEP_NAME=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*stepName\s*\|\s*\K[^\|]+' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              PREV_LOG_LINES=$(echo "$ISSUE_BODY" | grep -oP '^\|\s*logLineNumbers\s*\|\s*\K[^\|]+' | tr -d ' ')
+
+              echo "  Previous issue context:"
+              echo "    Feature ID: $PREV_FEATURE_ID"
+              echo "    Job Name: $PREV_JOB_NAME"
+              echo "    Step Name: $PREV_STEP_NAME"
+              echo "    Log Lines: $PREV_LOG_LINES"
+
+              # Compare all fields
+              if [ "$CURRENT_FEATURE_ID" = "$PREV_FEATURE_ID" ] && \
+                 [ "$CURRENT_JOB_NAME" = "$PREV_JOB_NAME" ] && \
+                 [ "$CURRENT_STEP_NAME" = "$PREV_STEP_NAME" ] && \
+                 [ "$CURRENT_LOG_LINES" = "$PREV_LOG_LINES" ]; then
+                echo "  Result: DUPLICATE DETECTED (all fields match)"
+                echo "is_duplicate=true" >> $GITHUB_OUTPUT
+                echo "duplicate_issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+                IS_DUPLICATE=true
+                DUPLICATE_ISSUE_NUMBER=$ISSUE_NUMBER
+                break
+              else
+                echo "  Result: NOT a duplicate (fields differ)"
+                # This is a different failure - mark this old issue for fix-pending
+                if [ -z "$OLD_ISSUE_NUMBER" ]; then
+                  OLD_ISSUE_NUMBER=$ISSUE_NUMBER
+                  echo "old_issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+                  echo "old_issue_needs_fix_pending=true" >> $GITHUB_OUTPUT
+                  echo "  Action: Will mark issue #$ISSUE_NUMBER as fix-pending (different failure detected)"
+                fi
+              fi
+            done
+          else
+            echo "No existing open issues found with similar titles"
+          fi
+
+          # Set default outputs if not set
+          if [ "$IS_DUPLICATE" = false ]; then
+            echo "is_duplicate=false" >> $GITHUB_OUTPUT
+            echo "duplicate_issue_number=" >> $GITHUB_OUTPUT
+          fi
+
+          if [ -z "$OLD_ISSUE_NUMBER" ]; then
+            echo "old_issue_number=" >> $GITHUB_OUTPUT
+            echo "old_issue_needs_fix_pending=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo ""
+          echo "=========================================="
+          echo "Duplicate Detection Complete"
+          echo "  Is Duplicate: $IS_DUPLICATE"
+          if [ "$IS_DUPLICATE" = true ]; then
+            echo "  Duplicate Issue: #$DUPLICATE_ISSUE_NUMBER"
+          fi
+          if [ -n "$OLD_ISSUE_NUMBER" ]; then
+            echo "  Old Issue to Mark: #$OLD_ISSUE_NUMBER"
+          fi
+          echo "=========================================="
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Mark old issue as fix-pending
+        if: steps.check-duplicate.outputs.old_issue_needs_fix_pending == 'true'
+        run: |
+          OLD_ISSUE="${{ steps.check-duplicate.outputs.old_issue_number }}"
+          echo "Marking issue #$OLD_ISSUE with 'fix-pending' label..."
+
+          # Add fix-pending label to the old issue
+          gh issue edit $OLD_ISSUE \
+            --add-label "fix-pending" \
+            --repo ${{ github.repository }}
+
+          # Add a comment explaining the label
+          gh issue comment $OLD_ISSUE \
+            --body "A new, different failure has been detected for the same feature/job/step combination. This suggests the original issue may have been resolved. This issue has been marked as \`fix-pending\` for verification." \
+            --repo ${{ github.repository }}
+
+          echo "Successfully marked issue #$OLD_ISSUE as fix-pending"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Create GitHub issue
         id: create-issue
+        if: steps.check-duplicate.outputs.is_duplicate != 'true'
         run: |
           # Create issue title
           BRANCH_NAME="${{ inputs.branch_name }}"
@@ -211,7 +371,6 @@ jobs:
           ISSUE_URL=$(gh issue create \
             --title "$ISSUE_TITLE" \
             --body "$ISSUE_BODY" \
-            --label "bug,ci-failure" \
             $ASSIGNEE \
             --repo ${{ github.repository }})
 
@@ -220,8 +379,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Comment on PR with issue link
-        if: inputs.pr_number != ''
+      - name: Comment on PR with duplicate issue link
+        if: inputs.pr_number != '' && steps.check-duplicate.outputs.is_duplicate == 'true'
+        run: |
+          DUPLICATE_ISSUE_NUM="${{ steps.check-duplicate.outputs.duplicate_issue_number }}"
+          DUPLICATE_ISSUE_URL="https://github.com/${{ github.repository }}/issues/$DUPLICATE_ISSUE_NUM"
+          COMMENT_BODY="CI/CD workflow failed. This failure is a duplicate of existing issue #$DUPLICATE_ISSUE_NUM: $DUPLICATE_ISSUE_URL"
+
+          echo "Adding comment to PR #${{ inputs.pr_number }}"
+          gh pr comment ${{ inputs.pr_number }} \
+            --body "$COMMENT_BODY" \
+            --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Comment on PR with new issue link
+        if: inputs.pr_number != '' && steps.check-duplicate.outputs.is_duplicate != 'true'
         run: |
           ISSUE_URL="${{ steps.create-issue.outputs.issue_url }}"
           COMMENT_BODY="CI/CD workflow failed. A bug report has been created: $ISSUE_URL"
@@ -235,14 +408,48 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Bug Logging Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## Bug Logging Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "A GitHub issue has been created for the CI/CD failure:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Issue: ${{ steps.create-issue.outputs.issue_url }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Branch: ${{ inputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Failed Jobs: ${{ steps.parse-failures.outputs.failed_jobs }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check-duplicate.outputs.is_duplicate }}" = "true" ]; then
+            DUPLICATE_ISSUE_NUM="${{ steps.check-duplicate.outputs.duplicate_issue_number }}"
+            DUPLICATE_ISSUE_URL="https://github.com/${{ github.repository }}/issues/$DUPLICATE_ISSUE_NUM"
+
+            echo "### Duplicate Issue Detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This failure is a duplicate of existing issue [#$DUPLICATE_ISSUE_NUM]($DUPLICATE_ISSUE_URL)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**No new issue was created.**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Duplicate Detection Details" >> $GITHUB_STEP_SUMMARY
+            echo "- Feature ID: ${{ steps.extract-info.outputs.feature_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Job Name: ${{ steps.parse-failures.outputs.first_failed_job }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Step Name: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Log Line Numbers: ${{ steps.fetch-logs.outputs.log_line_numbers }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All fields matched the existing issue, indicating this is the same failure." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### New Issue Created" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "A GitHub issue has been created for the CI/CD failure:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Issue: ${{ steps.create-issue.outputs.issue_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Branch: ${{ inputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed Job: ${{ steps.parse-failures.outputs.first_failed_job }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed Step: ${{ steps.fetch-logs.outputs.failed_step }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Log Lines: ${{ steps.fetch-logs.outputs.log_line_numbers }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            if [ "${{ steps.check-duplicate.outputs.old_issue_needs_fix_pending }}" = "true" ]; then
+              OLD_ISSUE_NUM="${{ steps.check-duplicate.outputs.old_issue_number }}"
+              OLD_ISSUE_URL="https://github.com/${{ github.repository }}/issues/$OLD_ISSUE_NUM"
+              echo "### Fix Tracking" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Issue [#$OLD_ISSUE_NUM]($OLD_ISSUE_URL) has been marked as \`fix-pending\` because this represents a different failure, suggesting the previous issue may have been resolved." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
           if [ -n "${{ inputs.pr_number }}" ]; then
             echo "A comment has been added to PR #${{ inputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
           fi
