@@ -76,6 +76,4 @@ class UserPreferences(models.Model):
         super().clean()
         valid_themes = [choice[0] for choice in self.THEME_CHOICES]
         if self.theme not in valid_themes:
-            raise ValidationError(
-                {"theme": f"Theme must be one of: {', '.join(valid_themes)}"}
-            )
+            raise ValidationError({"theme": f"Theme must be one of: {', '.join(valid_themes)}"})

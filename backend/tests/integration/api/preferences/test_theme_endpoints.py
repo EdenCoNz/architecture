@@ -1,10 +1,9 @@
 """Integration tests for theme preference API endpoints."""
 
 import pytest
+from apps.preferences.models import UserPreferences
 from django.urls import reverse
 from rest_framework import status
-
-from apps.preferences.models import UserPreferences
 
 
 @pytest.mark.django_db
@@ -32,9 +31,7 @@ class TestThemePreferenceAPI:
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_get_theme_preference_creates_default_if_not_exists(
-        self, authenticated_client, user
-    ):
+    def test_get_theme_preference_creates_default_if_not_exists(self, authenticated_client, user):
         """Test that GET creates default preferences if they don't exist."""
         # Ensure no preferences exist
         assert not UserPreferences.objects.filter(user=user).exists()
@@ -110,9 +107,7 @@ class TestThemePreferenceAPI:
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_update_theme_preference_creates_if_not_exists(
-        self, authenticated_client, user
-    ):
+    def test_update_theme_preference_creates_if_not_exists(self, authenticated_client, user):
         """Test that PATCH creates preferences if they don't exist."""
         # Ensure no preferences exist
         assert not UserPreferences.objects.filter(user=user).exists()
@@ -149,9 +144,7 @@ class TestThemePreferenceAPI:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_multiple_users_independent_preferences(
-        self, authenticated_client, user, admin_user
-    ):
+    def test_multiple_users_independent_preferences(self, authenticated_client, user, admin_user):
         """Test that different users have independent preferences."""
         # Create preferences for both users
         UserPreferences.objects.create(user=user, theme="light")
