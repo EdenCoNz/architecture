@@ -455,6 +455,12 @@ jobs:
     needs: [lint, format, type-check, test, security, build]
     if: |
       failure()
+    # Grant permissions required by the bug-logger reusable workflow
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      actions: read
     uses: ./.github/workflows/bug-logger.yml
     with:
       job_results: ${{ toJSON(needs) }}
