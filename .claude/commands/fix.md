@@ -27,7 +27,9 @@ Automatically resolve GitHub issues by analyzing failure logs, creating targeted
 - Launch product-owner agent in FIX MODE for targeted fix stories
 - Automatically call /implement with fix context
 - Commit and push changes after implementation
+- STOP immediately after successful push (Steps 1-9 only)
 - Do NOT ask the user for confirmation between steps
+- Do NOT perform any actions after pushing to remote
 
 ## Workflow
 
@@ -174,9 +176,9 @@ After /implement completes:
    - Verify all fix stories have status "completed"
    - Count completed vs total stories
    - If any stories are incomplete:
-     - Display warning: "Some fix stories incomplete - review implementation log"
+     - Display warning: "Warning: {incomplete_count}/{total} stories incomplete - continuing with commit anyway"
      - List incomplete stories
-     - Ask user if they want to continue with commit/push anyway
+     - Continue to Step 8 (do NOT wait for user confirmation)
 
 2. **Report implementation status**:
    - Display: "Implementation complete: {completed}/{total} stories finished"
@@ -187,7 +189,7 @@ After /implement completes:
    - Run `git add .` to stage all modified and new files
    - Verify staging with `git status`
    - Count number of files staged
-   - If no files staged: Display warning "No changes to commit" and SKIP to Step 10 (no commit needed)
+   - If no files staged: Display warning "No changes to commit" and SKIP to Report section (no commit needed)
 
 2. **Create commit with standardized message**:
    - Commit message format: "Fix issue #{issue_number}: {issue_title}"
@@ -210,7 +212,7 @@ After /implement completes:
    - If commit fails:
      - Capture error message
      - Display: "Commit failed: {error}. Manual intervention required."
-     - SKIP Steps 9-10 and jump to Report
+     - SKIP Step 9 and jump to Report
 
 4. **Report commit status**:
    - Display: "Commit created: {commit_hash}"
@@ -232,26 +234,12 @@ After /implement completes:
      - Capture error message
      - Display: "Push failed: {error}. Commit exists locally ({commit_hash}). Retry with: git push"
      - Mark as PARTIAL SUCCESS (commit created but not pushed)
-     - Continue to Step 10
+     - Continue to Report section
 
 4. **Verify push success**:
    - Run `git status` to confirm branch is up-to-date with remote
    - Display: "Changes pushed to remote branch {featureName}"
 
-### Step 10: Close GitHub Issue (Optional Enhancement)
-
-After successful push:
-
-1. **Add comment to issue**:
-   - Use `gh issue comment {issue_number} --body "Fix implemented and pushed to branch {featureName}. Commit: {commit_hash}"`
-   - This provides traceability between issue and fix
-
-2. **Optionally close issue**:
-   - If you want to auto-close issues after fix, use: `gh issue close {issue_number} --comment "Fixed in commit {commit_hash}"`
-   - Otherwise, leave issue open for manual verification/closing
-   - **Recommended**: Leave open for now to allow manual verification
-
-Note: For this initial implementation, we'll ADD COMMENT but LEAVE ISSUE OPEN for manual verification.
 
 ## Report
 
@@ -303,9 +291,9 @@ Provide a comprehensive summary with the following sections:
 - If any major failures: Display error summary with recovery instructions
 
 ### Next Steps
-- Remind user that issue #{issue_number} is still OPEN for manual verification
 - Suggest running tests to verify fix
 - Recommend creating/updating PR if needed
+- Note: Issue #{issue_number} remains open for manual verification and closure
 
 ## Error Handling
 
@@ -352,6 +340,5 @@ Before finalizing, verify:
 - [ ] All fix stories completed (or partial completion acknowledged)
 - [ ] Changes committed with proper message format
 - [ ] Changes pushed to remote (or failure documented)
-- [ ] Issue commented with fix details
-- [ ] Issue left open for manual verification
+- [ ] Workflow stopped immediately after push (no additional actions)
 - [ ] Clear next steps provided to user
