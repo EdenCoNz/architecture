@@ -1,0 +1,99 @@
+name: Auto-Close Issue (Reusable)
+
+# Reusable workflow to automatically close GitHub issues when a commit contains
+# "Fix issue #N" and all CI jobs have passed successfully.
+#
+# Usage:
+#   jobs:
+#     auto-close:
+#       uses: ./.github/workflows/auto-close-issue.yml
+#       with:
+#         commit-message: ${{ github.event.head_commit.message }}
+#         repository: ${{ github.repository }}
+#         sha: ${{ github.sha }}
+#         workflow-name: 'My Workflow Name'
+
+on:
+  workflow_call:
+    inputs:
+      commit-message:
+        description: 'The commit message to parse for issue references'
+        required: true
+        type: string
+      repository:
+        description: 'The repository in owner/name format'
+        required: true
+        type: string
+      sha:
+        description: 'The commit SHA that fixed the issue'
+        required: true
+        type: string
+      workflow-name:
+        description: 'The name of the calling workflow (for reference in issue comments)'
+        required: false
+        type: string
+        default: 'CI/CD workflow'
+
+# Minimal required permissions for this workflow
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  auto-close-issue:
+    name: Auto-Close Issue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check for issue reference and close
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "## Auto-Close Issue Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          COMMIT_MSG="${{ inputs.commit-message }}"
+          echo "Commit message: $COMMIT_MSG" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract issue number from "Fix issue #42" or "Fix issue 42" pattern
+          # Using case-insensitive matching for "fix issue"
+          ISSUE_NUMBER=$(echo "$COMMIT_MSG" | grep -ioE 'fix issue #?([0-9]+)' | grep -oE '[0-9]+' | head -n 1)
+
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "ℹ️ No issue reference found in commit message" >> $GITHUB_STEP_SUMMARY
+            echo "Pattern searched: 'Fix issue #N' or 'Fix issue N' (case-insensitive)" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "Found issue reference: #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check if issue exists and is open
+          ISSUE_STATE=$(gh issue view "$ISSUE_NUMBER" --repo "${{ inputs.repository }}" --json state --jq '.state' 2>&1 || echo "ERROR")
+
+          if [ "$ISSUE_STATE" == "ERROR" ]; then
+            echo "⚠️ Issue #$ISSUE_NUMBER does not exist or is not accessible" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          if [ "$ISSUE_STATE" == "CLOSED" ]; then
+            echo "ℹ️ Issue #$ISSUE_NUMBER is already closed" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Close the issue with a comment
+          echo "Attempting to close issue #$ISSUE_NUMBER..." >> $GITHUB_STEP_SUMMARY
+
+          COMMENT="Automatically closed by commit ${{ inputs.sha }} (${{ inputs.workflow-name }} succeeded)"
+
+          if gh issue close "$ISSUE_NUMBER" --repo "${{ inputs.repository }}" --comment "$COMMENT"; then
+            echo "✅ Successfully closed issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Issue URL: https://github.com/${{ inputs.repository }}/issues/$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Failed to close issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "This may be due to insufficient permissions or the issue being in an unexpected state" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
