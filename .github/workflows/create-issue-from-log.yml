@@ -199,10 +199,11 @@ jobs:
         run: |
           JOB_ID="${{ inputs.job_id }}"
           STEP_NUMBER="${{ steps.extract-metadata.outputs.step_number }}"
+          STEP_NAME="${{ steps.extract-metadata.outputs.step_name }}"
 
           echo "## Extracting Log Excerpt" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Downloading logs for Job ID: $JOB_ID, Step: $STEP_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "Downloading logs for Job ID: $JOB_ID, Step: $STEP_NUMBER (${STEP_NAME})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Download job logs
@@ -212,8 +213,72 @@ jobs:
             "/repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs" > job_logs.txt || {
               echo "Warning: Could not download logs, will use placeholder text"
               echo "LOG_EXCERPT=Log excerpt unavailable. Please see workflow run URL for complete logs." >> $GITHUB_OUTPUT
+              echo "log_line_numbers=N/A (logs unavailable)" >> $GITHUB_OUTPUT
               exit 0
             }
+
+          # Function to extract source code line numbers from linting/formatting tool output
+          # This extracts the actual line numbers where errors occur in source files
+          extract_source_line_numbers() {
+            local log_content="$1"
+            local step_name="$2"
+
+            # ESLint error format: /path/to/file.tsx:line:col or filename.tsx:line:col
+            # Also handles: line:col  error  message (eslint/rule-name)
+            if echo "$step_name" | grep -qi "eslint\|lint"; then
+              # Extract line numbers from ESLint output
+              # Pattern 1: /path/to/file.tsx:123:45
+              # Pattern 2: 123:45  error  message
+              SOURCE_LINES=$(echo "$log_content" | grep -oE '([a-zA-Z0-9/_.-]+\.(tsx?|jsx?|js|ts):)?[0-9]+:[0-9]+' | \
+                grep -oE '^[0-9]+|:[0-9]+:' | sed 's/://g' | sort -u -n | head -20)
+
+              if [ -n "$SOURCE_LINES" ]; then
+                # Format as comma-separated list
+                FORMATTED_LINES=$(echo "$SOURCE_LINES" | tr '\n' ',' | sed 's/,$//')
+                echo "$FORMATTED_LINES"
+                return 0
+              fi
+            fi
+
+            # Prettier error format: filepath:line:col or [error] message (line:col)
+            if echo "$step_name" | grep -qi "prettier\|format"; then
+              SOURCE_LINES=$(echo "$log_content" | grep -oE '[a-zA-Z0-9/_.-]+\.(tsx?|jsx?|js|ts|json|css|scss|md):[0-9]+:[0-9]+' | \
+                cut -d: -f2 | sort -u -n | head -20)
+
+              if [ -n "$SOURCE_LINES" ]; then
+                FORMATTED_LINES=$(echo "$SOURCE_LINES" | tr '\n' ',' | sed 's/,$//')
+                echo "$FORMATTED_LINES"
+                return 0
+              fi
+            fi
+
+            # TypeScript error format: file.ts(line,col): error TS1234: message
+            # Also: file.ts:line:col - error TS1234: message
+            if echo "$step_name" | grep -qi "typescript\|type.*check\|tsc"; then
+              SOURCE_LINES=$(echo "$log_content" | grep -oE '\([0-9]+,[0-9]+\):|:[0-9]+:[0-9]+' | \
+                grep -oE '[0-9]+' | sort -u -n | head -20)
+
+              if [ -n "$SOURCE_LINES" ]; then
+                FORMATTED_LINES=$(echo "$SOURCE_LINES" | tr '\n' ',' | sed 's/,$//')
+                echo "$FORMATTED_LINES"
+                return 0
+              fi
+            fi
+
+            # Generic error line extraction (fallback)
+            # Look for common patterns: "line 123", "at line 123", ":123:"
+            SOURCE_LINES=$(echo "$log_content" | grep -oiE '(line |at line |:)[0-9]+' | \
+              grep -oE '[0-9]+' | sort -u -n | head -20)
+
+            if [ -n "$SOURCE_LINES" ]; then
+              FORMATTED_LINES=$(echo "$SOURCE_LINES" | tr '\n' ',' | sed 's/,$//')
+              echo "$FORMATTED_LINES"
+              return 0
+            fi
+
+            # No source line numbers found
+            return 1
+          }
 
           # Find the failed step section in the logs
           # GitHub logs include timestamps and step markers
@@ -222,7 +287,7 @@ jobs:
           # Look for common failure patterns (error messages, exit codes, etc.)
           # Extract context around these failures
           if grep -qi "error\|failed\|exception\|fatal" job_logs.txt; then
-            # Find the first error/failure line number
+            # Find the first error/failure line number in the workflow log
             FIRST_ERROR_LINE=$(grep -ni "error\|failed\|exception\|fatal" job_logs.txt | head -n 1 | cut -d: -f1)
 
             # Calculate range (30 lines before, 20 lines after)
@@ -235,13 +300,18 @@ jobs:
             # Extract the excerpt
             LOG_EXCERPT=$(sed -n "${START_LINE},${END_LINE}p" job_logs.txt)
 
-            # Store the log line range for the issue
-            # NOTE: This represents the RANGE and COUNT of lines extracted from the full log,
-            # NOT the specific line number where an error occurs. For example, "Lines 120-170"
-            # means we extracted 50 lines (lines 120 through 170) from the complete workflow log.
-            LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (error at line $FIRST_ERROR_LINE)"
+            # Try to extract source code line numbers from tool output
+            SOURCE_CODE_LINES=$(extract_source_line_numbers "$LOG_EXCERPT" "$STEP_NAME")
 
-            echo "Extracted log excerpt from lines $START_LINE to $END_LINE (centered on line $FIRST_ERROR_LINE)" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$SOURCE_CODE_LINES" ]; then
+              # Successfully extracted source code line numbers
+              LOG_LINE_NUMBERS="Source lines: $SOURCE_CODE_LINES"
+              echo "Extracted source code error line numbers: $SOURCE_CODE_LINES" >> $GITHUB_STEP_SUMMARY
+            else
+              # Fall back to workflow log line numbers
+              LOG_LINE_NUMBERS="Workflow log lines: $START_LINE-$END_LINE (error at line $FIRST_ERROR_LINE)"
+              echo "Extracted log excerpt from workflow log lines $START_LINE to $END_LINE (centered on line $FIRST_ERROR_LINE)" >> $GITHUB_STEP_SUMMARY
+            fi
           else
             # If no clear error pattern, extract last 50 lines
             TOTAL_LINES=$(wc -l < job_logs.txt)
@@ -253,11 +323,16 @@ jobs:
 
             LOG_EXCERPT=$(tail -n 50 job_logs.txt)
 
-            # Store the log line range for the issue
-            # NOTE: This represents the RANGE and COUNT of lines extracted (50 lines in this case)
-            LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (last 50 lines, no clear error pattern)"
+            # Try to extract source code line numbers even from last 50 lines
+            SOURCE_CODE_LINES=$(extract_source_line_numbers "$LOG_EXCERPT" "$STEP_NAME")
 
-            echo "No clear error pattern found, extracted last 50 lines of logs (lines $START_LINE-$END_LINE)" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$SOURCE_CODE_LINES" ]; then
+              LOG_LINE_NUMBERS="Source lines: $SOURCE_CODE_LINES"
+              echo "Extracted source code error line numbers: $SOURCE_CODE_LINES" >> $GITHUB_STEP_SUMMARY
+            else
+              LOG_LINE_NUMBERS="Workflow log lines: $START_LINE-$END_LINE (last 50 lines, no clear error pattern)"
+              echo "No clear error pattern found, extracted last 50 lines of logs (lines $START_LINE-$END_LINE)" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
 
           # Sanitize log excerpt to remove ANSI escape codes and other problematic characters
@@ -279,6 +354,8 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           printf '%s\n' "$LOG_EXCERPT" | head -n 10 >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Line Numbers**: $LOG_LINE_NUMBERS" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         env:
           GH_TOKEN: ${{ github.token }}
