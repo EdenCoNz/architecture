@@ -17,7 +17,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       {/* CssBaseline provides consistent CSS reset across browsers */}
-      <CssBaselsine />
+      <CssBaselsinef />
 
       {/* React Router for client-side routing */}
       <BrowserRouter>
