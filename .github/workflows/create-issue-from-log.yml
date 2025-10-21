@@ -141,11 +141,8 @@ jobs:
             FAILED_STEP_NUMBER="0"
           fi
 
-          # Extract log line numbers from failed step (if available)
-          # GitHub doesn't provide direct line number access via API, but we can note this for future log extraction
-          LOG_LINE_NUMBERS="See workflow run URL for complete logs"
-
           # Output all extracted metadata to GITHUB_OUTPUT for use in subsequent steps
+          # Note: log_line_numbers will be extracted in the next step from the actual log excerpt
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
           echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
           echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
@@ -164,7 +161,6 @@ jobs:
           echo "job_completed_at=$JOB_COMPLETED_AT" >> $GITHUB_OUTPUT
           echo "step_name=$FAILED_STEP_NAME" >> $GITHUB_OUTPUT
           echo "step_number=$FAILED_STEP_NUMBER" >> $GITHUB_OUTPUT
-          echo "log_line_numbers=$LOG_LINE_NUMBERS" >> $GITHUB_OUTPUT
 
           # Create summary of extracted metadata
           echo "### Extracted Metadata" >> $GITHUB_STEP_SUMMARY
@@ -237,11 +233,23 @@ jobs:
             # Extract the excerpt
             LOG_EXCERPT=$(sed -n "${START_LINE},${END_LINE}p" job_logs.txt)
 
+            # Store the actual line numbers for the issue
+            LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (error at line $FIRST_ERROR_LINE)"
+
             echo "Extracted log excerpt from lines $START_LINE to $END_LINE (centered on line $FIRST_ERROR_LINE)" >> $GITHUB_STEP_SUMMARY
           else
             # If no clear error pattern, extract last 50 lines
+            TOTAL_LINES=$(wc -l < job_logs.txt)
+            START_LINE=$((TOTAL_LINES - 49))
+            if [ $START_LINE -lt 1 ]; then
+              START_LINE=1
+            fi
+            END_LINE=$TOTAL_LINES
+
             LOG_EXCERPT=$(tail -n 50 job_logs.txt)
-            echo "No clear error pattern found, extracted last 50 lines of logs" >> $GITHUB_STEP_SUMMARY
+            LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (last 50 lines, no clear error pattern)"
+
+            echo "No clear error pattern found, extracted last 50 lines of logs (lines $START_LINE-$END_LINE)" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Sanitize log excerpt to remove ANSI escape codes and other problematic characters
@@ -253,6 +261,9 @@ jobs:
           echo "log_excerpt<<EOF" >> $GITHUB_OUTPUT
           printf '%s\n' "$LOG_EXCERPT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
+          # Store the actual line numbers for use in the issue template
+          echo "log_line_numbers=$LOG_LINE_NUMBERS" >> $GITHUB_OUTPUT
 
           # Add excerpt preview to summary
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -278,7 +289,7 @@ jobs:
           PR_URL="${{ steps.extract-metadata.outputs.pr_url }}"
           COMMIT_URL="${{ steps.extract-metadata.outputs.commit_url }}"
           RUN_URL="${{ steps.extract-metadata.outputs.run_url }}"
-          LOG_LINE_NUMBERS="${{ steps.extract-metadata.outputs.log_line_numbers }}"
+          LOG_LINE_NUMBERS="${{ steps.extract-logs.outputs.log_line_numbers }}"
           LOG_EXCERPT="${{ steps.extract-logs.outputs.log_excerpt }}"
 
           # Generate issue title
@@ -426,15 +437,11 @@ jobs:
               issue_step_name = extract_field(issue_body, 'stepName')
               issue_log_line_numbers = extract_field(issue_body, 'logLineNumbers')
 
-              # First check: must be from the same branch (feature name)
-              if issue_feature_name != current_feature_name:
-                  continue
-
               # Check if ALL required fields match
+              # Note: featureID and featureName are excluded from comparison
+              # This allows detection of the same failure across different feature branches
               all_match = (
                   issue_title == current_title and
-                  issue_feature_id == current_feature_id and
-                  issue_feature_name == current_feature_name and
                   issue_job_name == current_job_name and
                   issue_step_name == current_step_name and
                   issue_log_line_numbers == current_log_line_numbers
