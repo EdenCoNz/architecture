@@ -304,3 +304,19 @@ jobs:
             exit 1
           fi
           echo "✅ index.html exists in build artifacts"
+
+  # Job 7: Detect Workflow Failures
+  detect-workflow-failures:
+    name: Detect Workflow Failures
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    if: failure()
+
+    steps:
+      - name: Report workflow failure
+        run: |
+          echo "## Workflow Failure Detected" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ One or more jobs in this workflow have failed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the job logs above for details." >> $GITHUB_STEP_SUMMARY
