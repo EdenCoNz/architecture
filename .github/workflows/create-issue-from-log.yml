@@ -277,20 +277,23 @@ jobs:
 
       - name: Populate issue log template with metadata
         id: populate-template
+        env:
+          LOG_EXCERPT: ${{ steps.extract-logs.outputs.log_excerpt }}
+          WORKFLOW_NAME: ${{ steps.extract-metadata.outputs.workflow_name }}
+          JOB_NAME: ${{ steps.extract-metadata.outputs.job_name }}
+          STEP_NAME: ${{ steps.extract-metadata.outputs.step_name }}
+          RUN_ID: ${{ steps.extract-metadata.outputs.run_id }}
+          JOB_ID: ${{ steps.extract-metadata.outputs.job_id }}
+          PR_URL: ${{ steps.extract-metadata.outputs.pr_url }}
+          COMMIT_URL: ${{ steps.extract-metadata.outputs.commit_url }}
+          RUN_URL: ${{ steps.extract-metadata.outputs.run_url }}
+          LOG_LINE_NUMBERS: ${{ steps.extract-logs.outputs.log_line_numbers }}
+          HEAD_BRANCH: ${{ steps.extract-metadata.outputs.head_branch }}
         run: |
           LOG_FILE="${{ inputs.log_filename }}"
 
-          # Extract metadata from previous step outputs
-          WORKFLOW_NAME="${{ steps.extract-metadata.outputs.workflow_name }}"
-          JOB_NAME="${{ steps.extract-metadata.outputs.job_name }}"
-          STEP_NAME="${{ steps.extract-metadata.outputs.step_name }}"
-          RUN_ID="${{ steps.extract-metadata.outputs.run_id }}"
-          JOB_ID="${{ steps.extract-metadata.outputs.job_id }}"
-          PR_URL="${{ steps.extract-metadata.outputs.pr_url }}"
-          COMMIT_URL="${{ steps.extract-metadata.outputs.commit_url }}"
-          RUN_URL="${{ steps.extract-metadata.outputs.run_url }}"
-          LOG_LINE_NUMBERS="${{ steps.extract-logs.outputs.log_line_numbers }}"
-          LOG_EXCERPT="${{ steps.extract-logs.outputs.log_excerpt }}"
+          # Metadata is now available as environment variables from the env block above
+          # No need to extract them here - prevents command injection
 
           # Generate issue title
           TITLE="Workflow Failure: $WORKFLOW_NAME - $JOB_NAME - $STEP_NAME"
@@ -307,7 +310,7 @@ jobs:
           cp "$LOG_FILE" "${LOG_FILE}.tmp"
 
           # Extract feature name from branch if it's a feature branch
-          HEAD_BRANCH="${{ steps.extract-metadata.outputs.head_branch }}"
+          # HEAD_BRANCH is available from the env block
           if [[ "$HEAD_BRANCH" =~ ^feature/([0-9]+) ]]; then
             FEATURE_ID="${BASH_REMATCH[1]}"
             FEATURE_NAME="$HEAD_BRANCH"
