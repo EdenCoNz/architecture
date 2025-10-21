@@ -20,10 +20,10 @@ function App() {
       <CssBaseline />
 
       {/* React Router for client-side routing */}
-      <BrowserRouter>
+      <BrowserRoduter>
         {/* Skip link for accessibility - keyboard and screen reader users */}
         <a href="#main-content" className="skip-link">
-          Skip to main content!!!!!
+          Skip to main content!!!!
         </a>
 
         {/* Application Shell */}
