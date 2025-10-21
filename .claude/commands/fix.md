@@ -1,476 +1,344 @@
 ---
-description: Fix a bug by analyzing GitHub issue and creating targeted user stories
+description: GitHub issue number containing the bug details
 args:
   - name: issue_number
-    description: GitHub issue number containing the bug details
-    required: true
+    description: Optional issue number. If not provided, uses the oldest open issue
+    required: false
 model: claude-sonnet-4-5
 ---
 
 ## Purpose
 
-Fix bugs efficiently by analyzing GitHub issues, creating targeted user stories for the fix, and automatically implementing them. This command bridges the gap between bug reports and implementation by leveraging the existing feature workflow infrastructure while optimizing for bug-fixing scenarios.
+Automatically resolve GitHub issues by analyzing failure logs, creating targeted fix stories, implementing solutions, and pushing fixes to the remote branch. This command orchestrates the entire bug fix workflow from issue detection through implementation.
 
 ## Variables
 
-- `$ISSUE_NUMBER` - The GitHub issue number to fix
-- Issue details path: `docs/issues/{issue_number}/`
-- Fix log path: `docs/issues/{issue_number}/fix-log.md`
+- `$ISSUE_NUMBER` - GitHub issue number to fix (optional - defaults to oldest open issue)
+- Issue metadata extracted from GitHub issue body:
+  - `featureID` - Feature ID the issue belongs to
+  - `featureName` - Branch name for the feature
+- User stories path: `docs/features/{featureID}/issues/{issue_number}/user-stories.md`
+- Implementation log path: `docs/features/{featureID}/implementation-log.json`
 
 ## Instructions
 
-- Parse GitHub issue to extract bug details
-- Create minimal, focused user stories for the fix
-- Use append-in-place logging to track fix progress
-- Automatically implement fix using existing agents
-- Do NOT create new feature branch (work on current branch)
-- Do NOT run pre-flight checks (fixes can happen anytime)
+- Follow the workflow steps in sequential order
+- Extract metadata from GitHub issue body (feature ID, branch name, failed step logs)
+- Launch product-owner agent in FIX MODE for targeted fix stories
+- Automatically call /implement with fix context
+- Commit and push changes after implementation
+- STOP immediately after successful push (Steps 1-9 only)
+- Do NOT ask the user for confirmation between steps
+- Do NOT perform any actions after pushing to remote
 
 ## Workflow
 
-### Step 1: Validate Issue Exists
-
-1. **Fetch issue details from GitHub**:
-   - Use `gh issue view $ISSUE_NUMBER --json number,title,body,state,labels` to fetch issue details
-   - Parse the JSON output to extract: number, title, body, state, labels
-   - If command fails or issue not found: STOP execution and inform user with message: "Error: Issue #$ISSUE_NUMBER not found. Please verify the issue number exists."
-
-2. **Verify issue is open**:
-   - Check that state is "OPEN"
-   - If issue is already closed: ASK user if they want to proceed anyway using AskUserQuestion tool
-   - If user says no: STOP execution
-   - If user says yes: CONTINUE but note in log that issue was already closed
-
-3. **Store issue details**:
-   - Store title, body, labels for use in subsequent steps
-   - Display brief confirmation: "Found issue #$ISSUE_NUMBER: {title}"
-
-### Step 2: Parse Issue Details
-
-1. **Extract structured information from issue body**:
-   - Look for table with fields: title, featureID, featureName, jobName, stepName, logLineNumbers, PRURL, commitURL, runURL
-   - Parse table format: `| Field | Value |` with `|-------|-------|` separator
-   - Extract each field value by matching the field name in the first column
-   - If table format not found: Use issue title and body as-is (handle generic bug reports)
-
-2. **Determine issue type** (Hybrid Detection Approach):
-
-   **A. Explicit Detection** (check for workflow-specific markers):
-   - Check if issue body contains workflow failure table (| title | featureID | etc.)
-   - Check if labels include "workflow-failure" or similar
-   - Check if title starts with "Workflow Failure:"
-   - If ANY of these match: Issue type is "workflow-failure"
-
-   **B. Validation Detection** (check for test/lint/build failure markers):
-   - Check if jobName contains: "test", "lint", "format", "build", "ci", "check"
-   - Check if failed step log contains: "error", "failed", "✖", "problems", "exit code 1"
-   - If workflow-failure AND validation markers present: Issue type is "validation-failure"
-
-   **C. Fallback**:
-   - If neither A nor B match: Issue type is "generic-bug"
-
-3. **Extract failure context** (for validation-failure type):
-   - Parse failed step log excerpt to identify:
-     - Specific error messages (ESLint errors, test failures, build errors)
-     - File paths mentioned in errors
-     - Line numbers mentioned in errors
-     - Error codes or categories (prettier/prettier, @typescript-eslint/no-unused-vars, etc.)
-   - Create list of specific issues to fix (e.g., "Fix prettier formatting in Home.test.tsx lines 82, 96, 406, 448, 471")
-
-4. **Store parsed data**:
-   - Create docs/issues/{issue_number}/ directory if it doesn't exist
-   - Store parsed issue data in memory for next steps
-   - Report issue type and key details: "Issue type: {type}, Feature: #{featureID}, Affected files: {files}"
-
-### Step 3: Create Fix Log (Append-in-Place)
-
-1. **Initialize fix log file**:
-   - Create docs/issues/{issue_number}/fix-log.md
-   - Use append-in-place structure with clear delimiters for each attempt
-   - Include issue metadata in header
-
-2. **Write initial log header**:
-   ```markdown
-   # Fix Log: Issue #{issue_number}
-
-   ## Issue Details
-   - **Title**: {issue_title}
-   - **Type**: {issue_type}
-   - **State**: {issue_state}
-   - **Opened**: {timestamp}
-   - **Source**: https://github.com/{owner}/{repo}/issues/{issue_number}
-
-   {Additional context based on issue type - featureID, PRURL, jobName, etc.}
-
-   ---
-
-   ## Fix Attempts
-
-   {Attempts will be appended below with delimiters}
-   ```
-
-3. **Create first fix attempt entry**:
-   ```markdown
-   ### Attempt #1 - {timestamp}
-
-   **Strategy**: {description of fix approach based on issue analysis}
-
-   **User Stories Created**: {count}
-
-   **Status**: In Progress
-
-   {Details will be appended as fix progresses}
-
-   ---
-   ```
-
-4. **Log creation confirmation**:
-   - Display: "Fix log initialized at docs/issues/{issue_number}/fix-log.md"
-
-### Step 4: Create Targeted User Stories
-
-1. **Determine fix scope** based on issue type:
-
-   **For validation-failure**:
-   - Create ONE user story per category of error (e.g., "Fix ESLint prettier errors", "Fix unused variable warnings")
-   - Focus on specific files and line numbers identified in Step 2
-   - Keep stories atomic and focused on single error category
-
-   **For workflow-failure** (non-validation):
-   - Create ONE user story for the workflow issue
-   - Focus on the specific job/step that failed
-
-   **For generic-bug**:
-   - Analyze issue description to create 1-3 focused user stories
-   - Break down only if bug has clearly separable components
-
-2. **Launch product-owner agent in FIX MODE**:
-
-   Use the Task tool to launch the product-owner agent with special fix mode instructions:
-
-   ```
-   MODE: FIX
-
-   You are operating in FIX MODE to address a specific bug/issue. This is different from feature development.
-
-   IMPORTANT FIX MODE RULES:
-   - Create MINIMAL user stories (1-3 maximum) focused solely on fixing this specific issue
-   - Do NOT create comprehensive feature stories
-   - Do NOT separate design from implementation unless absolutely necessary
-   - Stories should be fix-focused, not feature-focused
-   - Use issue details to create precise, targeted fixes
-
-   Issue to fix:
-   Issue #: {issue_number}
-   Title: {issue_title}
-   Type: {issue_type}
-
-   {For validation-failure, include:}
-   Affected Files: {file_list}
-   Error Categories: {error_categories}
-   Specific Errors:
-   {detailed_error_list}
-
-   {For workflow-failure, include:}
-   Failed Job: {jobName}
-   Failed Step: {stepName}
-   Feature: #{featureID}
-
-   {For generic-bug, include:}
-   Bug Description:
-   {issue_body}
-
-   Create minimal, targeted user stories to fix this issue. Focus on:
-   1. What needs to be fixed (be specific)
-   2. How to verify the fix worked
-   3. Assign to appropriate agent (frontend-developer, backend-developer, etc.)
-
-   Output format: Create docs/issues/{issue_number}/user-stories.md with the same structure as feature user stories but optimized for fixes.
-   ```
-
-3. **Verify user stories created**:
-   - Check that docs/issues/{issue_number}/user-stories.md was created
-   - Verify stories are minimal and focused (ideally 1-3 stories)
-   - If more than 5 stories created: WARN that this seems excessive for a bug fix
-
-4. **Append to fix log**:
-   ```markdown
-   **User Stories**: docs/issues/{issue_number}/user-stories.md
-   - Story 1: {title}
-   - Story 2: {title}
-   ...
-
-   **Execution Plan**: {sequential/parallel phases}
-   ```
-
-### Step 5: Implement Fix
-
-1. **Execute user stories** (similar to /implement but for fixes):
-
-   For each user story in execution order:
-   - Launch appropriate agent with story details
-   - Provide fix context: "You are fixing Issue #{issue_number}: {title}"
-   - Include reference to original issue details
-   - Request implementation log in docs/issues/{issue_number}/implementation-log.json
-
-2. **Monitor implementation progress**:
-   - Track completion of each story
-   - Append progress updates to fix log:
-   ```markdown
-   **Implementation Progress**:
-   - [✓] Story 1: {title} - Completed at {timestamp}
-   - [⧗] Story 2: {title} - In progress
-   - [ ] Story 3: {title} - Pending
-   ```
-
-3. **Handle implementation failures**:
-   - If any story fails or is blocked: Append failure details to fix log
-   - Ask user if they want to: (a) Continue with remaining stories, (b) Stop and review, (c) Create new fix attempt
-   - Log decision in fix log
-
-### Step 6: Verify Fix
-
-1. **For validation-failure issues**:
-   - Read the implementation log to identify files that were modified
-   - Determine appropriate validation command based on original failure:
-     - If jobName contains "lint": Run `npm run lint` (or equivalent)
-     - If jobName contains "test": Run `npm run test` (or equivalent)
-     - If jobName contains "build": Run `npm run build` (or equivalent)
-     - If jobName contains "format": Run `npm run format:check` (or equivalent)
-   - Execute validation command in appropriate directory (e.g., frontend/)
-   - Capture command output and exit code
-
-2. **Analyze validation results**:
-   - If exit code is 0: Validation passed ✓
-   - If exit code is non-zero: Validation failed ✗
-   - Parse output to identify remaining issues (if any)
-   - Compare original errors with current errors to determine progress
-
-3. **Append validation results to fix log**:
-   ```markdown
-   **Validation Results**:
-   - Command: {validation_command}
-   - Exit Code: {exit_code}
-   - Status: {Passed/Failed}
-
-   {If failed, include:}
-   Remaining Issues:
-   - {error_1}
-   - {error_2}
-   ...
-
-   Progress: {X/Y errors fixed}
-   ```
-
-4. **For non-validation issues**:
-   - Skip automated validation
-   - Append note: "Manual verification required - no automated validation available"
-   - Provide testing instructions based on issue type
-
-### Step 7: Finalize Fix Attempt
-
-1. **Update fix log with final status**:
-   ```markdown
-   **Final Status**: {Success/Partial Success/Failed}
-
-   {If Success:}
-   All issues resolved. Ready for commit.
-
-   {If Partial Success:}
-   Progress made: {X/Y} issues resolved
-   Remaining issues: {list}
-   Recommendation: {Create Attempt #2 / Manual intervention needed / etc.}
-
-   {If Failed:}
-   Fix did not resolve issues
-   Errors: {list}
-   Recommendation: {Analyze root cause / Different approach needed / etc.}
-   ```
-
-2. **Determine next steps** based on validation results:
-
-   **If validation passed OR no validation available**:
-   - CONTINUE to Step 8 (Commit & Close)
-
-   **If validation failed but progress made**:
-   - Ask user: "Validation failed but {X/Y} issues were fixed. Options: (a) Commit partial fix, (b) Create Attempt #2 to fix remaining issues, (c) Stop and review manually"
-   - If user chooses (a): CONTINUE to Step 8 with partial fix note
-   - If user chooses (b): JUMP back to Step 4 with new attempt number, append to fix log
-   - If user chooses (c): STOP execution, provide fix log location
-
-   **If validation failed with no progress**:
-   - STOP execution, do not commit
-   - Inform user: "Fix did not resolve issues. Review fix log at docs/issues/{issue_number}/fix-log.md for details."
-
-3. **Append completion timestamp**:
-   ```markdown
-   **Completed**: {timestamp}
-
-   ---
-   ```
-
-### Step 8: Commit Fix and Close Issue
-
-1. **Stage all modified files**:
-   - Use `git add .` to stage all changes
+### Step 1: Determine Issue to Fix
+
+If issue number is provided via argument:
+1. Use the provided issue number
+2. Skip to Step 2
+
+If NO issue number provided:
+1. **Query oldest open issue**:
+   - Use `gh issue list --state open --json number,createdAt --limit 100` to get all open issues
+   - Parse the JSON output to find the issue with the oldest `createdAt` timestamp
+   - Extract the issue number from the oldest issue
+   - If no open issues exist: STOP and inform user "No open issues found to fix"
+
+2. **Store issue number**:
+   - Store the oldest issue number in a variable for use throughout the workflow
+   - Display message: "Processing oldest open issue #{issue_number}"
+
+### Step 2: Fetch Issue Details
+
+1. **Retrieve full issue information**:
+   - Use `gh issue view {issue_number} --json number,title,body` to get complete issue details
+   - Parse the JSON response to extract `number`, `title`, and `body` fields
+   - If issue doesn't exist: STOP and inform user "Issue #{issue_number} not found"
+
+2. **Extract metadata from issue body**:
+   - Parse the issue body to extract the table fields:
+     - `featureID`: Look for `| featureID | {value} |` pattern
+     - `featureName`: Look for `| featureName | {value} |` pattern
+   - These fields are required - if either is missing or set to "N/A":
+     - STOP execution
+     - Display error: "Issue #{issue_number} is missing required metadata (featureID or featureName). This issue cannot be auto-fixed."
+     - Suggest manual intervention
+
+3. **Extract failed step log excerpt**:
+   - Parse the issue body to find the "## Failed Step Log Excerpt" section
+   - Extract everything between the markdown code fence (```) after this header
+   - This log excerpt will be passed to the product-owner agent for analysis
+   - If log excerpt is missing: Continue anyway (product owner will work with title/description)
+
+4. **Validate extracted data**:
+   - Confirm featureID is numeric
+   - Confirm featureName starts with "feature/"
+   - Display extracted metadata:
+     ```
+     Issue #{issue_number}: {title}
+     Feature ID: {featureID}
+     Branch: {featureName}
+     Log excerpt length: {char_count} characters
+     ```
+
+### Step 3: Update Local Branch
+
+1. **Get current branch**:
+   - Run `git branch --show-current` to determine current branch
+   - Store current branch name for reference
+
+2. **Switch to feature branch if needed**:
+   - Compare current branch with the extracted `featureName`
+   - If already on correct branch: Display "Already on branch {featureName}"
+   - If on different branch:
+     - Run `git checkout {featureName}` to switch to the feature branch
+     - If checkout fails: STOP and display error "Failed to checkout branch {featureName}. Error: {error_message}"
+     - If successful: Display "Switched to branch {featureName}"
+
+3. **Pull latest changes**:
+   - Run `git pull origin {featureName}` to fetch and merge latest changes from remote
+   - If pull fails (e.g., branch doesn't exist on remote, conflicts):
+     - Display warning but CONTINUE execution
+     - Warning message: "Could not pull latest changes (branch may not exist on remote yet). Continuing with local branch."
+   - If successful: Display "Branch updated with latest remote changes"
+
+4. **Verify branch state**:
+   - Run `git status` to check working tree status
+   - Display current branch and status summary
+
+### Step 4: Launch Product Owner in FIX MODE
+
+Use the Task tool to launch the product-owner agent with FIX MODE instructions:
+
+```
+MODE: FIX
+
+You are operating in FIX MODE. Create MINIMAL, targeted user stories (1-3 maximum) to fix the following issue.
+
+Issue Details:
+- Issue Number: #{issue_number}
+- Issue Title: {title}
+- Feature ID: {featureID}
+- Branch: {featureName}
+
+Failed Step Log Excerpt:
+```
+{log_excerpt}
+```
+
+Analyze the failure and create 1-3 focused fix stories. Save to: docs/features/{featureID}/issues/{issue_number}/user-stories.md
+
+Do NOT update feature-log.json (this is a fix, not a new feature).
+```
+
+Important notes for Task tool invocation:
+- Replace all placeholders with actual values extracted from the issue
+- Include the complete log excerpt in the instructions
+- Ensure the file path uses the correct featureID and issue_number
+- Wait for the product-owner agent to complete before proceeding
+
+### Step 5: Verify User Stories Created
+
+After product-owner agent completes:
+
+1. **Check for user stories file**:
+   - Verify file exists at `docs/features/{featureID}/issues/{issue_number}/user-stories.md`
+   - If file doesn't exist: STOP and display error "Product owner failed to create user stories at expected location"
+
+2. **Parse user stories**:
+   - Read the user-stories.md file
+   - Count the number of fix stories created (should be 1-3)
+   - Extract story titles for reporting
+   - Display: "Created {count} fix stories for issue #{issue_number}"
+
+### Step 6: Call /implement Command in Fix Mode
+
+1. **Invoke /implement with fix syntax**:
+   - Use SlashCommand tool to execute: `/implement fix {issue_number}`
+   - This will trigger the updated /implement command which handles fix scenarios
+   - Wait for /implement to complete all user stories
+
+2. **Monitor implementation completion**:
+   - The /implement command will handle:
+     - Reading fix user stories from the correct location
+     - Executing all fix stories
+     - Updating implementation-log.json
+   - Do not interfere with /implement execution
+
+### Step 7: Verify Implementation Completion
+
+After /implement completes:
+
+1. **Read implementation log**:
+   - Check `docs/features/{featureID}/implementation-log.json`
+   - Verify all fix stories have status "completed"
+   - Count completed vs total stories
+   - If any stories are incomplete:
+     - Display warning: "Warning: {incomplete_count}/{total} stories incomplete - continuing with commit anyway"
+     - List incomplete stories
+     - Continue to Step 8 (do NOT wait for user confirmation)
+
+2. **Report implementation status**:
+   - Display: "Implementation complete: {completed}/{total} stories finished"
+
+### Step 8: Commit Changes
+
+1. **Stage all changes**:
+   - Run `git add .` to stage all modified and new files
    - Verify staging with `git status`
-   - Include fix log, user stories, implementation log, and code changes
+   - Count number of files staged
+   - If no files staged: Display warning "No changes to commit" and SKIP to Report section (no commit needed)
 
-2. **Create fix commit**:
-   - Use standardized commit message format:
-   ```
-   Fix: Issue #{issue_number} - {issue_title}
+2. **Create commit with standardized message**:
+   - Commit message format: "Fix issue #{issue_number}: {issue_title}"
+   - Use git commit with HEREDOC format:
+     ```bash
+     git commit -m "$(cat <<'EOF'
+     Fix issue #{issue_number}: {issue_title}
 
-   {Brief description of what was fixed}
+     🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-   Fixes #{issue_number}
+     Co-Authored-By: Claude <noreply@anthropic.com>
+     EOF
+     )"
+     ```
+   - Replace {issue_number} and {issue_title} with actual values
 
-   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+3. **Verify commit creation**:
+   - Capture commit hash from git commit output
+   - Run `git log -1` to verify commit was created
+   - If commit fails:
+     - Capture error message
+     - Display: "Commit failed: {error}. Manual intervention required."
+     - SKIP Step 9 and jump to Report
 
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   ```
-   - Use HEREDOC for proper formatting
-   - The "Fixes #{issue_number}" line will automatically close the issue when pushed
+4. **Report commit status**:
+   - Display: "Commit created: {commit_hash}"
+   - Display commit message preview
 
-3. **Verify commit**:
-   - Run `git log -1` to confirm commit created
-   - Store commit hash for reporting
+### Step 9: Push to Remote
 
-4. **Handle commit failures**:
-   - If commit fails: Capture error message
-   - Append to fix log: "Commit failed: {error}"
-   - Provide manual recovery instructions
-   - Do NOT attempt to close issue if commit failed
+1. **Check remote tracking**:
+   - Run `git branch -vv` to check if branch has remote tracking
+   - Parse output to determine tracking status
 
-5. **Push to remote** (if commit succeeded):
-   - Check if current branch has remote tracking: `git branch -vv`
-   - Push using `git push` or `git push -u origin {branch}` if needed
-   - Verify push success
+2. **Push changes to remote**:
+   - If branch has remote tracking: Use `git push`
+   - If no remote tracking: Use `git push -u origin {featureName}` to create remote branch and set tracking
+   - Monitor push output for success/failure
 
-6. **Close issue on GitHub** (if push succeeded):
-   - The commit message "Fixes #{issue_number}" will auto-close when merged to main
-   - If on main branch: Issue will close immediately after push
-   - If on feature branch: Issue will close when PR is merged
-   - Add comment to issue with fix details:
-   ```
-   gh issue comment {issue_number} --body "Fixed in commit {commit_hash}
+3. **Handle push failures**:
+   - If push fails:
+     - Capture error message
+     - Display: "Push failed: {error}. Commit exists locally ({commit_hash}). Retry with: git push"
+     - Mark as PARTIAL SUCCESS (commit created but not pushed)
+     - Continue to Report section
 
-   Fix details: docs/issues/{issue_number}/fix-log.md"
-   ```
+4. **Verify push success**:
+   - Run `git status` to confirm branch is up-to-date with remote
+   - Display: "Changes pushed to remote branch {featureName}"
 
-7. **Handle failures gracefully**:
-   - If push fails: Provide manual recovery instructions, do not attempt issue close
-   - If issue comment fails: Continue (non-critical), note in report
-   - Append all outcomes to fix log
 
 ## Report
 
 Provide a comprehensive summary with the following sections:
 
 ### Issue Details
-- Issue number and title
-- Issue type (workflow-failure/validation-failure/generic-bug)
-- Issue state (open/closed)
-- Feature association (if applicable)
-- Source URL
+- Issue number processed
+- Issue title
+- Feature ID and branch name extracted
+- Log excerpt character count
 
-### Issue Analysis
-- Parsed information (featureID, affected files, error categories, etc.)
-- Number of specific errors identified
-- Fix strategy determined
+### Branch Status
+- Previous branch (if switched)
+- Feature branch checked out
+- Pull status (updated/skipped/failed)
+- Working tree status
 
-### User Stories Created
-- Number of stories created
-- Story titles and assigned agents
-- Execution plan (sequential/parallel phases)
-- User stories location: docs/issues/{issue_number}/user-stories.md
+### Fix Story Creation
+- Number of fix stories created (should be 1-3)
+- Story titles
+- User stories file location
 
 ### Implementation Status
-- Number of stories completed vs. total
-- Agents launched and their status
-- Any failures or blocked stories
-- Implementation log location: docs/issues/{issue_number}/implementation-log.json
-
-### Validation Results (if applicable)
-- Validation command executed
-- Validation status (passed/failed/skipped)
-- Original error count vs. remaining error count
-- Specific errors fixed
-- Remaining issues (if any)
-
-### Fix Attempt Summary
-- Attempt number
-- Final status (Success/Partial Success/Failed)
-- Timestamp range (started - completed)
-- Files modified
-- Fix log location: docs/issues/{issue_number}/fix-log.md
+- Total fix stories: {count}
+- Completed stories: {count}
+- Incomplete stories (if any): {list}
+- Implementation log location
 
 ### Git Workflow Status
 
+#### Staging
+- Files staged: {count}
+- Staging status (success/failure)
+
 #### Commit
-- Commit hash (if successful)
+- Commit hash (if created)
 - Commit message
-- Files committed
-- Commit errors (if any)
+- Commit status (success/failure)
 
 #### Push
 - Push status (success/failure)
+- Remote tracking status
 - Branch name
-- Push errors (if any)
-
-#### Issue Status
-- Issue closed automatically (yes/no)
-- Issue comment added (yes/no)
-- Manual steps needed (if any)
+- Error details (if any)
 
 ### Overall Status
-- If ALL steps successful: "Issue #{issue_number} fixed and closed successfully"
-- If partial success: "Issue #{issue_number} partially fixed - {details}"
-- If failed: "Fix attempt failed - {details}"
+- If ALL steps successful: Display "Fix workflow completed successfully. Issue #{issue_number} has been fixed and pushed to {featureName}."
+- If partial success (commit but no push): Display "Fix committed locally but push failed. Manual push required."
+- If any major failures: Display error summary with recovery instructions
 
 ### Next Steps
-- If successful: "Issue resolved. Changes committed and pushed."
-- If partial: "Review remaining issues in fix log. Consider creating Attempt #2."
-- If failed: "Review fix log for details. Manual intervention may be needed."
+- Suggest running tests to verify fix
+- Recommend creating/updating PR if needed
+- Note: Issue #{issue_number} remains open for manual verification and closure
 
-### Fix Log Location
-- Full path to fix log for detailed records and debugging
+## Error Handling
 
-## Edge Cases
+### Common Failure Scenarios
 
-### Multiple Fix Attempts
-- Each attempt appends to fix-log.md with clear delimiters
-- Attempt numbers increment: Attempt #1, Attempt #2, etc.
-- Each attempt includes: strategy, user stories, implementation progress, validation results, final status
-- Previous attempts remain visible for historical context
+1. **Issue not found or invalid**:
+   - Provide clear error message
+   - Suggest verifying issue number with `gh issue list`
 
-### Validation Not Applicable
-- For generic bugs without automated validation: Skip Step 6, proceed to commit
-- Note in fix log: "Manual verification required"
-- Provide testing instructions in fix log based on issue description
+2. **Missing metadata in issue**:
+   - Display which fields are missing
+   - Explain that auto-fix requires featureID and featureName
+   - Suggest manual fix workflow
 
-### Issue Already Closed
-- Ask user if they want to proceed (may be reopening/additional fix)
-- If yes: Continue normally but note in fix log
-- If no: STOP execution
+3. **Branch checkout fails**:
+   - Display git error message
+   - Suggest manual branch operations
+   - Provide recovery command: `git checkout {featureName}`
 
-### No Errors Found in Validation
-- If validation passes before fix attempt: Inform user "Issue may already be resolved"
-- Ask user: "Validation passes but issue is still open. Options: (a) Close issue, (b) Investigate further, (c) Cancel"
-- Handle based on user choice
+4. **Product owner fails to create stories**:
+   - Check if file was created but in wrong location
+   - Display expected vs actual file locations
+   - Suggest manual story creation
 
-### Commit Message Magic Words
-- "Fixes #{issue_number}" auto-closes issue when merged to default branch
-- "Closes #{issue_number}" is equivalent
-- "Resolves #{issue_number}" is equivalent
-- Other keywords that work: "Fix", "Close", "Resolve" (with #number)
+5. **Implementation incomplete**:
+   - List which stories failed
+   - Provide path to implementation log for details
+   - Ask user if they want to continue with partial fix
 
-### Working on Feature Branch
-- Fix committed to current branch (typically feature branch)
-- Issue will auto-close when PR is merged to main (due to "Fixes #" in commit message)
-- Note in report: "Issue will close when PR is merged"
+6. **Git operations fail**:
+   - Preserve all completed work (stories, implementation)
+   - Provide exact manual recovery commands
+   - Never lose implementation progress
 
-### Multiple Issues in Same Attempt
-- This command handles ONE issue at a time
-- If multiple related issues: User should run /fix multiple times or manually combine
-- Each issue gets its own fix log and user stories
+## Self-Verification Checklist
+
+Before finalizing, verify:
+
+- [ ] Issue metadata successfully extracted (featureID, featureName)
+- [ ] Switched to correct feature branch
+- [ ] Product owner created 1-3 fix stories (not more)
+- [ ] User stories saved to correct location (docs/features/{featureID}/issues/{issue_number}/)
+- [ ] /implement command invoked with correct fix syntax
+- [ ] All fix stories completed (or partial completion acknowledged)
+- [ ] Changes committed with proper message format
+- [ ] Changes pushed to remote (or failure documented)
+- [ ] Workflow stopped immediately after push (no additional actions)
+- [ ] Clear next steps provided to user

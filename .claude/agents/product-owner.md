@@ -151,7 +151,7 @@ Never specify:
    - Keep execution order simple and linear
 
 6. **Create Files in Issue Directory**
-   - Create docs/issues/{issue_number}/user-stories.md
+   - Create docs/feature{featureID}/issues/{issue_number}/user-stories.md
    - Use same structure as feature user stories but with issue context
    - Include reference to original issue number and title
    - Do NOT update feature-log.json (this is a fix, not a feature)
@@ -166,7 +166,7 @@ Never specify:
 
 For a validation-failure with ESLint errors:
 
-**docs/issues/75/user-stories.md**:
+**docs/features/5/issues/75/user-stories.md**:
 ```markdown
 # Fix: Issue #75 - ESLint Errors in Test File
 
@@ -203,7 +203,7 @@ Fix code formatting and unused variable issues preventing CI/CD pipeline from pa
 | Story Count | 3-15 typical | 1-3 maximum |
 | Design Separation | Always separate design stories | Only if bug is design-related |
 | Scope | Comprehensive feature coverage | Minimal, targeted fix only |
-| File Location | docs/features/{id}/ | docs/issues/{issue_number}/ |
+| File Location | docs/features/{id}/ | docs/features/{featureID}/issues/{issue_number}/ |
 | Log Updates | Update feature-log.json | Do NOT update feature-log.json |
 | Atomicity | Split everything small | Keep related fixes together |
 | Context | User value and business outcomes | What's broken and how to verify |
@@ -320,7 +320,7 @@ Before finalizing, verify EVERY fix story passes:
 - [ ] Can verify fix through testing/validation
 
 #### File Location
-- [ ] Stories created in docs/issues/{issue_number}/user-stories.md
+- [ ] Stories created in docs/features{featureID}/issues/{issue_number}/user-stories.md
 - [ ] Did NOT update feature-log.json (fixes don't go in feature log)
 - [ ] Issue context included in story header
 

@@ -19,6 +19,7 @@ permissions:
   contents: read
   pull-requests: write
   checks: write
+  issues: write
 
 # Prevent concurrent runs for same branch/PR
 concurrency:
@@ -305,7 +306,69 @@ jobs:
           fi
           echo "✅ index.html exists in build artifacts"
 
-  # Job 7: Detect Workflow Failures
+  # Job 7: Auto-Close Issue
+  auto-close-issue:
+    name: Auto-Close Issue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs: [lint, typecheck, test, build, security]
+    # Only run on push to main (needs ensures all jobs succeeded)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Check for issue reference and close
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "## Auto-Close Issue Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          echo "Commit message: $COMMIT_MSG" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract issue number from "Fix issue #42" or "Fix issue 42" pattern
+          # Using case-insensitive matching for "fix issue"
+          ISSUE_NUMBER=$(echo "$COMMIT_MSG" | grep -ioE 'fix issue #?([0-9]+)' | grep -oE '[0-9]+' | head -n 1)
+
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "ℹ️ No issue reference found in commit message" >> $GITHUB_STEP_SUMMARY
+            echo "Pattern searched: 'Fix issue #N' or 'Fix issue N' (case-insensitive)" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "Found issue reference: #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check if issue exists and is open
+          ISSUE_STATE=$(gh issue view "$ISSUE_NUMBER" --repo "${{ github.repository }}" --json state --jq '.state' 2>&1 || echo "ERROR")
+
+          if [ "$ISSUE_STATE" == "ERROR" ]; then
+            echo "⚠️ Issue #$ISSUE_NUMBER does not exist or is not accessible" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          if [ "$ISSUE_STATE" == "CLOSED" ]; then
+            echo "ℹ️ Issue #$ISSUE_NUMBER is already closed" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Close the issue with a comment
+          echo "Attempting to close issue #$ISSUE_NUMBER..." >> $GITHUB_STEP_SUMMARY
+
+          COMMENT="Automatically closed by commit ${{ github.sha }} (Frontend CI/CD workflow succeeded)"
+
+          if gh issue close "$ISSUE_NUMBER" --repo "${{ github.repository }}" --comment "$COMMENT"; then
+            echo "✅ Successfully closed issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Issue URL: https://github.com/${{ github.repository }}/issues/$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Failed to close issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "This may be due to insufficient permissions or the issue being in an unexpected state" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  # Job 8: Detect Workflow Failures
   detect-workflow-failures:
     name: Detect Workflow Failures
     runs-on: ubuntu-22.04

@@ -79,9 +79,7 @@ describe('Home Page', () => {
       });
       expect(muiHeading).toBeInTheDocument();
 
-      const muiDescription = screen.getByText(
-        /comprehensive material design 3 component library/i
-      );
+      const muiDescription = screen.getByText(/comprehensive material design 3 component library/i);
       expect(muiDescription).toBeInTheDocument();
     });
 
@@ -93,9 +91,7 @@ describe('Home Page', () => {
       });
       expect(routerHeading).toBeInTheDocument();
 
-      const routerDescription = screen.getByText(
-        /client-side routing with seamless navigation/i
-      );
+      const routerDescription = screen.getByText(/client-side routing with seamless navigation/i);
       expect(routerDescription).toBeInTheDocument();
     });
 
@@ -216,7 +212,7 @@ describe('Home Page', () => {
       });
 
       it('should render the button with contained variant', () => {
-        const { container } = renderWithProviders(<Home />);
+        renderWithProviders(<Home />);
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
         // MUI contained buttons have MuiButton-contained class
@@ -224,7 +220,7 @@ describe('Home Page', () => {
       });
 
       it('should render the button with primary color', () => {
-        const { container } = renderWithProviders(<Home />);
+        renderWithProviders(<Home />);
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
         // MUI primary buttons have MuiButton-colorPrimary class
@@ -232,7 +228,7 @@ describe('Home Page', () => {
       });
 
       it('should render the button with large size', () => {
-        const { container } = renderWithProviders(<Home />);
+        renderWithProviders(<Home />);
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
         // MUI large buttons have MuiButton-sizeLarge class
@@ -253,7 +249,6 @@ describe('Home Page', () => {
         renderWithProviders(<Home />);
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
-        const otherButtons = screen.getAllByRole('button');
 
         // Hello button should have contained variant (others might have outlined)
         expect(helloButton).toHaveClass('MuiButton-contained');
@@ -266,7 +261,6 @@ describe('Home Page', () => {
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
         // MUI buttons have cursor: pointer by default
-        const computedStyle = window.getComputedStyle(helloButton);
         // This test verifies the button is not disabled (which would change cursor)
         expect(helloButton).not.toBeDisabled();
       });
@@ -296,10 +290,9 @@ describe('Home Page', () => {
       });
 
       it('should meet minimum touch target size', () => {
-        const { container } = renderWithProviders(<Home />);
+        renderWithProviders(<Home />);
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
-        const rect = helloButton.getBoundingClientRect();
 
         // MUI large button should meet 48x48px minimum touch target
         // Note: In testing environment, actual dimensions may not render,
@@ -310,7 +303,7 @@ describe('Home Page', () => {
 
     describe('Design Compliance', () => {
       it('should use MUI Button component', () => {
-        const { container } = renderWithProviders(<Home />);
+        renderWithProviders(<Home />);
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
         // Should have MUI Button root class
@@ -318,7 +311,7 @@ describe('Home Page', () => {
       });
 
       it('should be centered on the page', () => {
-        const { container } = renderWithProviders(<Home />);
+        renderWithProviders(<Home />);
 
         const helloButton = screen.getByRole('button', { name: /say hello/i });
         const parentBox = helloButton.parentElement;
@@ -403,7 +396,9 @@ describe('Home Page', () => {
         // Wait for message to disappear (auto-hide after 3 seconds)
         await waitFor(
           () => {
-            expect(screen.queryByText(/hello! welcome to our application!/i)).not.toBeInTheDocument();
+            expect(
+              screen.queryByText(/hello! welcome to our application!/i)
+            ).not.toBeInTheDocument();
           },
           { timeout: 4000 }
         );
@@ -445,7 +440,9 @@ describe('Home Page', () => {
         // Message should disappear after 3 seconds
         await waitFor(
           () => {
-            expect(screen.queryByText(/hello! welcome to our application!/i)).not.toBeInTheDocument();
+            expect(
+              screen.queryByText(/hello! welcome to our application!/i)
+            ).not.toBeInTheDocument();
           },
           { timeout: 4000 }
         );
@@ -468,7 +465,9 @@ describe('Home Page', () => {
 
           // Message should disappear
           await waitFor(() => {
-            expect(screen.queryByText(/hello! welcome to our application!/i)).not.toBeInTheDocument();
+            expect(
+              screen.queryByText(/hello! welcome to our application!/i)
+            ).not.toBeInTheDocument();
           });
         }
       });
