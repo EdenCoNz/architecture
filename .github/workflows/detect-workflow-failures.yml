@@ -1,18 +1,11 @@
 name: Detect Workflow Failures
 
 # This workflow detects failed jobs in completed workflows
-# It runs after any workflow completes and checks for failures
+# It runs ONLY after Frontend CI/CD workflow completes and checks for failures
 on:
   workflow_run:
-    workflows: ["Frontend CI/CD"]  # Add other workflows to monitor here
+    workflows: ["Frontend CI/CD"]
     types: [completed]
-
-  # Allow manual testing and run on workflow changes
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/detect-workflow-failures.yml'
-      - '.github/workflows/create-issue-from-log.yml'
 
 # Required permissions for workflow
 permissions:
