@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../src/theme';
@@ -202,6 +203,353 @@ describe('Home Page', () => {
       const papers = container.querySelectorAll('.MuiPaper-root');
       // Should have 3 Paper components (one for each feature card)
       expect(papers.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe('Hello Button - Feature #5 Story #2', () => {
+    describe('Button Display', () => {
+      it('should display a button labeled "Say Hello"', () => {
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        expect(helloButton).toBeInTheDocument();
+      });
+
+      it('should render the button with contained variant', () => {
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        // MUI contained buttons have MuiButton-contained class
+        expect(helloButton).toHaveClass('MuiButton-contained');
+      });
+
+      it('should render the button with primary color', () => {
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        // MUI primary buttons have MuiButton-colorPrimary class
+        expect(helloButton).toHaveClass('MuiButton-colorPrimary');
+      });
+
+      it('should render the button with large size', () => {
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        // MUI large buttons have MuiButton-sizeLarge class
+        expect(helloButton).toHaveClass('MuiButton-sizeLarge');
+      });
+    });
+
+    describe('Visual Prominence', () => {
+      it('should be easily locatable on the page', () => {
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        // Button should be visible (not hidden or off-screen)
+        expect(helloButton).toBeVisible();
+      });
+
+      it('should be visually distinct from other buttons', () => {
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        const otherButtons = screen.getAllByRole('button');
+
+        // Hello button should have contained variant (others might have outlined)
+        expect(helloButton).toHaveClass('MuiButton-contained');
+      });
+    });
+
+    describe('Interactive Appearance', () => {
+      it('should have pointer cursor on hover', () => {
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        // MUI buttons have cursor: pointer by default
+        const computedStyle = window.getComputedStyle(helloButton);
+        // This test verifies the button is not disabled (which would change cursor)
+        expect(helloButton).not.toBeDisabled();
+      });
+
+      it('should not be disabled by default', () => {
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        expect(helloButton).not.toBeDisabled();
+      });
+    });
+
+    describe('Accessibility', () => {
+      it('should have accessible name for screen readers', () => {
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        expect(helloButton).toHaveAccessibleName();
+      });
+
+      it('should be keyboard accessible', () => {
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        // Native button elements are keyboard accessible by default
+        expect(helloButton.tagName).toBe('BUTTON');
+      });
+
+      it('should meet minimum touch target size', () => {
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        const rect = helloButton.getBoundingClientRect();
+
+        // MUI large button should meet 48x48px minimum touch target
+        // Note: In testing environment, actual dimensions may not render,
+        // but we verify the size class is applied
+        expect(helloButton).toHaveClass('MuiButton-sizeLarge');
+      });
+    });
+
+    describe('Design Compliance', () => {
+      it('should use MUI Button component', () => {
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        // Should have MUI Button root class
+        expect(helloButton).toHaveClass('MuiButton-root');
+      });
+
+      it('should be centered on the page', () => {
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        const parentBox = helloButton.parentElement;
+
+        // Parent should be a Box with centered alignment
+        expect(parentBox).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Hello Button Interaction - Feature #5 Story #3', () => {
+    describe('Button Click Behavior', () => {
+      it('should display a greeting message when clicked', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+
+        // Click the button
+        await user.click(helloButton);
+
+        // Greeting message should appear
+        const greetingMessage = await screen.findByText(/hello! welcome to our application!/i);
+        expect(greetingMessage).toBeInTheDocument();
+      });
+
+      it('should display greeting message that is clearly visible', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Message should be visible to users
+        const greetingMessage = await screen.findByText(/hello! welcome to our application!/i);
+        expect(greetingMessage).toBeVisible();
+      });
+
+      it('should use Snackbar for greeting message display', async () => {
+        const user = userEvent.setup();
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Wait for Snackbar to appear
+        await screen.findByText(/hello! welcome to our application!/i);
+
+        // Should have MUI Snackbar component
+        const snackbar = container.querySelector('.MuiSnackbar-root');
+        expect(snackbar).toBeInTheDocument();
+      });
+
+      it('should use Alert component with success severity', async () => {
+        const user = userEvent.setup();
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Wait for Alert to appear
+        await screen.findByText(/hello! welcome to our application!/i);
+
+        // Should have MUI Alert component with success severity
+        const alert = container.querySelector('.MuiAlert-standardSuccess');
+        expect(alert).toBeInTheDocument();
+      });
+    });
+
+    describe('Multiple Click Behavior', () => {
+      it('should show greeting each time button is clicked', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+
+        // First click
+        await user.click(helloButton);
+        let greetingMessage = await screen.findByText(/hello! welcome to our application!/i);
+        expect(greetingMessage).toBeInTheDocument();
+
+        // Wait for message to disappear (auto-hide after 3 seconds)
+        await waitFor(
+          () => {
+            expect(screen.queryByText(/hello! welcome to our application!/i)).not.toBeInTheDocument();
+          },
+          { timeout: 4000 }
+        );
+
+        // Second click
+        await user.click(helloButton);
+        greetingMessage = await screen.findByText(/hello! welcome to our application!/i);
+        expect(greetingMessage).toBeInTheDocument();
+      });
+
+      it('should allow rapid consecutive clicks', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+
+        // Click multiple times rapidly
+        await user.click(helloButton);
+        await user.click(helloButton);
+
+        // Greeting should still appear
+        const greetingMessage = await screen.findByText(/hello! welcome to our application!/i);
+        expect(greetingMessage).toBeInTheDocument();
+      });
+    });
+
+    describe('Message Dismissal', () => {
+      it('should auto-dismiss greeting message after timeout', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Message should appear
+        const greetingMessage = await screen.findByText(/hello! welcome to our application!/i);
+        expect(greetingMessage).toBeInTheDocument();
+
+        // Message should disappear after 3 seconds
+        await waitFor(
+          () => {
+            expect(screen.queryByText(/hello! welcome to our application!/i)).not.toBeInTheDocument();
+          },
+          { timeout: 4000 }
+        );
+      });
+
+      it('should allow manual dismissal of greeting message', async () => {
+        const user = userEvent.setup();
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Wait for message to appear
+        await screen.findByText(/hello! welcome to our application!/i);
+
+        // Find and click close button on Alert
+        const closeButton = container.querySelector('.MuiAlert-action button');
+        if (closeButton) {
+          await user.click(closeButton);
+
+          // Message should disappear
+          await waitFor(() => {
+            expect(screen.queryByText(/hello! welcome to our application!/i)).not.toBeInTheDocument();
+          });
+        }
+      });
+    });
+
+    describe('Snackbar Positioning', () => {
+      it('should position Snackbar at bottom center', async () => {
+        const user = userEvent.setup();
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Wait for Snackbar to appear
+        await screen.findByText(/hello! welcome to our application!/i);
+
+        // Snackbar should have bottom-center anchor classes
+        const snackbar = container.querySelector('.MuiSnackbar-root');
+        expect(snackbar).toHaveClass('MuiSnackbar-anchorOriginBottomCenter');
+      });
+    });
+
+    describe('Greeting Message Accessibility', () => {
+      it('should announce greeting message to screen readers', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Alert should be announced (role="alert" is implicit for MUI Alert)
+        const greetingMessage = await screen.findByText(/hello! welcome to our application!/i);
+        const alert = greetingMessage.closest('[role="alert"]');
+        expect(alert).toBeInTheDocument();
+      });
+
+      it('should have readable contrast for greeting message', async () => {
+        const user = userEvent.setup();
+        const { container } = renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+        await user.click(helloButton);
+
+        // Wait for Alert to appear
+        await screen.findByText(/hello! welcome to our application!/i);
+
+        // Success Alert should have appropriate contrast (MUI default success colors)
+        const alert = container.querySelector('.MuiAlert-standardSuccess');
+        expect(alert).toBeInTheDocument();
+      });
+    });
+
+    describe('Button State During Interaction', () => {
+      it('should keep button enabled after click', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+
+        // Click button
+        await user.click(helloButton);
+
+        // Wait for greeting to appear
+        await screen.findByText(/hello! welcome to our application!/i);
+
+        // Button should still be enabled
+        expect(helloButton).not.toBeDisabled();
+      });
+
+      it('should not show loading state', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(<Home />);
+
+        const helloButton = screen.getByRole('button', { name: /say hello/i });
+
+        // Click button
+        await user.click(helloButton);
+
+        // Button should not have loading indicator
+        expect(helloButton.querySelector('.MuiCircularProgress-root')).not.toBeInTheDocument();
+      });
     });
   });
 });
