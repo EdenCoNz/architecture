@@ -142,7 +142,9 @@ jobs:
           fi
 
           # Output all extracted metadata to GITHUB_OUTPUT for use in subsequent steps
-          # Note: log_line_numbers will be extracted in the next step from the actual log excerpt
+          # Note: log_line_numbers will be populated in the next step with the RANGE of lines
+          # extracted from the full log (e.g., "Lines 120-170" = 50 lines extracted), NOT
+          # the specific line number where an error occurs
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
           echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
           echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
@@ -233,7 +235,10 @@ jobs:
             # Extract the excerpt
             LOG_EXCERPT=$(sed -n "${START_LINE},${END_LINE}p" job_logs.txt)
 
-            # Store the actual line numbers for the issue
+            # Store the log line range for the issue
+            # NOTE: This represents the RANGE and COUNT of lines extracted from the full log,
+            # NOT the specific line number where an error occurs. For example, "Lines 120-170"
+            # means we extracted 50 lines (lines 120 through 170) from the complete workflow log.
             LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (error at line $FIRST_ERROR_LINE)"
 
             echo "Extracted log excerpt from lines $START_LINE to $END_LINE (centered on line $FIRST_ERROR_LINE)" >> $GITHUB_STEP_SUMMARY
@@ -247,6 +252,9 @@ jobs:
             END_LINE=$TOTAL_LINES
 
             LOG_EXCERPT=$(tail -n 50 job_logs.txt)
+
+            # Store the log line range for the issue
+            # NOTE: This represents the RANGE and COUNT of lines extracted (50 lines in this case)
             LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (last 50 lines, no clear error pattern)"
 
             echo "No clear error pattern found, extracted last 50 lines of logs (lines $START_LINE-$END_LINE)" >> $GITHUB_STEP_SUMMARY

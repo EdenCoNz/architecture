@@ -44,7 +44,7 @@ All of the following fields must match exactly for duplicate detection:
 - **featureName**: Complete branch name
 - **jobName**: Name of the failed job
 - **stepName**: Name of the failed step
-- **logLineNumbers**: Log line number references
+- **logLineNumbers**: Range and count of log lines extracted in the excerpt (e.g., "Lines 120-170" indicates 50 lines were extracted from the full workflow log). This is NOT the specific line number where an error occurs.
 
 ## Behavior
 

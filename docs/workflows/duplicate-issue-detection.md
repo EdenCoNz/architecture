@@ -47,7 +47,7 @@ All of the following fields must match for an issue to be considered a duplicate
 | `featureName` | Full branch name | "feature/5-add-simple-button-that-says-hello-on-main-page" |
 | `jobName` | Name of the failed job | "Lint and Format Check" |
 | `stepName` | Name of the failed step | "Run ESLint" |
-| `logLineNumbers` | Line number references in logs | "See workflow run URL for complete logs" |
+| `logLineNumbers` | Range and count of log lines in the excerpt (NOT error line numbers) | "Lines 120-170 (error at line 145)" or "Lines 200-250 (last 50 lines, no clear error pattern)" |
 
 ### Why All Fields?
 
@@ -247,11 +247,13 @@ To change the "attempted" label:
 
 **Diagnosis**:
 1. Review the fields being compared - are they specific enough?
-2. Check if `logLineNumbers` is always the same (e.g., "See workflow run URL for complete logs")
+2. Check if `logLineNumbers` is always the same or varies based on log context
+   - Note: `logLineNumbers` represents the range of lines extracted (e.g., "Lines 120-170"), not the specific error line
+   - Different log excerpts may have different ranges but represent the same underlying failure
 
 **Solution**:
 - Consider adding more specific fields (e.g., error message hash)
-- Make `logLineNumbers` more specific if possible
+- Review if the log extraction logic is consistently identifying the same failure context
 
 ### Label Not Applied
 
