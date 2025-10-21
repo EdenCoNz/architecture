@@ -5,11 +5,21 @@
  * Follows Material UI design patterns with responsive layout.
  */
 
-import { Box, Typography, Container, Paper, Button } from '@mui/material';
+import { useState } from 'react';
+import { Box, Typography, Container, Paper, Button, Snackbar, Alert } from '@mui/material';
 import { Link } from 'react-router-dom';
 import HomeIcon from '@mui/icons-material/Home';
 
 function Home() {
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  const handleSayHello = () => {
+    setSnackbarOpen(true);
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+  };
   return (
     <Container maxWidth="lg">
       <Box
@@ -110,6 +120,39 @@ function Home() {
             </Typography>
           </Paper>
         </Box>
+
+        {/* Hello Button - Feature #5 */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            mt: { xs: 6, sm: 8 },
+          }}
+        >
+          <Button
+            variant="contained"
+            color="primary"
+            size="large"
+            onClick={handleSayHello}
+            sx={{ minWidth: { xs: 120, sm: 140, md: 160 } }}
+          >
+            Say Hello
+          </Button>
+        </Box>
+
+        {/* Greeting Snackbar - Feature #5 Story #3 */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={handleSnackbarClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity="success" onClose={handleSnackbarClose}>
+            Hello! Welcome to our application!
+          </Alert>
+        </Snackbar>
 
         {/* Call to Action */}
         <Box sx={{ mt: 4 }}>

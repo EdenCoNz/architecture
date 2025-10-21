@@ -1,18 +1,11 @@
 name: Detect Workflow Failures
 
 # This workflow detects failed jobs in completed workflows
-# It runs after any workflow completes and checks for failures
+# It runs ONLY after Frontend CI/CD workflow completes and checks for failures
 on:
   workflow_run:
-    workflows: ["Frontend CI/CD"]  # Add other workflows to monitor here
+    workflows: ["Frontend CI/CD"]
     types: [completed]
-
-  # Allow manual testing and run on workflow changes
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/detect-workflow-failures.yml'
-      - '.github/workflows/create-issue-from-log.yml'
 
 # Required permissions for workflow
 permissions:
@@ -376,6 +369,10 @@ jobs:
 
           FAILED_JOBS='${{ needs.prepare-issue-creation.outputs.failed_jobs_json }}'
           TRIGGERED_COUNT=0
+          FAILED_WORKFLOW_BRANCH="${{ github.event.workflow_run.head_branch }}"
+
+          echo "**Failed Workflow Branch**: $FAILED_WORKFLOW_BRANCH" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           echo "$FAILED_JOBS" | jq -c '.[]' | while read -r job; do
             JOB_ID=$(echo "$job" | jq -r '.job_id')
@@ -389,25 +386,27 @@ jobs:
             echo "  Job Name: $JOB_NAME"
             echo "  Job ID: $JOB_ID"
             echo "  Run ID: $RUN_ID"
+            echo "  Branch: $FAILED_WORKFLOW_BRANCH"
 
             # Trigger independent workflow_dispatch run for this log file
             # Each trigger creates a separate workflow run that processes
             # the log file independently
             # Note: run_id is the failed workflow (for metadata extraction)
             # artifact_run_id is the current workflow (for artifact download)
+            # --ref uses the failed workflow's branch (not the current workflow's ref)
             gh workflow run create-issue-from-log.yml \
               -f log_filename="$LOG_FILENAME" \
               -f run_id="$RUN_ID" \
               -f artifact_run_id="${{ github.run_id }}" \
               -f job_id="$JOB_ID" \
-              --ref "${{ github.ref }}" || {
+              --ref "$FAILED_WORKFLOW_BRANCH" || {
                 echo "Warning: Failed to trigger workflow for $LOG_FILENAME"
                 echo "- ❌ Failed to trigger for \`$LOG_FILENAME\`" >> $GITHUB_STEP_SUMMARY
                 continue
               }
 
             TRIGGERED_COUNT=$((TRIGGERED_COUNT + 1))
-            echo "- ✓ Triggered issue creation for \`$LOG_FILENAME\` (Job: $JOB_NAME)" >> $GITHUB_STEP_SUMMARY
+            echo "- ✓ Triggered issue creation for \`$LOG_FILENAME\` (Job: $JOB_NAME, Branch: $FAILED_WORKFLOW_BRANCH)" >> $GITHUB_STEP_SUMMARY
           done
 
           echo "" >> $GITHUB_STEP_SUMMARY

@@ -54,6 +54,22 @@
       "isSummarised": false,
       "summarisedAt": null,
       "actions": []
+    },
+    {
+      "featureID": "5",
+      "title": "Hello Button on Main Page",
+      "createdAt": "2025-10-21T00:00:00Z",
+      "userStoriesCreated": "2025-10-21T00:00:00Z",
+      "userStoriesImplemented": "2025-10-21T15:35:00Z",
+      "isSummarised": false,
+      "summarisedAt": null,
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-21T12:30:00Z",
+          "designBriefUpdated": true
+        }
+      ]
     }
   ]
 }

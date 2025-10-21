@@ -599,6 +599,119 @@ h2: {
 - **Gesture Support**: Swipe for drawer on mobile, pull-to-refresh where applicable
 - **Hover States**: Show on touch (tap and hold) or disable on touch devices
 
+### Feature: Hello Button Component
+**Purpose**: Provide a welcoming, interactive entry point on the main page that greets users when clicked.
+
+**Design Decisions**:
+- **MUI Button Component (variant: contained, color: primary)**: Uses established primary color for clear call-to-action, contained variant provides strong visual weight appropriate for primary action
+- **Large size with spacing(6) minimum touch target**: Ensures 48x48px accessibility requirement, makes button prominent and easy to tap on mobile
+- **Center-aligned on page with generous whitespace**: Creates focal point, reduces cognitive load, guides user attention to primary interaction
+
+**Component Specifications**:
+
+| Aspect | Specification |
+|--------|--------------|
+| **Component** | MUI Button (contained variant) |
+| **Text** | "Say Hello" |
+| **Color** | primary (theme.palette.primary.main: #1976d2) |
+| **Size** | large (height: 42.25px, padding: 8px 22px) |
+| **Typography** | button variant (14px, 500 weight, 0.4px letter-spacing) |
+| **Min Dimensions** | 48x48px (MUI touch target) |
+| **Border Radius** | 4px (theme.shape.borderRadius) |
+| **Elevation** | 2 (default MUI button elevation) |
+| **Position** | Horizontally centered in Container, vertically centered in viewport |
+| **Top Margin** | spacing(8) = 64px from page top |
+
+**Interactive States**:
+
+| State | Background | Text Color | Elevation | Cursor | Transition |
+|-------|-----------|------------|-----------|--------|------------|
+| **Default** | #1976d2 (primary.main) | #ffffff | 2 | pointer | - |
+| **Hover** | #1565c0 (primary.dark) | #ffffff | 4 | pointer | 225ms |
+| **Focus** | #1976d2 | #ffffff | 2 | pointer | 2px outline offset |
+| **Active** | #1565c0 | #ffffff | 8 | pointer | 150ms |
+| **Disabled** | rgba(0,0,0,0.12) | rgba(0,0,0,0.26) | 0 | not-allowed | - |
+
+**Feedback Mechanism**:
+- **Component**: MUI Snackbar with Alert (severity: success)
+- **Message**: "Hello! Welcome to our application!"
+- **Position**: Bottom center (anchorOrigin: { vertical: 'bottom', horizontal: 'center' })
+- **Duration**: 3000ms auto-hide
+- **Icon**: CheckCircle icon (MUI default for success Alert)
+- **Background**: theme.palette.success.main (#2e7d32) with light variant for Alert
+- **Transition**: Slide up entrance, fade out exit (225ms)
+
+**All UI States**:
+- **Default**: Button visible, ready for interaction
+- **Loading**: Not applicable for this simple interaction (no async operation)
+- **Success**: Snackbar appears with success message after click
+- **Error**: Not applicable (no failure mode for greeting)
+- **Empty**: Not applicable (button always present)
+
+**Accessibility**:
+- **Contrast Ratio**: 4.65:1 (white text #ffffff on primary blue #1976d2) - passes WCAG AA
+- **Keyboard Navigation**: Tab to focus, Enter/Space to activate
+- **Focus Indicator**: MUI default 2px outline with offset, primary color
+- **Screen Reader**: Button text "Say Hello" descriptive of action
+- **ARIA**: No additional ARIA needed (native button semantics sufficient)
+- **Touch Target**: 48x48px minimum enforced by large size variant
+
+**Responsive Behavior**:
+
+| Breakpoint | Button Width | Container Padding | Vertical Position |
+|-----------|--------------|-------------------|-------------------|
+| **xs (0-599px)** | min-width: 120px | spacing(2) = 16px | margin-top: spacing(6) |
+| **sm (600-899px)** | min-width: 140px | spacing(3) = 24px | margin-top: spacing(8) |
+| **md (900px+)** | min-width: 160px | spacing(4) = 32px | margin-top: spacing(8) |
+
+**Layout Structure**:
+```jsx
+<Container maxWidth="md">
+  <Box
+    sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '50vh',
+      mt: { xs: 6, sm: 8 },
+    }}
+  >
+    <Button
+      variant="contained"
+      color="primary"
+      size="large"
+      onClick={handleClick}
+      sx={{ minWidth: { xs: 120, sm: 140, md: 160 } }}
+    >
+      Say Hello
+    </Button>
+  </Box>
+  <Snackbar
+    open={open}
+    autoHideDuration={3000}
+    onClose={handleClose}
+    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+  >
+    <Alert severity="success" onClose={handleClose}>
+      Hello! Welcome to our application!
+    </Alert>
+  </Snackbar>
+</Container>
+```
+
+**Styling Approach**: sx prop for responsive overrides, MUI theme for colors and spacing
+
+**Components Used**: Button, Container, Box, Snackbar, Alert
+
+**Interaction Pattern**:
+1. User views centered button on main page
+2. User hovers - button darkens, elevation increases
+3. User clicks/taps - button momentarily increases elevation (active state)
+4. Snackbar slides up from bottom center with success message
+5. After 3 seconds, Snackbar auto-dismisses with fade transition
+6. User can click button again for repeated greeting
+
 ## Implementation Guidelines
 
 ### Styling Approach Priority
