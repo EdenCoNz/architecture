@@ -408,5 +408,254 @@
       "CssBaseline component from MUI provides CSS normalization/reset for consistent cross-browser rendering",
       "The fix ensures proper Material UI theme integration and consistent styling baseline"
     ]
+  },
+  {
+    "issueNumber": 90,
+    "storyNumber": 1,
+    "storyTitle": "Resolve Code Formatting Issues in Test Files",
+    "completedAt": "2025-10-21T23:41:30Z",
+    "status": "completed",
+    "filesCreated": [],
+    "filesModified": [
+      "frontend/tests/unit/Home.test.tsx"
+    ],
+    "actions": [
+      {
+        "type": "read",
+        "description": "Read issue user stories to understand fix requirements",
+        "file": "docs/features/5/issues/90/user-stories.md"
+      },
+      {
+        "type": "read",
+        "description": "Examined Home.test.tsx to identify formatting violations",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Found 5 prettier/prettier errors on lines 82, 96, 406, 448, and 471"
+      },
+      {
+        "type": "read",
+        "description": "Read prettier configuration to understand formatting rules",
+        "file": "frontend/.prettierrc",
+        "details": "Confirmed printWidth: 100, semi: true, singleQuote: true, trailingComma: es5"
+      },
+      {
+        "type": "verification",
+        "description": "Ran ESLint to confirm all formatting errors",
+        "command": "npm run lint",
+        "result": "16 problems found: 5 prettier/prettier errors in Home.test.tsx, 10 unused variable errors, 1 any type warning"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed line 82-84: Changed multi-line regex to single-line",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Replaced multi-line screen.getByText() with single-line for comprehensive material design 3 component library regex"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed line 96-98: Changed multi-line regex to single-line",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Replaced multi-line screen.getByText() with single-line for client-side routing with seamless navigation regex"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed line 406: Changed inline queryByText to multi-line formatted version",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Split screen.queryByText() call onto multiple lines within waitFor callback to comply with printWidth: 100"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed line 448: Changed inline queryByText to multi-line formatted version",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Split screen.queryByText() call onto multiple lines within waitFor callback for auto-dismiss test"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed line 471: Changed inline queryByText to multi-line formatted version",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Split screen.queryByText() call onto multiple lines within waitFor callback for manual dismissal test"
+      },
+      {
+        "type": "verification",
+        "description": "Verified prettier formatting is correct",
+        "command": "npx prettier --check tests/unit/Home.test.tsx",
+        "result": "All matched files use Prettier code style!"
+      },
+      {
+        "type": "verification",
+        "description": "Ran ESLint to confirm prettier errors are fixed",
+        "command": "npm run lint",
+        "result": "All 5 prettier/prettier errors resolved. Remaining: 10 unused variable errors and 1 any type warning (expected)"
+      },
+      {
+        "type": "test",
+        "description": "Ran test suite to ensure no regressions",
+        "command": "npm test -- tests/unit/Home.test.tsx",
+        "result": "All 43 tests passed with no failures or regressions"
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Apply prettier formatting rules exactly as specified in .prettierrc",
+        "rationale": "Ensures consistency with project code style standards, prevents ESLint errors, and maintains CI/CD pipeline compatibility"
+      },
+      {
+        "decision": "Fix only prettier/prettier errors in this story, leaving unused variable errors for story #2",
+        "rationale": "User stories are separated for clarity and organization. Story #1 focuses on formatting, story #2 will handle unused variables"
+      },
+      {
+        "decision": "Preserve exact test logic and assertions during formatting changes",
+        "rationale": "Formatting changes should not affect test behavior. All tests must continue to pass to ensure no regressions"
+      },
+      {
+        "decision": "Use Edit tool for precise string replacements rather than prettier --write",
+        "rationale": "Maintains control over each specific change, allows for verification of exact transformations, and follows TDD verification workflow"
+      }
+    ],
+    "issues": [],
+    "notes": [
+      "Issue #90 was a validation failure from CI/CD pipeline ESLint check",
+      "5 prettier/prettier errors identified in Home.test.tsx related to line length and formatting",
+      "Lines 82 and 96: Multi-line regex patterns needed to be collapsed to single-line to fit within printWidth: 100",
+      "Lines 406, 448, 471: Inline screen.queryByText() calls exceeded line length and needed multi-line formatting",
+      "All acceptance criteria met: ESLint runs with no prettier/prettier errors, formatting is consistent with project standards",
+      "All 43 tests continue to pass with zero regressions",
+      "Story #1 complete - code formatting issues resolved",
+      "Story #2 (remove unused variables) is next in execution order per user stories document"
+    ]
+  },
+  {
+    "issueNumber": 90,
+    "storyNumber": 2,
+    "storyTitle": "Remove Unused Variables from Test Files",
+    "completedAt": "2025-10-21T23:43:45Z",
+    "status": "completed",
+    "filesCreated": [],
+    "filesModified": [
+      "frontend/tests/unit/App.test.tsx",
+      "frontend/tests/unit/Home.test.tsx"
+    ],
+    "actions": [
+      {
+        "type": "read",
+        "description": "Read issue user stories to understand fix requirements",
+        "file": "docs/features/5/issues/90/user-stories.md"
+      },
+      {
+        "type": "read",
+        "description": "Examined App.test.tsx to identify unused variables",
+        "file": "frontend/tests/unit/App.test.tsx",
+        "details": "Found 1 unused variable error on line 82: 'container' is assigned but never used"
+      },
+      {
+        "type": "read",
+        "description": "Examined Home.test.tsx to identify unused variables",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Found 9 unused variable errors on lines 219, 227, 235, 256, 269, 299, 302, 313, and 321"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'container' variable from App.test.tsx line 82",
+        "file": "frontend/tests/unit/App.test.tsx",
+        "details": "Changed 'const { container } = render(<App />);' to 'render(<App />);' in Layout Structure test"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'container' variable from Home.test.tsx line 219",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed destructured container in 'should render the button with contained variant' test"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'container' variable from Home.test.tsx line 227",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed destructured container in 'should render the button with primary color' test"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'container' variable from Home.test.tsx line 235",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed destructured container in 'should render the button with large size' test"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'otherButtons' variable from Home.test.tsx line 256",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed unused getAllByRole('button') call in 'should be visually distinct from other buttons' test"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'computedStyle' variable from Home.test.tsx line 269",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed unused window.getComputedStyle() call in 'should have pointer cursor on hover' test, kept verification that button is not disabled"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'container' variable from Home.test.tsx line 299",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed destructured container in 'should meet minimum touch target size' test"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'rect' variable from Home.test.tsx line 302",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed unused getBoundingClientRect() call in 'should meet minimum touch target size' test, kept verification of MUI size class"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'container' variable from Home.test.tsx line 313",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed destructured container in 'should use MUI Button component' test"
+      },
+      {
+        "type": "fix",
+        "description": "Removed unused 'container' variable from Home.test.tsx line 321",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "details": "Removed destructured container in 'should be centered on the page' test"
+      },
+      {
+        "type": "verification",
+        "description": "Ran ESLint to verify all unused variable errors are fixed",
+        "command": "npm run lint",
+        "result": "All 10 @typescript-eslint/no-unused-vars errors resolved. Only 1 remaining warning for @typescript-eslint/no-explicit-any in setup.ts (pre-existing, not in scope)"
+      },
+      {
+        "type": "test",
+        "description": "Ran full test suite to ensure all tests still pass",
+        "command": "npm test -- --run",
+        "result": "All 64 tests passed across 3 test files (10 App tests + 11 Header tests + 43 Home tests)"
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Remove only the variable declarations, not the underlying test logic",
+        "rationale": "Tests should verify behavior through assertions, not rely on unused intermediate variables. Removing the declarations maintains test coverage while eliminating code quality warnings"
+      },
+      {
+        "decision": "Keep container destructuring only where actually used for DOM queries",
+        "file": "frontend/tests/unit/Home.test.tsx",
+        "rationale": "Some tests legitimately need container for querySelector operations (e.g., checking for MUI classes). Only remove where container is truly unused"
+      },
+      {
+        "decision": "Simplify tests that verify classes by using screen.getByRole() queries",
+        "rationale": "React Testing Library best practice is user-centric testing via accessible queries. MUI class verification can be done directly on elements found via screen queries"
+      },
+      {
+        "decision": "Remove computed style and bounding rect calls that aren't used in assertions",
+        "rationale": "Tests should only include code that contributes to verification. If dimensional or style properties aren't asserted, the calls are unnecessary"
+      }
+    ],
+    "issues": [],
+    "notes": [
+      "Issue #90 Story #2 - Clean up unused variables following Story #1 (formatting fixes)",
+      "All acceptance criteria met: ESLint runs with no @typescript-eslint/no-unused-vars errors, all 64 tests still pass, code only declares variables actively used in assertions or test logic",
+      "Fixed 1 unused variable in App.test.tsx (line 82: container)",
+      "Fixed 9 unused variables in Home.test.tsx (lines 219, 227, 235, 256, 269, 299, 302, 313, 321)",
+      "Total 10 unused variable errors resolved across 2 test files",
+      "Zero test regressions introduced - all existing test coverage maintained",
+      "Tests remain comprehensive with all MUI class verification and behavioral assertions intact",
+      "Code quality improved: cleaner tests, better adherence to React Testing Library best practices",
+      "ESLint now passes with 0 errors, 1 pre-existing warning (no-explicit-any in setup.ts, outside scope of this issue)",
+      "Story #2 complete - All unused variables removed from test files",
+      "Issue #90 fix complete - Both formatting issues (Story #1) and unused variables (Story #2) resolved"
+    ]
   }
 ]

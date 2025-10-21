@@ -79,7 +79,7 @@ describe('App Component', () => {
 
   describe('Layout Structure', () => {
     it('should use flex layout for full viewport height', () => {
-      const { container } = render(<App />);
+      render(<App />);
 
       // The main content area should exist within the layout structure
       const mainContent = screen.getByRole('main');
