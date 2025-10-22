@@ -27,7 +27,7 @@ function App() {
         </a>
 
         {/* Application Shell */}
-        <Boxfffase
+        <Box
           sx={{
             display: 'flex',
             flexDirection: 'column',
