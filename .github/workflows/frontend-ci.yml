@@ -359,20 +359,172 @@ jobs:
   detect-workflow-failures:
     name: Detect Workflow Failures
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     if: failure() || cancelled()
+    permissions:
+      issues: write
+      contents: read
+      actions: read
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Report workflow failure
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "## Workflow Issue Detected" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ job.status }}" == "cancelled" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "⚠️ Workflow was manually triggered and had failures." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ job.status }}" == "cancelled" ]; then
             echo "⚠️ Workflow was cancelled." >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ One or more jobs in this workflow have failed." >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Please check the job logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "Creating GitHub issue for workflow failure..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Analyze workflow failures
+        id: analyze-failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fetch workflow run details
+          RUN_ID="${{ github.run_id }}"
+
+          echo "## Analyzing Workflow Failures" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: $RUN_ID" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Fetch all jobs for this workflow run
+          JOBS_JSON=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs")
+
+          # Count failed and cancelled jobs
+          FAILED_JOBS=$(echo "$JOBS_JSON" | jq '[.jobs[] | select(.conclusion == "failure")] | length')
+          CANCELLED_JOBS=$(echo "$JOBS_JSON" | jq '[.jobs[] | select(.conclusion == "cancelled")] | length')
+          TOTAL_JOBS=$(echo "$JOBS_JSON" | jq '.total_count')
+
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+          echo "cancelled_jobs=$CANCELLED_JOBS" >> $GITHUB_OUTPUT
+          echo "total_jobs=$TOTAL_JOBS" >> $GITHUB_OUTPUT
+
+          # Extract first failed job details for issue creation
+          FIRST_FAILED_JOB=$(echo "$JOBS_JSON" | jq -r '[.jobs[] | select(.conclusion == "failure")][0]')
+
+          if [ "$FIRST_FAILED_JOB" != "null" ] && [ -n "$FIRST_FAILED_JOB" ]; then
+            JOB_NAME=$(echo "$FIRST_FAILED_JOB" | jq -r '.name')
+            JOB_ID=$(echo "$FIRST_FAILED_JOB" | jq -r '.id')
+            JOB_URL=$(echo "$FIRST_FAILED_JOB" | jq -r '.html_url')
+            FAILED_STEP=$(echo "$FIRST_FAILED_JOB" | jq -r '.steps[] | select(.conclusion == "failure") | .name' | head -n 1)
+
+            if [ -z "$FAILED_STEP" ]; then
+              FAILED_STEP="Job-level failure"
+            fi
+
+            echo "job_name=$JOB_NAME" >> $GITHUB_OUTPUT
+            echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+            echo "job_url=$JOB_URL" >> $GITHUB_OUTPUT
+            echo "failed_step=$FAILED_STEP" >> $GITHUB_OUTPUT
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+
+            echo "**First Failed Job**: $JOB_NAME" >> $GITHUB_STEP_SUMMARY
+            echo "**Failed Step**: $FAILED_STEP" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+            echo "**Note**: No failed jobs found, workflow may have been cancelled" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Summary**:" >> $GITHUB_STEP_SUMMARY
+          echo "- Total Jobs: $TOTAL_JOBS" >> $GITHUB_STEP_SUMMARY
+          echo "- Failed Jobs: $FAILED_JOBS" >> $GITHUB_STEP_SUMMARY
+          echo "- Cancelled Jobs: $CANCELLED_JOBS" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create failure tracking issue
+        if: steps.analyze-failures.outputs.has_failures == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Extract metadata
+          WORKFLOW_NAME="Frontend CI/CD"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          JOB_NAME="${{ steps.analyze-failures.outputs.job_name }}"
+          FAILED_STEP="${{ steps.analyze-failures.outputs.failed_step }}"
+          BRANCH="${{ github.ref_name }}"
+
+          # Extract feature ID if this is a feature branch
+          if [[ "$BRANCH" =~ ^feature/([0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            FEATURE_NAME="$BRANCH"
+          else
+            FEATURE_ID="N/A"
+            FEATURE_NAME="N/A"
+          fi
+
+          # Determine PR URL
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            PR_URL="${{ github.event.pull_request.html_url }}"
+          else
+            PR_URL="N/A"
+          fi
+
+          # Create issue title
+          ISSUE_TITLE="Workflow Failure: $WORKFLOW_NAME - $JOB_NAME - $FAILED_STEP"
+
+          # Write issue body to temp file using echo
+          {
+            echo "Workflow: $WORKFLOW_NAME - Job: $JOB_NAME - Step: $FAILED_STEP"
+            echo ""
+            echo "Branch: $BRANCH"
+            echo ""
+            echo "Metadata Table:"
+            echo "- title: $ISSUE_TITLE"
+            echo "- featureID: $FEATURE_ID"
+            echo "- featureName: $FEATURE_NAME"
+            echo "- jobName: $JOB_NAME"
+            echo "- stepName: $FAILED_STEP"
+            echo "- PRURL: $PR_URL"
+            echo "- commitURL: $COMMIT_URL"
+            echo "- runURL: $RUN_URL"
+            echo ""
+            echo "Review logs at runURL above, fix the issue, and commit with 'Fix issue #N' to auto-close."
+          } > /tmp/issue_body.md
+
+          # Check for duplicate by searching existing issues with same title
+          echo "Checking for duplicate issues..." >> $GITHUB_STEP_SUMMARY
+
+          DUPLICATE_NUMBER=$(gh issue list --state open --limit 100 --search "in:title $ISSUE_TITLE" --json number --jq '.[0].number // empty')
+
+          if [ -n "$DUPLICATE_NUMBER" ]; then
+            echo "⚠️ Duplicate issue found: #$DUPLICATE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "Adding 'attempted' label to existing issue..." >> $GITHUB_STEP_SUMMARY
+
+            gh issue edit "$DUPLICATE_NUMBER" --add-label "attempted" || true
+
+            echo "✓ Updated existing issue #$DUPLICATE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Issue URL**: https://github.com/${{ github.repository }}/issues/$DUPLICATE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No duplicate found, creating new issue..." >> $GITHUB_STEP_SUMMARY
+
+            # Create the issue from file
+            ISSUE_URL=$(gh issue create \
+              --title "$ISSUE_TITLE" \
+              --body-file /tmp/issue_body.md)
+
+            ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
+
+            echo "✓ Created issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Issue URL**: $ISSUE_URL" >> $GITHUB_STEP_SUMMARY
+          fi

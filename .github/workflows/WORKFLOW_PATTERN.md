@@ -226,11 +226,19 @@ auto-close-issue:
 
 **Job Name**: `detect-workflow-failures`
 
-**Purpose**: Provide inline failure reporting in the workflow summary
+**Purpose**: Detect workflow failures and create GitHub issues for tracking
 
 **Condition**: Only run on failure or cancellation
 ```yaml
 if: failure() || cancelled()
+```
+
+**Permissions**:
+```yaml
+permissions:
+  issues: write
+  contents: read
+  actions: read
 ```
 
 **Template**:
@@ -238,46 +246,87 @@ if: failure() || cancelled()
 detect-workflow-failures:
   name: Detect Workflow Failures
   runs-on: ubuntu-22.04
-  timeout-minutes: 5
+  timeout-minutes: 10
   if: failure() || cancelled()
+  permissions:
+    issues: write
+    contents: read
+    actions: read
 
   steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Report workflow failure
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         echo "## Workflow Issue Detected" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        if [ "${{ job.status }}" == "cancelled" ]; then
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "⚠️ Workflow was manually triggered and had failures." >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ job.status }}" == "cancelled" ]; then
           echo "⚠️ Workflow was cancelled." >> $GITHUB_STEP_SUMMARY
         else
           echo "❌ One or more jobs in this workflow have failed." >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Please check the job logs above for details." >> $GITHUB_STEP_SUMMARY
+        echo "Creating GitHub issue for workflow failure..." >> $GITHUB_STEP_SUMMARY
+
+    - name: Analyze workflow failures
+      id: analyze-failures
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Fetch workflow run details and analyze failures
+        # Extract first failed job details
+        # See frontend-ci.yml or backend-ci.yml for complete implementation
+
+    - name: Create failure tracking issue
+      if: steps.analyze-failures.outputs.has_failures == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Create GitHub issue with failure metadata
+        # Include duplicate detection logic
+        # See frontend-ci.yml or backend-ci.yml for complete implementation
 ```
 
-**Note**: This job provides immediate feedback. The external `detect-workflow-failures.yml` workflow provides more detailed analysis and triggers issue creation.
+**Important Notes**:
+- **This job creates GitHub issues directly** for failures on both PR branches and main branch
+- **Duplicate detection**: Checks for existing open issues with matching failure signatures
+- **Auto-labeling**: Adds "attempted" label to duplicate issues
+- **Complete implementation**: See `/home/ed/Dev/architecture/.github/workflows/frontend-ci.yml` or `backend-ci.yml` for full template
+- The external `detect-workflow-failures.yml` workflow only monitors main branch (due to `workflow_run` limitations)
 
 ## Downstream Workflow Integration
 
 ### External Workflow: detect-workflow-failures.yml
 
-This workflow runs **after** your CI/CD workflow completes and provides:
-- Detailed failure analysis
-- Failed job and step identification
-- Automatic issue creation from failures
+**IMPORTANT**: Due to GitHub Actions `workflow_run` trigger limitations, this external workflow **only monitors workflows that complete on the DEFAULT BRANCH (main)**, NOT pull request branches.
+
+**For PR Branch Failures**:
+- Frontend CI/CD and Backend CI/CD have **inline failure detection** (Job #8)
+- They create GitHub issues **directly** when failures occur on PR branches
+- This ensures PR failures are tracked regardless of branch
+
+**For Main Branch Failures**:
+- This external workflow provides detailed analysis
+- Creates issue log files and triggers issue creation
+- Provides comprehensive failure reporting with log excerpts
 
 **How it works**:
 1. Monitors all workflows listed in its `workflow_run.workflows` trigger
-2. Runs only when those workflows have failures or are cancelled
+2. **Only runs for main branch workflow completions** (GitHub Actions limitation)
 3. Analyzes all failed jobs and steps
 4. Creates issue log files for each failure
 5. Triggers independent issue creation workflows
 
 **Adding Your Workflow to Monitoring**:
 
-To enable automatic failure detection for your new workflow, add it to the `workflows` array in `.github/workflows/detect-workflow-failures.yml`:
+To enable automatic failure detection for your new workflow on the main branch, add it to the `workflows` array in `.github/workflows/detect-workflow-failures.yml`:
 
 ```yaml
 on:
@@ -287,8 +336,10 @@ on:
 ```
 
 **Current Monitored Workflows**:
-- Frontend CI/CD
-- Backend CI/CD
+- Frontend CI/CD (main branch only)
+- Backend CI/CD (main branch only)
+
+**Note**: All workflows must implement inline failure detection (Job #8) to ensure PR branch failures create issues.
 
 ## Permissions
 
@@ -585,23 +636,63 @@ jobs:
   detect-workflow-failures:
     name: Detect Workflow Failures
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     if: failure() || cancelled()
+    permissions:
+      issues: write
+      contents: read
+      actions: read
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Report workflow failure
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "## Workflow Issue Detected" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ job.status }}" == "cancelled" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "⚠️ Workflow was manually triggered and had failures." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ job.status }}" == "cancelled" ]; then
             echo "⚠️ Workflow was cancelled." >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ One or more jobs in this workflow have failed." >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Please check the job logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "Creating GitHub issue for workflow failure..." >> $GITHUB_STEP_SUMMARY
+
+      - name: Analyze workflow failures
+        id: analyze-failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # For complete implementation, see:
+          # - /home/ed/Dev/architecture/.github/workflows/frontend-ci.yml (lines 392-450)
+          # - /home/ed/Dev/architecture/.github/workflows/backend-ci.yml (lines 528-586)
+          #
+          # This step:
+          # 1. Fetches workflow run details via GitHub API
+          # 2. Extracts failed job names, IDs, and failed steps
+          # 3. Outputs metadata for issue creation step
+
+      - name: Create failure tracking issue
+        if: steps.analyze-failures.outputs.has_failures == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # For complete implementation, see:
+          # - /home/ed/Dev/architecture/.github/workflows/frontend-ci.yml (lines 452-610)
+          # - /home/ed/Dev/architecture/.github/workflows/backend-ci.yml (lines 588-746)
+          #
+          # This step:
+          # 1. Creates issue title and body with metadata table
+          # 2. Checks for duplicate issues with same failure signature
+          # 3. Either creates new issue or adds "attempted" label to duplicate
+          # 4. Reports results in workflow summary
 ```
 
 ### Checklist for New Workflows
