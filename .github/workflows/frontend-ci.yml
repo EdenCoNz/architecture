@@ -306,20 +306,54 @@ jobs:
           fi
           echo "✅ index.html exists in build artifacts"
 
-  # Job 7: Auto-Close Issue (Reusable Workflow)
+  # Job 7a: Get Commit Message (for PR events)
+  get-commit-message:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/'))) ||
+      github.event_name == 'pull_request'
+    outputs:
+      commit-message: ${{ steps.get-message.outputs.message }}
+      commit-sha: ${{ steps.get-message.outputs.sha }}
+    steps:
+      - name: Get commit message
+        id: get-message
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For PR events, fetch the latest commit message
+            SHA="${{ github.event.pull_request.head.sha }}"
+            MESSAGE=$(gh api repos/${{ github.repository }}/commits/${SHA} --jq '.commit.message')
+            echo "sha=${SHA}" >> $GITHUB_OUTPUT
+            echo "message<<EOF" >> $GITHUB_OUTPUT
+            echo "${MESSAGE}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            # For push events, use the head commit
+            echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "message<<EOF" >> $GITHUB_OUTPUT
+            echo "${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+  # Job 7b: Auto-Close Issue (Reusable Workflow)
   auto-close-issue:
-    needs: [lint, typecheck, test, build, security]
-    # Run on push to main or feature branches (needs ensures all jobs succeeded)
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/'))
+    needs: [lint, typecheck, test, build, security, get-commit-message]
+    # Run on push to main/feature branches OR on pull_request events (needs ensures all jobs succeeded)
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/'))) ||
+      github.event_name == 'pull_request'
     uses: ./.github/workflows/auto-close-issue.yml
     with:
-      commit-message: ${{ github.event.head_commit.message }}
+      commit-message: ${{ needs.get-commit-message.outputs.commit-message }}
       repository: ${{ github.repository }}
-      sha: ${{ github.sha }}
+      sha: ${{ needs.get-commit-message.outputs.commit-sha }}
       workflow-name: 'Frontend CI/CD'
     permissions:
       issues: write
       contents: read
+      pull-requests: write  # Required for auto-closing PRs when no issues remain
 
   # Job 8: Detect Workflow Failures
   detect-workflow-failures:

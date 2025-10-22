@@ -7,7 +7,8 @@ name: Auto-Close Issue (Reusable)
 # 1. Closes the issue referenced in the commit message (e.g., "Fix issue #117")
 # 2. Extracts runURL metadata from the closed issue
 # 3. Automatically closes all other open issues with matching runURL
-# 4. Provides comprehensive logging in GitHub Step Summary
+# 4. Auto-closes the relevant PR if NO open issues remain in the repository
+# 5. Provides comprehensive logging in GitHub Step Summary
 #
 # Usage:
 #   jobs:
@@ -44,6 +45,7 @@ on:
 permissions:
   issues: write
   contents: read
+  pull-requests: write  # Required for auto-closing PRs when no issues remain
 
 jobs:
   auto-close-issue:
@@ -241,3 +243,73 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Total issues closed: $((CLOSED_COUNT + 1))" >> $GITHUB_STEP_SUMMARY
+
+          # ===================================================================
+          # Auto-close PR if no open issues remain
+          # ===================================================================
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Auto-Close Pull Request Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Count open issues in the repository
+          echo "Checking for remaining open issues..." >> $GITHUB_STEP_SUMMARY
+          OPEN_ISSUE_COUNT=$(gh issue list --repo "${{ inputs.repository }}" --state open --json number --jq 'length' 2>&1 || echo "0")
+
+          echo "Open issues count: $OPEN_ISSUE_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Only proceed if there are NO open issues
+          if [ "$OPEN_ISSUE_COUNT" != "0" ]; then
+            echo "ℹ️ Skipping PR auto-close: $OPEN_ISSUE_COUNT open issue(s) still exist" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "✅ No open issues found - checking for relevant PR to close" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Identify the relevant PR to close
+          # Strategy: Find PR associated with the commit SHA
+          PR_NUMBER=$(gh pr list --repo "${{ inputs.repository }}" --state open --json number,commits --jq ".[] | select(.commits[].oid == \"${{ inputs.sha }}\") | .number" 2>&1 | head -n 1 || echo "")
+
+          # If no PR found by commit SHA, try finding PR by branch
+          if [ -z "$PR_NUMBER" ]; then
+            # Extract branch name from the workflow run
+            BRANCH_NAME=$(gh api "repos/${{ inputs.repository }}/commits/${{ inputs.sha }}" --jq '.commit.tree.sha' 2>&1 || echo "")
+
+            # Try to find PR by checking which PR's head SHA matches our commit
+            if [ -n "$BRANCH_NAME" ]; then
+              PR_NUMBER=$(gh pr list --repo "${{ inputs.repository }}" --state open --json number,headRefOid --jq ".[] | select(.headRefOid == \"${{ inputs.sha }}\") | .number" 2>&1 | head -n 1 || echo "")
+            fi
+          fi
+
+          # If still no PR found, log and exit
+          if [ -z "$PR_NUMBER" ]; then
+            echo "ℹ️ No relevant PR found associated with commit ${{ inputs.sha }}" >> $GITHUB_STEP_SUMMARY
+            echo "This is normal if the commit was pushed directly to the branch without a PR" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "Found relevant PR: #$PR_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Close the PR with a comment
+          echo "Attempting to close PR #$PR_NUMBER..." >> $GITHUB_STEP_SUMMARY
+
+          # Create PR comment and close
+          PR_CLOSE_OUTPUT=$(gh pr close "$PR_NUMBER" \
+            --repo "${{ inputs.repository }}" \
+            --comment "Automatically closing this PR because all issues have been resolved. All related issues have been closed by commit ${{ inputs.sha }} (${{ inputs.workflow-name }} succeeded), and there are no remaining open issues in the repository. Issue count: 0. All work completed!" \
+            2>&1)
+          PR_CLOSE_EXIT=$?
+
+          if [ $PR_CLOSE_EXIT -eq 0 ]; then
+            echo "✅ Successfully closed PR #$PR_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "PR URL: https://github.com/${{ inputs.repository }}/pull/$PR_NUMBER" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Failed to close PR #$PR_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "This may be due to insufficient permissions or the PR being in an unexpected state" >> $GITHUB_STEP_SUMMARY
+            # Don't exit with error - this is not critical to workflow success
+          fi
