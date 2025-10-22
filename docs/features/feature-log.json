@@ -124,6 +124,7 @@
           "assignedAgents": ["frontend-developer"],
           "description": "Fix TypeScript build error - BrowserRouter JSX tag typo"
 <<<<<<< HEAD
+<<<<<<< HEAD
         },
         {
           "type": "fix",
@@ -137,6 +138,8 @@
           "description": "Fix TypeScript build error - Box component JSX tag typo (Boxees)"
 =======
 >>>>>>> main
+=======
+>>>>>>> parent of c50e36e (Fix issue #126: Workflow Failure: Frontend CI/CD - TypeScript Type Check - Run TypeScript type check)
         }
       ]
     }
