@@ -27,7 +27,7 @@ function App() {
         </a>
 
         {/* Application Shell */}
-        <Box
+        <Boxees
           sx={{
             display: 'flex',
             flexDirection: 'column',
