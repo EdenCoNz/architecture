@@ -1,0 +1,17 @@
+# Include base requirements
+-r base.txt
+
+# Production WSGI Server
+gunicorn>=21.2,<22.0
+
+# Production monitoring and error tracking
+sentry-sdk>=2.0,<3.0
+
+# Rate limiting
+django-ratelimit>=4.1,<5.0
+
+# Health check utilities
+django-health-check>=3.18,<4.0
+
+# Production optimizations
+django-cacheops>=7.0,<8.0
