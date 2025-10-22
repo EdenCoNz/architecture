@@ -4,6 +4,169 @@ This directory contains automated workflows for the architecture repository.
 
 ## Available Workflows
 
+### 🤖 Auto-Close Issue (Reusable Workflow)
+
+**File**: `auto-close-issue.yml`
+
+**Purpose**: Automatically closes GitHub issues when referenced in commit messages on successful CI/CD runs, with intelligent bulk-closing of related issues.
+
+**Type**: Reusable workflow (called by other workflows like `frontend-ci.yml`)
+
+#### Features
+
+1. **Single Issue Closure**: Closes the issue referenced in commit messages (e.g., "Fix issue #117")
+2. **Metadata Extraction**: Parses issue body for `featureID` and `featureName` metadata
+3. **Bulk Issue Closure**: Automatically closes all other open issues with matching metadata
+4. **Comprehensive Logging**: Detailed step summaries in GitHub Actions UI
+
+#### How It Works
+
+When a commit message contains "Fix issue #N" (case-insensitive) and all CI jobs succeed:
+
+1. **Parse Commit Message**: Extracts issue number from commit message
+2. **Validate Issue**: Checks if issue exists and is open
+3. **Extract Metadata**: Parses issue body for metadata table:
+   ```markdown
+   | featureID | 5 |
+   | featureName | feature/5-add-simple-button-that-says-hello-on-main-page |
+   ```
+4. **Close Initial Issue**: Closes the referenced issue with commit details
+5. **Query Open Issues**: Fetches all other open issues
+6. **Match and Close**: Closes all issues with matching `featureID` and `featureName`
+7. **Report Summary**: Provides detailed summary of all closed issues
+
+#### Usage Example
+
+```yaml
+jobs:
+  auto-close:
+    needs: [build, test, lint]  # Runs after all jobs succeed
+    if: success() && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/auto-close-issue.yml
+    with:
+      commit-message: ${{ github.event.head_commit.message }}
+      repository: ${{ github.repository }}
+      sha: ${{ github.sha }}
+      workflow-name: 'Frontend CI/CD'
+```
+
+#### Edge Cases Handled
+
+- **No Metadata**: If featureID is missing or "N/A", only closes the referenced issue
+- **No Matches**: Reports "No additional issues found" if no other issues match
+- **Partial Failures**: Continues closing issues even if some fail, reports failures
+- **Already Closed**: Skips if the referenced issue is already closed
+- **Non-existent Issue**: Gracefully handles if issue number doesn't exist
+
+#### Example Scenarios
+
+**Scenario 1: Multiple Related Failures**
+- Issue #117: ESLint failure (featureID=5, featureName=feature/5-...)
+- Issue #118: TypeScript failure (featureID=5, featureName=feature/5-...)
+- Issue #119: Test failure (featureID=5, featureName=feature/5-...)
+
+Commit message: "Fix issue #117"
+
+Result: All three issues (#117, #118, #119) are closed with appropriate comments
+
+**Scenario 2: No Metadata**
+- Issue #50: Regular bug report (no metadata table)
+
+Commit message: "Fix issue #50"
+
+Result: Only issue #50 is closed, no bulk closing attempted
+
+**Scenario 3: Different Features**
+- Issue #117: Feature 5 failure
+- Issue #120: Feature 6 failure
+
+Commit message: "Fix issue #117"
+
+Result: Only issue #117 is closed, issue #120 remains open
+
+#### Permissions Required
+
+```yaml
+permissions:
+  issues: write    # Close issues and add comments
+  contents: read   # Access repository metadata
+```
+
+#### Testing
+
+A test script is provided to validate the enhancement logic:
+
+```bash
+cd .github/workflows
+./test-auto-close-enhancement.sh
+```
+
+The test validates:
+- Metadata extraction from issue bodies
+- JSON parsing and issue matching logic
+- Handling of missing metadata
+- Python script functionality
+
+#### Step Summary Output
+
+The workflow provides detailed output in GitHub Actions Step Summary:
+
+```
+## Auto-Close Issue Check
+
+Commit message: Fix issue #117
+Found issue reference: #117
+
+Extracted metadata:
+- featureID: 5
+- featureName: feature/5-add-simple-button-that-says-hello-on-main-page
+
+✅ Successfully closed issue #117
+
+---
+
+## Bulk Close Matching Issues
+
+Searching for issues with matching metadata:
+- featureID: 5
+- featureName: feature/5-add-simple-button-that-says-hello-on-main-page
+
+Found 2 additional issue(s) with matching metadata:
+
+Closing issue #118...
+  ✅ Successfully closed issue #118
+Closing issue #119...
+  ✅ Successfully closed issue #119
+
+---
+
+## Summary
+
+- Initial issue closed: #117
+- Additional issues closed: 2
+Total issues closed: 3
+```
+
+#### Troubleshooting
+
+**Issue not closing**
+- Verify commit message contains "Fix issue #N" (case-insensitive)
+- Check workflow has `issues: write` permission
+- Ensure issue is open (not already closed)
+- Verify workflow runs on successful job completion
+
+**Bulk close not working**
+- Confirm initial issue has valid metadata table
+- Check featureID is not "N/A"
+- Verify other issues have identical featureID and featureName
+- Review Step Summary for detailed error messages
+
+**Some issues fail to close**
+- Check GitHub API rate limits
+- Verify all issues are in OPEN state
+- Review individual failure messages in Step Summary
+- Check repository permissions
+
 ### 🔄 Sync to Proform Repository
 
 **File**: `sync-to-proform.yml`
