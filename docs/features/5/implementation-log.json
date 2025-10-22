@@ -590,6 +590,7 @@
       "Fix ensures proper JSX tag matching which is essential for TypeScript compilation and React component parsing",
       "Issue #122 addressed the same type of typo as previous issues but with different spelling: 'BrowserRaefsouter' vs 'BrowsewwrRouter' (issue #110) vs 'BrowsewwrRoutweer' (issue #117)"
     ]
+<<<<<<< HEAD
   },
   {
     "issueNumber": 126,
@@ -666,5 +667,7 @@
       "Fix ensures proper JSX tag matching which is essential for TypeScript compilation and React component parsing",
       "Issue #126 is another in the series of JSX tag typos, this time affecting the MUI Box component instead of the BrowserRouter component"
     ]
+=======
+>>>>>>> main
   }
 ]

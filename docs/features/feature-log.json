@@ -123,6 +123,7 @@
           "totalStories": 1,
           "assignedAgents": ["frontend-developer"],
           "description": "Fix TypeScript build error - BrowserRouter JSX tag typo"
+<<<<<<< HEAD
         },
         {
           "type": "fix",
@@ -134,6 +135,8 @@
           "totalStories": 1,
           "assignedAgents": ["frontend-developer"],
           "description": "Fix TypeScript build error - Box component JSX tag typo (Boxees)"
+=======
+>>>>>>> main
         }
       ]
     }
