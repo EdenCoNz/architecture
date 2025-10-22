@@ -256,11 +256,6 @@ Provide a comprehensive summary with the following sections:
 - If partial success (commit but no push): Display "Fix committed locally but push failed. Manual push required."
 - If any major failures: Display error summary with recovery instructions
 
-### Next Steps
-- Suggest running tests to verify fix
-- Recommend creating/updating PR if needed
-- Note: Issue #{issue_number} remains open for manual verification and closure
-
 ## Error Handling
 
 ### Common Failure Scenarios

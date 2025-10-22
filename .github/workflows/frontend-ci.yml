@@ -353,6 +353,7 @@ jobs:
     permissions:
       issues: write
       contents: read
+      pull-requests: write  # Required for auto-closing PRs when no issues remain
 
   # Job 8: Detect Workflow Failures
   detect-workflow-failures:
