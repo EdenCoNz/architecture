@@ -147,6 +147,46 @@
           "description": "Fix JSX parsing error - Box component JSX tag typo (Boxsas)"
         }
       ]
+    },
+    {
+      "featureID": "6",
+      "title": "Dark Mode and Light Mode Theme Toggle",
+      "description": "Provide users with the ability to switch between dark and light visual themes to suit their preferences and viewing conditions, with theme preference persistence across sessions",
+      "createdAt": "2025-10-22T00:00:00Z",
+      "userStoriesCreated": "2025-10-22T00:00:00Z",
+      "userStoriesImplemented": "2025-10-22T11:00:00Z",
+      "isSummarised": false,
+      "summarisedAt": null,
+      "totalStories": 7,
+      "completedStories": 7,
+      "assignedAgents": [
+        "ui-ux-designer",
+        "frontend-developer"
+      ],
+      "executionPhases": 7,
+      "parallelPhases": 2,
+      "sequentialPhases": 5,
+      "filesPath": "docs/features/6/user-stories.md",
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-22T09:30:00Z",
+          "designBriefUpdated": true
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-22T10:20:00Z",
+          "designBriefUpdated": true
+        }
+      ],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-22T11:00:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/6/implementation-log.json"
+        }
+      ]
     }
   ]
 }
