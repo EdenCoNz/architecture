@@ -8,16 +8,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '../../src/theme';
+import { ThemeProvider } from '../../src/contexts';
 import { Header } from '../../src/components/layout/Header';
 
 /**
- * Helper function to render components with Material UI theme
- * Required for proper Material UI component rendering in tests
+ * Helper function to render components with theme provider
+ * Required for proper theme context and Material UI component rendering in tests
  */
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<ThemeProvider theme={theme}>{component}</ThemeProvider>);
+  return render(<ThemeProvider>{component}</ThemeProvider>);
 };
 
 describe('Header Component', () => {

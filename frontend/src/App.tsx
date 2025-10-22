@@ -5,20 +5,16 @@
  * Implements Material UI best practices with proper accessibility support.
  */
 
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline, Box } from '@mui/material';
+import { Box } from '@mui/material';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import theme from './theme';
+import { ThemeProvider } from './contexts';
 import { Header } from './components/layout';
 import { Home, NotFound } from './pages';
 import './styles/global.css';
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
-      {/* CssBaseline provides consistent CSS reset across browsers */}
-      <CssBaseline />
-
+    <ThemeProvider>
       {/* React Router for client-side routing */}
       <BrowserRouter>
         {/* Skip link for accessibility - keyboard and screen reader users */}
