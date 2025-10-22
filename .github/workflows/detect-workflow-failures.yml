@@ -1,10 +1,22 @@
 name: Detect Workflow Failures
 
+# IMPORTANT: This workflow only monitors workflows that complete on the DEFAULT BRANCH (main)
+# due to GitHub Actions workflow_run trigger limitations.
+#
+# For PR branch failures:
+#   - Frontend CI/CD and Backend CI/CD have inline failure detection
+#   - They create GitHub issues directly when failures occur on PR branches
+#
+# For main branch failures:
+#   - This external workflow provides detailed analysis
+#   - Creates issue log files and triggers issue creation
+#   - Provides comprehensive failure reporting
+#
 # This workflow detects failed jobs in completed workflows
-# It runs ONLY after Frontend CI/CD workflow completes and checks for failures
+# It runs after Frontend CI/CD or Backend CI/CD workflows complete and checks for failures
 on:
   workflow_run:
-    workflows: ["Frontend CI/CD"]
+    workflows: ["Frontend CI/CD", "Backend CI/CD"]
     types: [completed]
 
 # Required permissions for workflow
