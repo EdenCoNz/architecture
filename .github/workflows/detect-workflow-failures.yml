@@ -1,10 +1,10 @@
 name: Detect Workflow Failures
 
 # This workflow detects failed jobs in completed workflows
-# It runs ONLY after Frontend CI/CD workflow completes and checks for failures
+# It runs after Frontend CI/CD or Backend CI/CD workflows complete and checks for failures
 on:
   workflow_run:
-    workflows: ["Frontend CI/CD"]
+    workflows: ["Frontend CI/CD", "Backend CI/CD"]
     types: [completed]
 
 # Required permissions for workflow
