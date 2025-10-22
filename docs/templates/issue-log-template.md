@@ -9,11 +9,9 @@
 | stepName |  |
 | logLineNumbers |  |
 | PRURL |  |
+| PRBranch |  |
 | commitURL |  |
 | runURL |  |
-
-**Field Descriptions:**
-- **logLineNumbers**: Range and count of log lines included in the excerpt below (e.g., "Lines 120-170" indicates 50 lines extracted from the full workflow log). This is NOT the specific line number where an error occurred, but rather indicates which portion of the full log is shown in the excerpt.
 
 ## Failed Step Log Excerpt
 

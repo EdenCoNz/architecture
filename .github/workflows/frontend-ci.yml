@@ -309,8 +309,8 @@ jobs:
   # Job 7: Auto-Close Issue (Reusable Workflow)
   auto-close-issue:
     needs: [lint, typecheck, test, build, security]
-    # Only run on push to main (needs ensures all jobs succeeded)
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Run on push to main or feature branches (needs ensures all jobs succeeded)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/'))
     uses: ./.github/workflows/auto-close-issue.yml
     with:
       commit-message: ${{ github.event.head_commit.message }}
