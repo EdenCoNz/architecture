@@ -23,7 +23,7 @@ function App() {
       <BrowserRouter>
         {/* Skip link for accessibility - keyboard and screen reader users */}
         <a href="#main-content" className="skip-link">
-          Skip to main content?!!ss
+          Skip to main content?!!sss
         </a>
 
         {/* Application Shell */}
