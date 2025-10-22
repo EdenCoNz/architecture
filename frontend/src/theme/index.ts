@@ -6,8 +6,7 @@
  * typography, spacing, breakpoints, and component overrides.
  */
 
-import { createTheme } from '@mui/material/styles';
-import type { ThemeOptions } from '@mui/material/styles';
+import { createTheme, type ThemeOptions } from '@mui/material/styles';
 
 /**
  * Base theme configuration shared between light and dark themes

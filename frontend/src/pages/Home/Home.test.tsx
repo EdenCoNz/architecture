@@ -27,7 +27,9 @@ describe('Home Page - Light Theme Rendering', () => {
   describe('Page Structure', () => {
     it('should render the home page without errors', () => {
       renderHome();
-      expect(screen.getByRole('heading', { name: /welcome to the application/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /welcome to the application/i })
+      ).toBeInTheDocument();
     });
 
     it('should render all hero section elements', () => {
@@ -35,7 +37,9 @@ describe('Home Page - Light Theme Rendering', () => {
       // Home icon should be present
       expect(screen.getByTestId('HomeIcon')).toBeInTheDocument();
       // Heading should be present
-      expect(screen.getByRole('heading', { name: /welcome to the application/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /welcome to the application/i })
+      ).toBeInTheDocument();
       // Subtitle should be present
       expect(screen.getByText(/your frontend application is now ready/i)).toBeInTheDocument();
     });

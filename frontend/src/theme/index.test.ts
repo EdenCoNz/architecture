@@ -322,8 +322,21 @@ describe('Theme Configuration', () => {
 
     describe('Component Overrides', () => {
       it('should override button text transform', () => {
-        expect((lightTheme.components?.MuiButton?.styleOverrides?.root as any)?.textTransform).toBe('none');
-        expect((darkTheme.components?.MuiButton?.styleOverrides?.root as any)?.textTransform).toBe('none');
+        const lightButtonRoot = lightTheme.components?.MuiButton?.styleOverrides?.root;
+        const darkButtonRoot = darkTheme.components?.MuiButton?.styleOverrides?.root;
+
+        expect(
+          lightButtonRoot &&
+            typeof lightButtonRoot === 'object' &&
+            'textTransform' in lightButtonRoot
+            ? lightButtonRoot.textTransform
+            : undefined
+        ).toBe('none');
+        expect(
+          darkButtonRoot && typeof darkButtonRoot === 'object' && 'textTransform' in darkButtonRoot
+            ? darkButtonRoot.textTransform
+            : undefined
+        ).toBe('none');
       });
 
       it('should configure card elevation', () => {
@@ -337,8 +350,19 @@ describe('Theme Configuration', () => {
       });
 
       it('should have theme-specific AppBar border', () => {
-        const lightBorder = (lightTheme.components?.MuiAppBar?.styleOverrides?.root as any)?.borderBottom;
-        const darkBorder = (darkTheme.components?.MuiAppBar?.styleOverrides?.root as any)?.borderBottom;
+        const lightAppBarRoot = lightTheme.components?.MuiAppBar?.styleOverrides?.root;
+        const darkAppBarRoot = darkTheme.components?.MuiAppBar?.styleOverrides?.root;
+
+        const lightBorder =
+          lightAppBarRoot &&
+          typeof lightAppBarRoot === 'object' &&
+          'borderBottom' in lightAppBarRoot
+            ? lightAppBarRoot.borderBottom
+            : undefined;
+        const darkBorder =
+          darkAppBarRoot && typeof darkAppBarRoot === 'object' && 'borderBottom' in darkAppBarRoot
+            ? darkAppBarRoot.borderBottom
+            : undefined;
 
         expect(lightBorder).toBe('1px solid rgba(0, 0, 0, 0.12)');
         expect(darkBorder).toBe('1px solid rgba(255, 255, 255, 0.12)');

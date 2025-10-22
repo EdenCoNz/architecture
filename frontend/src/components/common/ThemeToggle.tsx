@@ -9,7 +9,7 @@
 
 import { IconButton, Tooltip } from '@mui/material';
 import { LightMode, DarkMode } from '@mui/icons-material';
-import type { ThemeMode } from '../../contexts/ThemeContext';
+import type { ThemeMode } from '../../contexts/useTheme';
 
 export interface ThemeToggleProps {
   /**
