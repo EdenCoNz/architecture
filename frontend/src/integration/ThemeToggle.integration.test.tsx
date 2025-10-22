@@ -352,9 +352,7 @@ describe('Story 6: Toggle Between Themes - Integration Tests', () => {
         await user.click(toggle);
 
         const newToggle = screen.getByRole('button', {
-          name: expectedState === 'dark'
-            ? /switch to light mode/i
-            : /switch to dark mode/i
+          name: expectedState === 'dark' ? /switch to light mode/i : /switch to dark mode/i,
         });
         expect(newToggle).toBeInTheDocument();
       }

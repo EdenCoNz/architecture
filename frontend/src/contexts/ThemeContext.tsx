@@ -4,23 +4,16 @@
  * Provides theme mode state management for the application.
  * Enables switching between light and dark themes.
  * Persists theme preference to localStorage for cross-session continuity.
+ *
+ * Note: This file only exports components to support hot module replacement (HMR).
+ * Import useTheme hook and types from './useTheme' instead.
  */
 
-import { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import type { ReactNode } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { lightTheme, darkTheme } from '../theme';
-
-export type ThemeMode = 'light' | 'dark';
-
-interface ThemeContextValue {
-  mode: ThemeMode;
-  toggleTheme: () => void;
-  setThemeMode: (mode: ThemeMode) => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+import { ThemeContext, type ThemeMode } from './useTheme';
 
 const STORAGE_KEY = 'theme-mode';
 
@@ -99,12 +92,4 @@ export function ThemeProvider({ children, defaultMode = 'light' }: ThemeProvider
       </MuiThemeProvider>
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
 }
