@@ -40,7 +40,7 @@ This command reads the user stories file, processes the execution order, and coo
 - First argument MUST be exactly "feature" or "fix" (case-sensitive)
 - Second argument is the feature ID (for feature mode) or issue number (for fix mode)
 - Check if user-stories file exists before proceeding
-- Skip stories that are already completed (found in implementation logs)
+- Skip stories/fixes that are already completed (found in implementation logs)
 - Execute ALL user stories regardless of agent type
 - Respect execution order: sequential phases run one-by-one, parallel phases run simultaneously
 - Each agent MUST record their work in the implementation log
@@ -104,8 +104,8 @@ This command reads the user stories file, processes the execution order, and coo
    - If mode is "fix":
      - Set execution mode to FIX_MODE
      - Set `$ISSUE_NUMBER` to the second argument value
-     - User stories path: Will be determined by glob pattern in Step 1
-     - Implementation log path: Will be determined after feature ID extraction
+     - User stories path: `docs/features/{feature_id}/issues/{issue_id}/user-stories.md`
+     - Implementation log path: `docs/features/{feature_id}/implementation-log.json`
 
 5. **Display mode confirmation**:
    - **FEATURE_MODE**: "Running in FEATURE MODE for feature #{feature_id}"
@@ -119,11 +119,9 @@ This command reads the user stories file, processes the execution order, and coo
 3. If found, proceed to next step
 
 **For FIX_MODE**:
-1. Use glob pattern to find user stories: `docs/features/*/issues/{issue_number}/user-stories.md`
-2. If multiple matches found: Display error "Multiple user story files found for issue #{issue_number}. This should not happen."
-3. If no matches found: Display error "No user stories found for issue #{issue_number}. Run /fix first."
-4. If exactly one match: Extract feature ID from the path and proceed
-5. Display: "Found fix stories at {path} (Feature #{featureID})"
+1. Check if user-stories file exists at `docs/features/{feature_id}/issues/{issue_number}/user-stories.md`
+2. If not found, respond with: "Error: No user stories found for Feature #{issue_id}. Run /fix first."
+3. If found, proceed to next step
 
 ### Step 2: Parse Execution Order
 
@@ -145,8 +143,6 @@ For each phase in the execution order:
    - Use multiple Task tool calls in a single message
 
 ### Step 4: Pass Story Context to Agents
-
-**For FEATURE_MODE**, provide:
 
 ```
 Feature ID: {feature_id}
@@ -174,37 +170,6 @@ If this is a design story (ui-ux-designer agent) and you updated the design brie
 {"actionType": "design", "completedAt": "{YYYY-MM-DDTHH:mm:ssZ}", "designBriefUpdated": true}
 ```
 
-**For FIX_MODE**, provide:
-
-```
-Feature ID: {feature_id}
-Issue Number: #{issue_number}
-Mode: FIX
-
-Implement the following fix story from docs/features/{feature_id}/issues/{issue_number}/user-stories.md:
-
-[Story Title]
-[Story Description]
-
-Acceptance Criteria:
-[List all acceptance criteria]
-
-Execute this fix following best practices and ensure all acceptance criteria are met.
-
-IMPORTANT: After completing this fix story, you MUST record your work in docs/features/{feature_id}/implementation-log.json with:
-- Story number and title
-- Issue number reference (#{issue_number})
-- Timestamp of completion
-- All files created or modified
-- All actions taken (tool calls, decisions made)
-- Any issues encountered and how they were resolved
-- Status (completed/partial/blocked)
-- If the file already exists, append to it. If it doesn't exist, create it as a JSON array.
-
-If this is a design story (ui-ux-designer agent) and you updated the design brief, also update docs/features/feature-log.json by appending to the "actions" array for the feature with matching featureID:
-{"actionType": "design", "completedAt": "{YYYY-MM-DDTHH:mm:ssZ}", "designBriefUpdated": true}
-```
-
 ### Step 5: Verify Completion and Update Feature Log
 
 After all phases complete:
@@ -216,6 +181,7 @@ After all phases complete:
    If ALL stories are completed:
    - Read the current `docs/features/feature-log.json` file
    - Find the feature entry with matching featureID
+   - If it's an issue, find the issue entry under the existing feature (If fix mode) 
    - Append a new implementation entry to the feature's `implementations` array (create array if it doesn't exist)
 
    **For FEATURE_MODE**:
@@ -237,15 +203,11 @@ After all phases complete:
      ```json
      {
        "type": "fix",
-       "issueNumber": {issue_number},
        "timestamp": "{YYYY-MM-DDTHH:mm:ssZ}",
        "status": "completed",
        "implementationLog": "docs/features/{feature_id}/implementation-log.json"
      }
      ```
-   - Do NOT modify `userStoriesImplemented` field (preserve original feature implementation timestamp)
-
-   - Write the updated feature-log.json file back
 
 3. **Validation**:
    - Ensure the feature entry exists in feature-log.json before updating

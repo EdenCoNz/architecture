@@ -1,11 +1,14 @@
 {
   "features": [
     {
-      "id": 1,
+      "featureID": "1",
       "title": "Initialize Frontend Web Application",
       "description": "Initialize a modern frontend web application in the frontend/ directory with proper project structure, build tooling, and foundational components",
-      "createdDate": "2025-10-15",
+      "createdAt": "2025-10-15T00:00:00Z",
+      "userStoriesCreated": "2025-10-15T00:00:00Z",
       "userStoriesImplemented": "2025-10-15T19:45:00Z",
+      "isSummarised": false,
+      "summarisedAt": null,
       "totalStories": 10,
       "completedStories": 10,
       "assignedAgents": [

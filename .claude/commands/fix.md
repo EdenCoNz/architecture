@@ -1,9 +1,5 @@
 ---
 description: GitHub issue number containing the bug details
-args:
-  - name: issue_number
-    description: Optional issue number. If not provided, uses the oldest open issue
-    required: false
 model: claude-sonnet-4-5
 ---
 
@@ -23,23 +19,15 @@ Automatically resolve GitHub issues by analyzing failure logs, creating targeted
 ## Instructions
 
 - Follow the workflow steps in sequential order
-- Extract metadata from GitHub issue body (feature ID, branch name, failed step logs)
-- Launch product-owner agent in FIX MODE for targeted fix stories
-- Automatically call /implement with fix context
-- Commit and push changes after implementation
-- STOP immediately after successful push (Steps 1-9 only)
+- Do NOT stop after creating user stories - automatically proceed to implementation
 - Do NOT ask the user for confirmation between steps
-- Do NOT perform any actions after pushing to remote
+- Check available agents in .claude/agents/ to understand implementation capabilities
+- Plan user stories based on available agents and feature requirements
 
 ## Workflow
 
 ### Step 1: Determine Issue to Fix
 
-If issue number is provided via argument:
-1. Use the provided issue number
-2. Skip to Step 2
-
-If NO issue number provided:
 1. **Query oldest open issue**:
    - Use `gh issue list --state open --json number,createdAt --limit 100` to get all open issues
    - Parse the JSON output to find the issue with the oldest `createdAt` timestamp
@@ -68,9 +56,6 @@ If NO issue number provided:
 
 3. **Extract failed step log excerpt**:
    - Parse the issue body to find the "## Failed Step Log Excerpt" section
-   - Extract everything between the markdown code fence (```) after this header
-   - This log excerpt will be passed to the product-owner agent for analysis
-   - If log excerpt is missing: Continue anyway (product owner will work with title/description)
 
 4. **Validate extracted data**:
    - Confirm featureID is numeric
@@ -80,7 +65,7 @@ If NO issue number provided:
      Issue #{issue_number}: {title}
      Feature ID: {featureID}
      Branch: {featureName}
-     Log excerpt length: {char_count} characters
+     Log excerpt: {log_exerpt} characters
      ```
 
 ### Step 3: Update Local Branch
@@ -110,34 +95,15 @@ If NO issue number provided:
 
 ### Step 4: Launch Product Owner in FIX MODE
 
-Use the Task tool to launch the product-owner agent with FIX MODE instructions:
+Use the Task tool to launch the product-owner agent with the following instructions:
 
-```
-MODE: FIX
+First, check what agents are available in .claude/agents/ to understand what implementation capabilities exist.
 
-You are operating in FIX MODE. Create MINIMAL, targeted user stories (1-3 maximum) to fix the following issue.
+Then, analyze this issue and create comprehensive user stories:
 
-Issue Details:
-- Issue Number: #{issue_number}
-- Issue Title: {title}
-- Feature ID: {featureID}
-- Branch: {featureName}
+{{{ log_exerpt }}}
 
-Failed Step Log Excerpt:
-```
-{log_excerpt}
-```
-
-Analyze the failure and create 1-3 focused fix stories. Save to: docs/features/{featureID}/issues/{issue_number}/user-stories.md
-
-Do NOT update feature-log.json (this is a fix, not a new feature).
-```
-
-Important notes for Task tool invocation:
-- Replace all placeholders with actual values extracted from the issue
-- Include the complete log excerpt in the instructions
-- Ensure the file path uses the correct featureID and issue_number
-- Wait for the product-owner agent to complete before proceeding
+You MUST plan the user stories needed for this issue based on the available agents and feature requirements.
 
 ### Step 5: Verify User Stories Created
 
