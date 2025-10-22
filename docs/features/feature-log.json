@@ -1,11 +1,14 @@
 {
   "features": [
     {
-      "id": 1,
+      "featureID": "1",
       "title": "Initialize Frontend Web Application",
       "description": "Initialize a modern frontend web application in the frontend/ directory with proper project structure, build tooling, and foundational components",
-      "createdDate": "2025-10-15",
+      "createdAt": "2025-10-15T00:00:00Z",
+      "userStoriesCreated": "2025-10-15T00:00:00Z",
       "userStoriesImplemented": "2025-10-15T19:45:00Z",
+      "isSummarised": false,
+      "summarisedAt": null,
       "totalStories": 10,
       "completedStories": 10,
       "assignedAgents": [
@@ -82,6 +85,20 @@
           "type": "fix",
           "issueNumber": 90,
           "timestamp": "2025-10-21T23:43:45Z",
+          "status": "completed",
+          "implementationLog": "docs/features/5/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 102,
+          "timestamp": "2025-10-22T10:15:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/5/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 110,
+          "timestamp": "2025-10-22T04:17:00Z",
           "status": "completed",
           "implementationLog": "docs/features/5/implementation-log.json"
         }

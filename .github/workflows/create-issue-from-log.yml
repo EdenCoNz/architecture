@@ -142,9 +142,9 @@ jobs:
           fi
 
           # Output all extracted metadata to GITHUB_OUTPUT for use in subsequent steps
-          # Note: log_line_numbers will be populated in the next step with the RANGE of lines
-          # extracted from the full log (e.g., "Lines 120-170" = 50 lines extracted), NOT
-          # the specific line number where an error occurs
+          # Note: log_line_numbers will be populated in the next step with the TOTAL COUNT
+          # of lines in the error log excerpt (e.g., "50" for 50 lines), NOT line numbers
+          # or ranges
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
           echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
           echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
@@ -199,10 +199,11 @@ jobs:
         run: |
           JOB_ID="${{ inputs.job_id }}"
           STEP_NUMBER="${{ steps.extract-metadata.outputs.step_number }}"
+          STEP_NAME="${{ steps.extract-metadata.outputs.step_name }}"
 
           echo "## Extracting Log Excerpt" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Downloading logs for Job ID: $JOB_ID, Step: $STEP_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "Downloading logs for Job ID: $JOB_ID, Step: $STEP_NUMBER (${STEP_NAME})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Download job logs
@@ -212,6 +213,7 @@ jobs:
             "/repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs" > job_logs.txt || {
               echo "Warning: Could not download logs, will use placeholder text"
               echo "LOG_EXCERPT=Log excerpt unavailable. Please see workflow run URL for complete logs." >> $GITHUB_OUTPUT
+              echo "log_line_numbers=0" >> $GITHUB_OUTPUT
               exit 0
             }
 
@@ -222,7 +224,7 @@ jobs:
           # Look for common failure patterns (error messages, exit codes, etc.)
           # Extract context around these failures
           if grep -qi "error\|failed\|exception\|fatal" job_logs.txt; then
-            # Find the first error/failure line number
+            # Find the first error/failure line number in the workflow log
             FIRST_ERROR_LINE=$(grep -ni "error\|failed\|exception\|fatal" job_logs.txt | head -n 1 | cut -d: -f1)
 
             # Calculate range (30 lines before, 20 lines after)
@@ -234,31 +236,16 @@ jobs:
 
             # Extract the excerpt
             LOG_EXCERPT=$(sed -n "${START_LINE},${END_LINE}p" job_logs.txt)
-
-            # Store the log line range for the issue
-            # NOTE: This represents the RANGE and COUNT of lines extracted from the full log,
-            # NOT the specific line number where an error occurs. For example, "Lines 120-170"
-            # means we extracted 50 lines (lines 120 through 170) from the complete workflow log.
-            LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (error at line $FIRST_ERROR_LINE)"
-
-            echo "Extracted log excerpt from lines $START_LINE to $END_LINE (centered on line $FIRST_ERROR_LINE)" >> $GITHUB_STEP_SUMMARY
           else
             # If no clear error pattern, extract last 50 lines
-            TOTAL_LINES=$(wc -l < job_logs.txt)
-            START_LINE=$((TOTAL_LINES - 49))
-            if [ $START_LINE -lt 1 ]; then
-              START_LINE=1
-            fi
-            END_LINE=$TOTAL_LINES
-
             LOG_EXCERPT=$(tail -n 50 job_logs.txt)
-
-            # Store the log line range for the issue
-            # NOTE: This represents the RANGE and COUNT of lines extracted (50 lines in this case)
-            LOG_LINE_NUMBERS="Lines $START_LINE-$END_LINE (last 50 lines, no clear error pattern)"
-
-            echo "No clear error pattern found, extracted last 50 lines of logs (lines $START_LINE-$END_LINE)" >> $GITHUB_STEP_SUMMARY
           fi
+
+          # Count the total number of lines in the log excerpt
+          EXCERPT_LINE_COUNT=$(echo "$LOG_EXCERPT" | wc -l)
+          LOG_LINE_NUMBERS="$EXCERPT_LINE_COUNT"
+
+          echo "Extracted log excerpt with $EXCERPT_LINE_COUNT lines" >> $GITHUB_STEP_SUMMARY
 
           # Sanitize log excerpt to remove ANSI escape codes and other problematic characters
           # This prevents command injection and terminal escape sequence issues
@@ -279,6 +266,8 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           printf '%s\n' "$LOG_EXCERPT" | head -n 10 >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Line Numbers**: $LOG_LINE_NUMBERS" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         env:
           GH_TOKEN: ${{ github.token }}

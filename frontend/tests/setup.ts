@@ -39,15 +39,19 @@ Object.defineProperty(window, 'matchMedia', {
  * Mock IntersectionObserver for components that use it
  * Useful for lazy loading and visibility detection components
  */
-global.IntersectionObserver = class IntersectionObserver {
+global.IntersectionObserver = class IntersectionObserver implements IntersectionObserver {
+  readonly root: Element | null = null;
+  readonly rootMargin: string = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+
   constructor() {}
-  disconnect() {}
-  observe() {}
-  takeRecords() {
+  disconnect(): void {}
+  observe(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
     return [];
   }
-  unobserve() {}
-} as any;
+  unobserve(): void {}
+};
 
 /**
  * Suppress console errors in tests (optional - remove if you want to see all errors)
