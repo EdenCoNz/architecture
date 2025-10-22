@@ -27,7 +27,7 @@ function App() {
         </a>
 
         {/* Application Shell */}
-        <Boxsas
+        <Box
           sx={{
             display: 'flex',
             flexDirection: 'column',
