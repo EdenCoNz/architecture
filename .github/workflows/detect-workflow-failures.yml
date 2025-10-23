@@ -10,7 +10,7 @@ name: Detect Workflow Failures
 # For main branch failures (workflow fails):
 #   - This external workflow provides detailed analysis
 #   - Creates a SINGLE aggregated issue per workflow run with all failures
-#   - Follows the structure defined in issue-log-template.json
+#   - Follows the markdown structure defined in issue-log-template.md
 #   - Provides comprehensive failure reporting with log excerpts
 #
 # For main branch success (workflow succeeds):
@@ -159,8 +159,8 @@ jobs:
               ] | join("\n")
             )' >> $GITHUB_STEP_SUMMARY
 
-      - name: Create aggregated failure JSON
-        id: create-failure-json
+      - name: Create aggregated failure data
+        id: create-failure-data
         if: steps.detect-failures.outputs.failed_jobs > 0
         run: |
           JOBS_JSON='${{ steps.fetch-jobs.outputs.jobs_json }}'
@@ -173,12 +173,29 @@ jobs:
           # Create directory for failure data
           mkdir -p failure-data
 
-          # Initialize the failure JSON structure based on issue-log-template.json
-          FAILURE_JSON='{"runID":0,"runURL":"","failedJobs":[]}'
+          # Initialize markdown file with workflow information
+          MARKDOWN_FILE="failure-data/workflow-failure-${RUN_ID}.md"
+          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          RUN_NUMBER="${{ github.event.workflow_run.run_number }}"
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
 
-          # Set run-level metadata
-          FAILURE_JSON=$(echo "$FAILURE_JSON" | jq --arg run_id "$RUN_ID" '.runID = ($run_id | tonumber)')
-          FAILURE_JSON=$(echo "$FAILURE_JSON" | jq --arg run_url "$RUN_URL" '.runURL = $run_url')
+          # Write workflow information header
+          cat > "$MARKDOWN_FILE" << EOF
+          # Workflow Failure Report
+
+          ## Workflow Information
+
+          - **Workflow**: $WORKFLOW_NAME
+          - **Run ID**: $RUN_ID
+          - **Branch**: $HEAD_BRANCH
+          - **Commit**: $HEAD_SHA
+          - **Run URL**: [View on GitHub]($RUN_URL)
+
+          EOF
+
+          # Count total failures
+          TOTAL_FAILURES=0
 
           # Process each failed job and extract failure details
           echo "$JOBS_JSON" | jq -c '.jobs[] | select(.conclusion == "failure")' | while read -r job; do
@@ -215,42 +232,52 @@ jobs:
                 LOG_EXCERPT=$(tail -n 50 job_logs_${JOB_ID}.txt)
               fi
 
-              # Sanitize log excerpt
+              # Sanitize log excerpt (remove ANSI color codes)
               LOG_EXCERPT=$(printf '%s\n' "$LOG_EXCERPT" | sed 's/\x1b\[[0-9;]*m//g')
               LINE_COUNT=$(echo "$LOG_EXCERPT" | wc -l)
 
-              # Add this failure to the JSON array
-              FAILURE_ENTRY=$(jq -n \
-                --arg job_name "$JOB_NAME" \
-                --arg step_name "$STEP_NAME" \
-                --argjson line_count "$LINE_COUNT" \
-                --arg log_detail "$LOG_EXCERPT" \
-                '{
-                  jobName: $job_name,
-                  stepName: $step_name,
-                  numberOfLinesInLog: $line_count,
-                  logDetail: $log_detail
-                }')
+              # Increment failure counter
+              TOTAL_FAILURES=$((TOTAL_FAILURES + 1))
 
-              # Read current failure JSON, append the new entry, and write back
-              FAILURE_JSON=$(cat failure-data/workflow-failure-${RUN_ID}.json 2>/dev/null || echo "$FAILURE_JSON")
-              FAILURE_JSON=$(echo "$FAILURE_JSON" | jq --argjson entry "$FAILURE_ENTRY" '.failedJobs += [$entry]')
-              echo "$FAILURE_JSON" > failure-data/workflow-failure-${RUN_ID}.json
+              # Append this failure to the markdown file (avoiding EOF issues with heredoc)
+              {
+                echo ""
+                echo "### $TOTAL_FAILURES. $JOB_NAME - $STEP_NAME"
+                echo ""
+                echo "**Log Lines**: $LINE_COUNT"
+                echo ""
+                echo "#### Error Details"
+                echo ""
+                echo '```'
+                echo "$LOG_EXCERPT"
+                echo '```'
+                echo ""
+                echo "---"
+                echo ""
+              } >> "$MARKDOWN_FILE"
             done
           done
 
-          # Read the final JSON file
-          FINAL_JSON=$(cat failure-data/workflow-failure-${RUN_ID}.json)
-          FAILED_JOB_COUNT=$(echo "$FINAL_JSON" | jq '.failedJobs | length')
+          # Insert summary section after workflow information
+          sed -i "/^## Workflow Information/a\\
+          \\
+          ## Summary\\
+          \\
+          This workflow run failed with **$TOTAL_FAILURES job/step failure(s)**.\\
+          \\
+          ---\\
+          \\
+          ## Failed Jobs and Steps" "$MARKDOWN_FILE"
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Status**: Created aggregated failure data" >> $GITHUB_STEP_SUMMARY
-          echo "**Failed Jobs/Steps**: $FAILED_JOB_COUNT" >> $GITHUB_STEP_SUMMARY
-          echo "**File**: \`failure-data/workflow-failure-${RUN_ID}.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Failed Jobs/Steps**: $TOTAL_FAILURES" >> $GITHUB_STEP_SUMMARY
+          echo "**File**: \`$MARKDOWN_FILE\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Output the JSON file path for next steps
-          echo "failure_json_path=failure-data/workflow-failure-${RUN_ID}.json" >> $GITHUB_OUTPUT
+          # Output the markdown file path for next steps
+          echo "failure_markdown_path=$MARKDOWN_FILE" >> $GITHUB_OUTPUT
+          echo "total_failures=$TOTAL_FAILURES" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -270,51 +297,19 @@ jobs:
           RUN_URL="${{ github.event.workflow_run.html_url }}"
           WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
           RUN_NUMBER="${{ github.event.workflow_run.run_number }}"
-          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
-          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-          FAILURE_JSON_PATH="${{ steps.create-failure-json.outputs.failure_json_path }}"
+          FAILURE_MARKDOWN_PATH="${{ steps.create-failure-data.outputs.failure_markdown_path }}"
+          TOTAL_FAILURES="${{ steps.create-failure-data.outputs.total_failures }}"
 
           echo "## Creating Aggregated Failure Issue" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Read the aggregated failure JSON
-          FAILURE_DATA=$(cat "$FAILURE_JSON_PATH")
-          FAILED_JOB_COUNT=$(echo "$FAILURE_DATA" | jq '.failedJobs | length')
-
           # Create issue title
-          ISSUE_TITLE="Workflow Run #${RUN_NUMBER} Failed: ${WORKFLOW_NAME} (${FAILED_JOB_COUNT} failure(s))"
+          ISSUE_TITLE="Workflow Run #${RUN_NUMBER} Failed: ${WORKFLOW_NAME} (${TOTAL_FAILURES} failure(s))"
 
-          # Build issue body
-          echo "# Workflow Failure Report" > issue_body_full.md
-          echo "" >> issue_body_full.md
-          echo "**Workflow**: ${WORKFLOW_NAME}" >> issue_body_full.md
-          echo "**Run Number**: ${RUN_NUMBER}" >> issue_body_full.md
-          echo "**Run ID**: ${RUN_ID}" >> issue_body_full.md
-          echo "**Branch**: ${HEAD_BRANCH}" >> issue_body_full.md
-          echo "**Commit**: ${HEAD_SHA}" >> issue_body_full.md
-          echo "**Run URL**: ${RUN_URL}" >> issue_body_full.md
-          echo "" >> issue_body_full.md
-          echo "---" >> issue_body_full.md
-          echo "" >> issue_body_full.md
-          echo "## Summary" >> issue_body_full.md
-          echo "" >> issue_body_full.md
-          echo "This workflow run failed with **${FAILED_JOB_COUNT}** job/step failure(s)." >> issue_body_full.md
-          echo "" >> issue_body_full.md
-          echo "## Failed Jobs and Steps" >> issue_body_full.md
-          echo "" >> issue_body_full.md
-
-          # Add each failed job/step to the issue body
-          echo "$FAILURE_DATA" | jq -r '.failedJobs[] |
-            "### " + .jobName + " - " + .stepName + "\n\n" +
-            "**Log Lines**: " + (.numberOfLinesInLog | tostring) + "\n\n" +
-            "#### Error Log Excerpt\n\n" +
-            "```\n" + .logDetail + "\n```\n\n" +
-            "---\n"' >> issue_body_full.md
-
-          # Create the GitHub issue
+          # Create the GitHub issue using the markdown file directly
           ISSUE_URL=$(gh issue create \
             --title "$ISSUE_TITLE" \
-            --body-file issue_body_full.md \
+            --body-file "$FAILURE_MARKDOWN_PATH" \
             --label "workflow-failure")
 
           echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
@@ -326,7 +321,7 @@ jobs:
           echo "**Status**: ✓ Created aggregated failure issue" >> $GITHUB_STEP_SUMMARY
           echo "**Issue**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
           echo "**URL**: ${ISSUE_URL}" >> $GITHUB_STEP_SUMMARY
-          echo "**Failures Included**: ${FAILED_JOB_COUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "**Failures Included**: ${TOTAL_FAILURES}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         env:
           GH_TOKEN: ${{ github.token }}
