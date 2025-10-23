@@ -2,7 +2,7 @@
 
 ## Workflow Information
 
-- **Workflow**: Frontend CI/CD
+- **Workflow Name**: Frontend CI/CD
 - **Run ID**: 18739772481
 - **Branch**: main
 - **Commit**: e95360a
@@ -16,24 +16,18 @@ This workflow run failed with **3 job/step failure(s)**.
 
 ## Failed Jobs and Steps
 
-### 1. Unit Tests with Coverage - Run tests with coverage
+### 1. {failed_job} - {failed step}
 
-**Log Lines**: 51
-
-#### Error Details
+**JobURL**:
 
 ---
 
-### 2. Lint and Format Check - Run ESLint
+### 2. {failed_job} - {failed step}
 
-**Log Lines**: 48
-
-#### Error Details
+**JobURL**:
 
 ---
 
-### 3. TypeScript Type Check - Run TypeScript type check
+### 3. {failed_job} - {failed step}
 
-**Log Lines**: 45
-
-#### Error Details
+**JobURL**:

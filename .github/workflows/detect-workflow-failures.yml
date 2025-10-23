@@ -11,7 +11,7 @@ name: Detect Workflow Failures
 #   - This external workflow provides detailed analysis
 #   - Creates a SINGLE aggregated issue per workflow run with all failures
 #   - Follows the markdown structure defined in issue-log-template.md
-#   - Provides comprehensive failure reporting with log excerpts
+#   - Provides job/step information and URLs (no error logs)
 #
 # For main branch success (workflow succeeds):
 #   - Automatically closes issues created by previous failures of the same workflow
@@ -186,11 +186,19 @@ jobs:
 
           ## Workflow Information
 
-          - **Workflow**: $WORKFLOW_NAME
+          - **Workflow Name**: $WORKFLOW_NAME
           - **Run ID**: $RUN_ID
           - **Branch**: $HEAD_BRANCH
-          - **Commit**: $HEAD_SHA
+          - **Commit**: ${HEAD_SHA:0:7}
           - **Run URL**: [View on GitHub]($RUN_URL)
+
+          ## Summary
+
+          This workflow run failed with **PLACEHOLDER job/step failure(s)**.
+
+          ---
+
+          ## Failed Jobs and Steps
 
           EOF
 
@@ -201,56 +209,21 @@ jobs:
           echo "$JOBS_JSON" | jq -c '.jobs[] | select(.conclusion == "failure")' | while read -r job; do
             JOB_ID=$(echo "$job" | jq -r '.id')
             JOB_NAME=$(echo "$job" | jq -r '.name')
+            JOB_URL=$(echo "$job" | jq -r '.html_url')
 
             # Find all failed steps in this job
             echo "$job" | jq -c '.steps[] | select(.conclusion == "failure")' | while read -r step; do
               STEP_NAME=$(echo "$step" | jq -r '.name')
-              STEP_NUMBER=$(echo "$step" | jq -r '.number')
-
-              # Fetch job logs to extract error details
-              echo "Fetching logs for Job: $JOB_NAME, Step: $STEP_NAME" >> $GITHUB_STEP_SUMMARY
-
-              gh api \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs" > job_logs_${JOB_ID}.txt || {
-                  echo "Warning: Could not download logs for job $JOB_ID"
-                  echo "" > job_logs_${JOB_ID}.txt
-                }
-
-              # Extract relevant log excerpt (around error/failure patterns)
-              if grep -qi "error\|failed\|exception\|fatal" job_logs_${JOB_ID}.txt; then
-                FIRST_ERROR_LINE=$(grep -ni "error\|failed\|exception\|fatal" job_logs_${JOB_ID}.txt | head -n 1 | cut -d: -f1)
-                START_LINE=$((FIRST_ERROR_LINE - 30))
-                if [ $START_LINE -lt 1 ]; then
-                  START_LINE=1
-                fi
-                END_LINE=$((FIRST_ERROR_LINE + 20))
-                LOG_EXCERPT=$(sed -n "${START_LINE},${END_LINE}p" job_logs_${JOB_ID}.txt)
-              else
-                # If no clear error pattern, extract last 50 lines
-                LOG_EXCERPT=$(tail -n 50 job_logs_${JOB_ID}.txt)
-              fi
-
-              # Sanitize log excerpt (remove ANSI color codes)
-              LOG_EXCERPT=$(printf '%s\n' "$LOG_EXCERPT" | sed 's/\x1b\[[0-9;]*m//g')
-              LINE_COUNT=$(echo "$LOG_EXCERPT" | wc -l)
 
               # Increment failure counter
               TOTAL_FAILURES=$((TOTAL_FAILURES + 1))
 
-              # Append this failure to the markdown file (avoiding EOF issues with heredoc)
+              # Append this failure to the markdown file
               {
                 echo ""
                 echo "### $TOTAL_FAILURES. $JOB_NAME - $STEP_NAME"
                 echo ""
-                echo "**Log Lines**: $LINE_COUNT"
-                echo ""
-                echo "#### Error Details"
-                echo ""
-                echo '```'
-                echo "$LOG_EXCERPT"
-                echo '```'
+                echo "**Job URL**: $JOB_URL"
                 echo ""
                 echo "---"
                 echo ""
@@ -258,16 +231,8 @@ jobs:
             done
           done
 
-          # Insert summary section after workflow information
-          sed -i "/^## Workflow Information/a\\
-          \\
-          ## Summary\\
-          \\
-          This workflow run failed with **$TOTAL_FAILURES job/step failure(s)**.\\
-          \\
-          ---\\
-          \\
-          ## Failed Jobs and Steps" "$MARKDOWN_FILE"
+          # Replace the placeholder with actual count
+          sed -i "s/PLACEHOLDER job\/step failure(s)/$TOTAL_FAILURES job\/step failure(s)/" "$MARKDOWN_FILE"
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Status**: Created aggregated failure data" >> $GITHUB_STEP_SUMMARY
