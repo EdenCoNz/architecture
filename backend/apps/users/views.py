@@ -417,6 +417,12 @@ class CustomTokenRefreshView(TokenRefreshView):
         ],
         tags=['Authentication']
     )
+    def post(self, request, *args, **kwargs):
+        """
+        Handle token refresh requests.
+        Delegates to the parent TokenRefreshView implementation.
+        """
+        return super().post(request, *args, **kwargs)
 
 
 class CurrentUserView(APIView):

@@ -98,6 +98,10 @@ jobs:
           pip install -r requirements/dev.txt
 
       - name: Run mypy type checker
+        env:
+          SECRET_KEY: typecheck-secret-key-for-ci-validation-only
+          DB_NAME: sqlite
+          DEBUG: 'False'
         run: mypy apps/
 
   # Job 3: Unit and Integration Tests with Coverage

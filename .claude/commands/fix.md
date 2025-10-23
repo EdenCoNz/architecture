@@ -50,16 +50,22 @@ Automatically resolve GitHub issues by analyzing CI/CD failure logs, creating ta
    - Parse the JSON response to extract `number`, `title`, and `body` fields
    - If issue doesn't exist: STOP and inform user "Issue #{issue_number} not found"
 
-2. **Extract metadata from issue body**:
-   - Look for the line containing `- **Branch**: ` in the issue body
-   - Extract the branch name from this line (format: `- **Branch**: {branch_name}`)
-   - If branch line not found: STOP and display error "Issue #{issue_number} does not contain branch information. Expected '- **Branch**: {branch}' in issue body."
+2. **Extract branch from issue body**:
+   - Search for branch information in the issue body using these patterns (in order):
+     1. Line matching `- **Branch**: {branch_name}`
+     2. Line matching `**Branch**: {branch_name}`
+     3. Line matching `Branch: {branch_name}`
+   - Extract the branch name after the pattern (trim whitespace)
+   - If no branch found with any pattern: STOP and display error "Issue #{issue_number} does not contain branch information. Expected branch field in issue body. Please add branch info to the issue."
 
 3. **Determine feature information from branch**:
    - If branch starts with "feature/":
      - Set featureName = branch (e.g., "feature/5-hello-button")
-     - Extract featureID from branch name after "feature/" prefix (e.g., "5")
-     - Extract only the numeric portion before any dash (e.g., "feature/5-hello-button" -> "5")
+     - Extract featureID from branch name: take characters after "feature/" and before first "-" or end of string
+     - Examples:
+       - "feature/7-initialise-backend-api" -> featureID = "7"
+       - "feature/123-some-feature" -> featureID = "123"
+       - "feature/5" -> featureID = "5"
    - If branch is "main" or doesn't start with "feature/":
      - Set featureName = "main"
      - Set featureID = "N/A"
