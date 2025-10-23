@@ -1,13 +1,15 @@
 """
 Custom middleware for the application.
 """
+
+import logging
 import time
 import uuid
-import logging
-from django.utils.deprecation import MiddlewareMixin
-from django.conf import settings
 
-logger = logging.getLogger('apps.middleware')
+from django.conf import settings
+from django.utils.deprecation import MiddlewareMixin
+
+logger = logging.getLogger("apps.middleware")
 
 
 class RequestLoggingMiddleware(MiddlewareMixin):
@@ -29,16 +31,16 @@ class RequestLoggingMiddleware(MiddlewareMixin):
 
     # Fields to sanitize in request data
     SENSITIVE_FIELDS = [
-        'password',
-        'token',
-        'secret',
-        'api_key',
-        'apikey',
-        'authorization',
-        'auth',
-        'credentials',
-        'csrf_token',
-        'csrfmiddlewaretoken',
+        "password",
+        "token",
+        "secret",
+        "api_key",
+        "apikey",
+        "authorization",
+        "auth",
+        "credentials",
+        "csrf_token",
+        "csrfmiddlewaretoken",
     ]
 
     def __init__(self, get_response):
@@ -57,18 +59,18 @@ class RequestLoggingMiddleware(MiddlewareMixin):
     def process_response(self, request, response):
         """Process response after view execution."""
         # Calculate response time
-        if hasattr(request, 'start_time'):
+        if hasattr(request, "start_time"):
             response_time = (time.time() - request.start_time) * 1000  # Convert to ms
         else:
             response_time = 0
 
         # Get request ID
-        request_id = getattr(request, 'request_id', 'unknown')
+        request_id = getattr(request, "request_id", "unknown")
 
         # Get user information
         user_id = None
-        username = 'anonymous'
-        if hasattr(request, 'user') and request.user.is_authenticated:
+        username = "anonymous"
+        if hasattr(request, "user") and request.user.is_authenticated:
             user_id = request.user.id
             username = request.user.username
 
@@ -85,16 +87,16 @@ class RequestLoggingMiddleware(MiddlewareMixin):
 
         # Build extra context for structured logging
         extra = {
-            'request_id': request_id,
-            'method': request.method,
-            'path': request.path,
-            'status_code': response.status_code,
-            'response_time_ms': round(response_time, 2),
-            'user_id': user_id,
-            'username': username,
-            'query_params': query_params,
-            'ip_address': self._get_client_ip(request),
-            'user_agent': request.META.get('HTTP_USER_AGENT', 'unknown')[:200],
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.path,
+            "status_code": response.status_code,
+            "response_time_ms": round(response_time, 2),
+            "user_id": user_id,
+            "username": username,
+            "query_params": query_params,
+            "ip_address": self._get_client_ip(request),
+            "user_agent": request.META.get("HTTP_USER_AGENT", "unknown")[:200],
         }
 
         # Log at appropriate level based on status code
@@ -106,32 +108,32 @@ class RequestLoggingMiddleware(MiddlewareMixin):
             logger.info(log_message, extra=extra)
 
         # Add request ID to response headers for debugging
-        response['X-Request-ID'] = request_id
+        response["X-Request-ID"] = request_id
 
         return response
 
     def process_exception(self, request, exception):
         """Process exceptions that occur during request processing."""
-        request_id = getattr(request, 'request_id', 'unknown')
+        request_id = getattr(request, "request_id", "unknown")
 
         logger.error(
             f"Exception during request {request.method} {request.path}: {str(exception)}",
             exc_info=True,
             extra={
-                'request_id': request_id,
-                'method': request.method,
-                'path': request.path,
-                'exception_type': type(exception).__name__,
-            }
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.path,
+                "exception_type": type(exception).__name__,
+            },
         )
 
     def _get_client_ip(self, request):
         """Extract client IP address from request."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0].strip()
+            ip = x_forwarded_for.split(",")[0].strip()
         else:
-            ip = request.META.get('REMOTE_ADDR', 'unknown')
+            ip = request.META.get("REMOTE_ADDR", "unknown")
         return ip
 
     def _sanitize_data(self, data):
@@ -150,13 +152,12 @@ class RequestLoggingMiddleware(MiddlewareMixin):
         sanitized = {}
         for key, value in data.items():
             if any(sensitive in key.lower() for sensitive in self.SENSITIVE_FIELDS):
-                sanitized[key] = '***REDACTED***'
+                sanitized[key] = "***REDACTED***"
             elif isinstance(value, dict):
                 sanitized[key] = self._sanitize_data(value)
             elif isinstance(value, list):
                 sanitized[key] = [
-                    self._sanitize_data(item) if isinstance(item, dict) else item
-                    for item in value
+                    self._sanitize_data(item) if isinstance(item, dict) else item for item in value
                 ]
             else:
                 sanitized[key] = value
@@ -175,11 +176,7 @@ class PerformanceLoggingMiddleware(MiddlewareMixin):
         """Initialize middleware."""
         self.get_response = get_response
         # Configurable threshold (default 1000ms)
-        self.slow_request_threshold = getattr(
-            settings,
-            'SLOW_REQUEST_THRESHOLD_MS',
-            1000
-        )
+        self.slow_request_threshold = getattr(settings, "SLOW_REQUEST_THRESHOLD_MS", 1000)
         super().__init__(get_response)
 
     def process_request(self, request):
@@ -188,7 +185,7 @@ class PerformanceLoggingMiddleware(MiddlewareMixin):
 
     def process_response(self, request, response):
         """Process response and log if slow."""
-        if hasattr(request, 'perf_start_time'):
+        if hasattr(request, "perf_start_time"):
             response_time = (time.time() - request.perf_start_time) * 1000
 
             if response_time > self.slow_request_threshold:
@@ -196,13 +193,13 @@ class PerformanceLoggingMiddleware(MiddlewareMixin):
                     f"SLOW REQUEST: {request.method} {request.path} "
                     f"took {response_time:.2f}ms (threshold: {self.slow_request_threshold}ms)",
                     extra={
-                        'request_id': getattr(request, 'request_id', 'unknown'),
-                        'method': request.method,
-                        'path': request.path,
-                        'response_time_ms': round(response_time, 2),
-                        'threshold_ms': self.slow_request_threshold,
-                        'is_slow': True,
-                    }
+                        "request_id": getattr(request, "request_id", "unknown"),
+                        "method": request.method,
+                        "path": request.path,
+                        "response_time_ms": round(response_time, 2),
+                        "threshold_ms": self.slow_request_threshold,
+                        "is_slow": True,
+                    },
                 )
 
         return response
@@ -217,10 +214,10 @@ class HealthCheckLoggingExemptionMiddleware(MiddlewareMixin):
 
     # Endpoints to skip logging
     EXEMPT_PATHS = [
-        '/health/',
-        '/health/ready/',
-        '/health/live/',
-        '/api/v1/health/',
+        "/health/",
+        "/health/ready/",
+        "/health/live/",
+        "/api/v1/health/",
     ]
 
     def __init__(self, get_response):
@@ -256,16 +253,16 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
     def process_response(self, request, response):
         """Add security headers to response."""
         # X-Content-Type-Options: Prevent MIME type sniffing
-        response['X-Content-Type-Options'] = 'nosniff'
+        response["X-Content-Type-Options"] = "nosniff"
 
         # X-Frame-Options: Prevent clickjacking
-        response['X-Frame-Options'] = 'DENY'
+        response["X-Frame-Options"] = "DENY"
 
         # X-XSS-Protection: Enable browser XSS filter
-        response['X-XSS-Protection'] = '1; mode=block'
+        response["X-XSS-Protection"] = "1; mode=block"
 
         # Strict-Transport-Security: Enforce HTTPS (1 year + subdomains)
-        response['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
         # Content-Security-Policy: Prevent XSS and data injection
         csp_directives = [
@@ -277,7 +274,7 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
             "connect-src 'self'",
             "frame-ancestors 'none'",
             "base-uri 'self'",
-            "form-action 'self'"
+            "form-action 'self'",
         ]
 
         # In debug mode, relax CSP for development tools
@@ -289,25 +286,25 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
                 "img-src 'self' data: https:",
                 "font-src 'self' data:",
                 "connect-src 'self'",
-                "frame-ancestors 'none'"
+                "frame-ancestors 'none'",
             ]
 
-        response['Content-Security-Policy'] = '; '.join(csp_directives)
+        response["Content-Security-Policy"] = "; ".join(csp_directives)
 
         # Referrer-Policy: Control referrer information
-        response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Permissions-Policy: Restrict browser features
         permissions_policies = [
-            'geolocation=()',
-            'microphone=()',
-            'camera=()',
-            'payment=()',
-            'usb=()',
-            'magnetometer=()',
-            'gyroscope=()',
-            'accelerometer=()'
+            "geolocation=()",
+            "microphone=()",
+            "camera=()",
+            "payment=()",
+            "usb=()",
+            "magnetometer=()",
+            "gyroscope=()",
+            "accelerometer=()",
         ]
-        response['Permissions-Policy'] = ', '.join(permissions_policies)
+        response["Permissions-Policy"] = ", ".join(permissions_policies)
 
         return response

@@ -10,11 +10,10 @@ Provides functions to:
 - Sanitize JSON input
 """
 
-import re
 import html
-from urllib.parse import urlparse
+import re
 from typing import Any, Dict, List, Union
-
+from urllib.parse import urlparse
 
 # Patterns for security threat detection
 SQL_INJECTION_PATTERNS = [
@@ -26,7 +25,7 @@ SQL_INJECTION_PATTERNS = [
     r"(\binsert\b.*\binto\b)",
     r"(\bupdate\b.*\bset\b)",
     r"(\bdelete\b.*\bfrom\b)",
-    r"(;.*(\bdrop\b|\bdelete\b|\binsert\b|\bupdate\b))"
+    r"(;.*(\bdrop\b|\bdelete\b|\binsert\b|\bupdate\b))",
 ]
 
 XSS_PATTERNS = [
@@ -37,7 +36,7 @@ XSS_PATTERNS = [
     r"<embed",
     r"<object",
     r"eval\s*\(",
-    r"expression\s*\("
+    r"expression\s*\(",
 ]
 
 PATH_TRAVERSAL_PATTERNS = [
@@ -67,16 +66,16 @@ def sanitize_html(text: str) -> str:
 
     # Remove dangerous patterns
     dangerous_patterns = [
-        r'<script[^>]*>.*?</script>',
-        r'javascript:',
+        r"<script[^>]*>.*?</script>",
+        r"javascript:",
         r'on\w+\s*=\s*["\']?[^"\']*["\']?',
-        r'<iframe[^>]*>.*?</iframe>',
-        r'<embed[^>]*>',
-        r'<object[^>]*>.*?</object>',
+        r"<iframe[^>]*>.*?</iframe>",
+        r"<embed[^>]*>",
+        r"<object[^>]*>.*?</object>",
     ]
 
     for pattern in dangerous_patterns:
-        sanitized = re.sub(pattern, '', sanitized, flags=re.IGNORECASE | re.DOTALL)
+        sanitized = re.sub(pattern, "", sanitized, flags=re.IGNORECASE | re.DOTALL)
 
     return sanitized
 
@@ -120,12 +119,12 @@ def sanitize_sql_input(text: str) -> str:
         return text
 
     # Remove SQL comments
-    sanitized = re.sub(r'(--|#|\/\*|\*\/)', '', text)
+    sanitized = re.sub(r"(--|#|\/\*|\*\/)", "", text)
 
     # Remove dangerous SQL keywords when followed by suspicious patterns
     dangerous = [
-        (r';.*\b(drop|delete|insert|update|exec|execute)\b', ''),
-        (r'\bunion\b.*\bselect\b', ''),
+        (r";.*\b(drop|delete|insert|update|exec|execute)\b", ""),
+        (r"\bunion\b.*\bselect\b", ""),
     ]
 
     for pattern, replacement in dangerous:
@@ -196,27 +195,27 @@ def sanitize_filename(filename: str) -> str:
         return ""
 
     # Remove path separators
-    sanitized = filename.replace('/', '').replace('\\', '')
+    sanitized = filename.replace("/", "").replace("\\", "")
 
     # Remove parent directory references
-    sanitized = sanitized.replace('..', '')
+    sanitized = sanitized.replace("..", "")
 
     # Remove null bytes
-    sanitized = sanitized.replace('\x00', '')
+    sanitized = sanitized.replace("\x00", "")
 
     # Remove leading/trailing dots and spaces
-    sanitized = sanitized.strip('. ')
+    sanitized = sanitized.strip(". ")
 
     # Keep only alphanumeric, dash, underscore, and dot
-    sanitized = re.sub(r'[^\w\-.]', '_', sanitized)
+    sanitized = re.sub(r"[^\w\-.]", "_", sanitized)
 
     # Limit length
     if len(sanitized) > 255:
         # Preserve extension
-        parts = sanitized.rsplit('.', 1)
+        parts = sanitized.rsplit(".", 1)
         if len(parts) == 2:
             name, ext = parts
-            sanitized = name[:250] + '.' + ext
+            sanitized = name[:250] + "." + ext
         else:
             sanitized = sanitized[:255]
 
@@ -237,7 +236,7 @@ def validate_email(email: str) -> bool:
         return False
 
     # Basic email regex pattern
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
     if not re.match(pattern, email):
         return False
@@ -271,7 +270,7 @@ def validate_username(username: str) -> bool:
         return False
 
     # Allow alphanumeric, underscore, and hyphen
-    pattern = r'^[a-zA-Z0-9_-]+$'
+    pattern = r"^[a-zA-Z0-9_-]+$"
 
     if not re.match(pattern, username):
         return False
@@ -303,13 +302,13 @@ def validate_url(url: str) -> bool:
         return False
 
     # Check for dangerous protocols
-    dangerous_schemes = ['javascript', 'data', 'file', 'vbscript']
+    dangerous_schemes = ["javascript", "data", "file", "vbscript"]
 
     if parsed.scheme.lower() in dangerous_schemes:
         return False
 
     # Only allow http and https
-    if parsed.scheme.lower() not in ['http', 'https', '']:
+    if parsed.scheme.lower() not in ["http", "https", ""]:
         return False
 
     return True
@@ -326,10 +325,7 @@ def sanitize_json_input(data: Union[Dict, List, str, Any]) -> Union[Dict, List, 
         Sanitized data
     """
     if isinstance(data, dict):
-        return {
-            key: sanitize_json_input(value)
-            for key, value in data.items()
-        }
+        return {key: sanitize_json_input(value) for key, value in data.items()}
     elif isinstance(data, list):
         return [sanitize_json_input(item) for item in data]
     elif isinstance(data, str):

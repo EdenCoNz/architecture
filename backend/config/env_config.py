@@ -229,9 +229,7 @@ def get_environment() -> str:
         >>> get_environment()
         'production'
     """
-    settings_module = os.environ.get(
-        "DJANGO_SETTINGS_MODULE", "config.settings.development"
-    )
+    settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "config.settings.development")
 
     if "production" in settings_module:
         return "production"
@@ -270,8 +268,10 @@ def get_config(
     """
     try:
         if cast:
-            return config(key, default=default, cast=cast)  # type: ignore
-        return config(key, default=default)
+            result: T = config(key, default=default, cast=cast)  # type: ignore[assignment]
+            return result
+        value: str = config(key, default=default)  # type: ignore[assignment]
+        return value
     except Exception as e:
         if required:
             raise ConfigurationError(
@@ -359,9 +359,7 @@ def validate_configuration(environment: Optional[str] = None) -> None:
 
     # Build error message if there are issues
     if missing_vars or invalid_vars:
-        error_parts = [
-            f"\nConfiguration validation failed for '{environment}' environment:\n"
-        ]
+        error_parts = [f"\nConfiguration validation failed for '{environment}' environment:\n"]
 
         if missing_vars:
             error_parts.append("Missing required configuration variables:")
@@ -378,12 +376,8 @@ def validate_configuration(environment: Optional[str] = None) -> None:
             for var, message in invalid_vars:
                 error_parts.append(f"  - {var}: {message}")
 
-        error_parts.append(
-            "\nPlease update your .env file or environment variables and try again."
-        )
-        error_parts.append(
-            "See docs/CONFIGURATION.md for detailed configuration documentation."
-        )
+        error_parts.append("\nPlease update your .env file or environment variables and try again.")
+        error_parts.append("See docs/CONFIGURATION.md for detailed configuration documentation.")
 
         raise ConfigurationError("\n".join(error_parts))
 

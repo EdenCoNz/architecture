@@ -4,12 +4,13 @@ Pytest configuration and fixtures.
 This file contains shared fixtures and configuration for all tests.
 Fixtures defined here are automatically available to all test modules.
 """
+
 import pytest
-from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
 
 # Import factories for use in fixtures
-from tests.factories import UserFactory, AdminUserFactory
+from tests.factories import AdminUserFactory, UserFactory
 
 # Import test helpers
 from tests.utils import APITestHelper, AuthenticationTestHelper
@@ -187,6 +188,7 @@ def reset_factory_sequences():
     the same point for each test, making test data more predictable.
     """
     from tests.factories import FixtureHelper
+
     FixtureHelper.reset_sequences()
 
 
@@ -224,4 +226,5 @@ def mock_external_api():
             # Test code that uses external API
     """
     from unittest.mock import Mock
+
     return Mock()

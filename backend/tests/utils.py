@@ -6,10 +6,11 @@ Includes assertions, API helpers, authentication utilities, and test data helper
 """
 
 import json
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
+from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
@@ -54,7 +55,7 @@ class APITestHelper:
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
         return access_token, refresh_token
 
@@ -102,7 +103,7 @@ class APITestHelper:
             data = {'email': 'test@example.com', 'password': 'pass123'}
             response = helper.post('/api/v1/auth/register/', data)
         """
-        return self.client.post(url, data, format='json', **kwargs)
+        return self.client.post(url, data, format="json", **kwargs)
 
     def put(self, url: str, data: Optional[Dict] = None, **kwargs):
         """
@@ -116,7 +117,7 @@ class APITestHelper:
         Returns:
             Response object
         """
-        return self.client.put(url, data, format='json', **kwargs)
+        return self.client.put(url, data, format="json", **kwargs)
 
     def patch(self, url: str, data: Optional[Dict] = None, **kwargs):
         """
@@ -130,7 +131,7 @@ class APITestHelper:
         Returns:
             Response object
         """
-        return self.client.patch(url, data, format='json', **kwargs)
+        return self.client.patch(url, data, format="json", **kwargs)
 
     def delete(self, url: str, **kwargs):
         """
@@ -159,8 +160,9 @@ class APITestHelper:
             helper.assert_success(response)
             helper.assert_success(response, 201)  # Created
         """
-        assert response.status_code == status_code, \
-            f"Expected {status_code}, got {response.status_code}: {response.data}"
+        assert (
+            response.status_code == status_code
+        ), f"Expected {status_code}, got {response.status_code}: {response.data}"
 
     @staticmethod
     def assert_error(response, status_code: int = 400):
@@ -176,8 +178,9 @@ class APITestHelper:
             helper.assert_error(response)
             helper.assert_error(response, 401)  # Unauthorized
         """
-        assert response.status_code == status_code, \
-            f"Expected {status_code}, got {response.status_code}"
+        assert (
+            response.status_code == status_code
+        ), f"Expected {status_code}, got {response.status_code}"
 
     @staticmethod
     def assert_has_keys(data: Dict, keys: List[str]):
@@ -221,8 +224,8 @@ class APITestHelper:
             response = helper.get('/api/v1/users/')
             helper.assert_paginated(response)
         """
-        assert 'count' in response.data, "Missing 'count' in paginated response"
-        assert 'results' in response.data, "Missing 'results' in paginated response"
+        assert "count" in response.data, "Missing 'count' in paginated response"
+        assert "results" in response.data, "Missing 'results' in paginated response"
 
 
 class AuthenticationTestHelper:
@@ -261,10 +264,9 @@ class AuthenticationTestHelper:
             tokens = auth_helper.login('user@example.com', 'pass123')
             access_token = tokens['access']
         """
-        response = self.api_helper.post('/api/v1/auth/login/', {
-            'email': email,
-            'password': password
-        })
+        response = self.api_helper.post(
+            "/api/v1/auth/login/", {"email": email, "password": password}
+        )
         return response.data
 
     def logout(self, refresh_token: str):
@@ -280,9 +282,7 @@ class AuthenticationTestHelper:
         Examples:
             auth_helper.logout(refresh_token)
         """
-        return self.api_helper.post('/api/v1/auth/logout/', {
-            'refresh': refresh_token
-        })
+        return self.api_helper.post("/api/v1/auth/logout/", {"refresh": refresh_token})
 
     def refresh_token(self, refresh_token: str):
         """
@@ -298,9 +298,7 @@ class AuthenticationTestHelper:
             new_tokens = auth_helper.refresh_token(refresh_token)
             new_access = new_tokens['access']
         """
-        response = self.api_helper.post('/api/v1/auth/token/refresh/', {
-            'refresh': refresh_token
-        })
+        response = self.api_helper.post("/api/v1/auth/token/refresh/", {"refresh": refresh_token})
         return response.data
 
     def assert_authenticated(self, response):
@@ -353,8 +351,10 @@ class AssertionHelper:
             AssertionHelper.assert_email_sent(1)
         """
         from django.core import mail
-        assert len(mail.outbox) == count, \
-            f"Expected {count} email(s), but {len(mail.outbox)} were sent"
+
+        assert (
+            len(mail.outbox) == count
+        ), f"Expected {count} email(s), but {len(mail.outbox)} were sent"
 
     @staticmethod
     def assert_valid_uuid(value: str):
@@ -368,6 +368,7 @@ class AssertionHelper:
             AssertionHelper.assert_valid_uuid(str(user.id))
         """
         from uuid import UUID
+
         try:
             UUID(str(value))
         except (ValueError, TypeError):
@@ -385,8 +386,9 @@ class AssertionHelper:
             AssertionHelper.assert_valid_timestamp(response.data['created_at'])
         """
         from datetime import datetime
+
         try:
-            datetime.fromisoformat(value.replace('Z', '+00:00'))
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
         except (ValueError, TypeError):
             raise AssertionError(f"'{value}' is not a valid ISO 8601 timestamp")
 
@@ -405,8 +407,7 @@ class AssertionHelper:
         """
         for key, value in subset.items():
             assert key in superset, f"Missing key '{key}' in superset"
-            assert superset[key] == value, \
-                f"Expected {key}={value}, got {key}={superset[key]}"
+            assert superset[key] == value, f"Expected {key}={value}, got {key}={superset[key]}"
 
 
 class DatabaseTestHelper:
@@ -463,8 +464,9 @@ class DatabaseTestHelper:
             DatabaseTestHelper.assert_count(User, 2, is_active=True)
         """
         actual_count = model.objects.filter(**filters).count()
-        assert actual_count == expected_count, \
-            f"Expected {expected_count} {model.__name__} objects, found {actual_count}"
+        assert (
+            actual_count == expected_count
+        ), f"Expected {expected_count} {model.__name__} objects, found {actual_count}"
 
     @staticmethod
     def get_or_fail(model, **filters):
@@ -520,17 +522,18 @@ class MockHelper:
         # Check both args and kwargs
         for key, value in expected_args.items():
             if key in call_args.kwargs:
-                assert call_args.kwargs[key] == value, \
-                    f"Expected {key}={value}, got {key}={call_args.kwargs[key]}"
+                assert (
+                    call_args.kwargs[key] == value
+                ), f"Expected {key}={value}, got {key}={call_args.kwargs[key]}"
             else:
                 raise AssertionError(f"Key '{key}' not found in mock call arguments")
 
 
 # Convenient imports for test files
 __all__ = [
-    'APITestHelper',
-    'AuthenticationTestHelper',
-    'AssertionHelper',
-    'DatabaseTestHelper',
-    'MockHelper',
+    "APITestHelper",
+    "AuthenticationTestHelper",
+    "AssertionHelper",
+    "DatabaseTestHelper",
+    "MockHelper",
 ]

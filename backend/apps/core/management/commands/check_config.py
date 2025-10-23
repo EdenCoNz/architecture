@@ -7,15 +7,15 @@ Usage:
     python manage.py check_config --list-all
 """
 
-from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.core.management.base import BaseCommand
 
 from config.env_config import (
-    get_environment,
-    validate_configuration,
-    get_all_config_variables,
-    print_configuration_help,
     ConfigurationError,
+    get_all_config_variables,
+    get_environment,
+    print_configuration_help,
+    validate_configuration,
 )
 
 
@@ -69,9 +69,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  DATABASE: {settings.DATABASES['default']['NAME']}")
 
         except ConfigurationError as e:
-            self.stdout.write(
-                self.style.ERROR(f"\n✗ Configuration validation failed:\n{str(e)}\n")
-            )
+            self.stdout.write(self.style.ERROR(f"\n✗ Configuration validation failed:\n{str(e)}\n"))
             return
 
         self.stdout.write(self.style.SUCCESS("\n✓ Configuration check completed successfully\n"))

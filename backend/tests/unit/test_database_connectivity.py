@@ -5,10 +5,12 @@ Following TDD principles - these tests define the expected behavior
 before implementation.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from django.db import connection, connections
 from django.db.utils import OperationalError
-from unittest.mock import patch, MagicMock
+
 from apps.core.database import DatabaseHealthCheck
 
 
@@ -49,11 +51,11 @@ class TestDatabaseConnectivity:
 
     def test_connection_pool_settings(self):
         """Test that connection pooling is configured correctly."""
-        db_settings = connections['default'].settings_dict
+        db_settings = connections["default"].settings_dict
 
         # Should have connection pooling enabled
-        assert db_settings.get('CONN_MAX_AGE', 0) > 0
-        assert db_settings.get('ATOMIC_REQUESTS') is True
+        assert db_settings.get("CONN_MAX_AGE", 0) > 0
+        assert db_settings.get("ATOMIC_REQUESTS") is True
 
 
 @pytest.mark.unit
@@ -66,37 +68,37 @@ class TestDatabaseHealthCheck:
         checker = DatabaseHealthCheck()
         result = checker.check()
 
-        assert result['status'] == 'healthy'
-        assert result['database'] == 'connected'
-        assert 'response_time_ms' in result
-        assert result['response_time_ms'] > 0
+        assert result["status"] == "healthy"
+        assert result["database"] == "connected"
+        assert "response_time_ms" in result
+        assert result["response_time_ms"] > 0
 
     def test_health_check_failure(self):
         """Test health check returns failure when database is unavailable."""
         checker = DatabaseHealthCheck()
 
         # Mock connection.cursor to raise OperationalError
-        with patch('django.db.connection.cursor') as mock_cursor:
+        with patch("django.db.connection.cursor") as mock_cursor:
             mock_cursor.side_effect = OperationalError("Connection refused")
 
             result = checker.check()
 
-            assert result['status'] == 'unhealthy'
-            assert result['database'] == 'disconnected'
-            assert 'error' in result
-            assert 'Connection refused' in result['error']
+            assert result["status"] == "unhealthy"
+            assert result["database"] == "disconnected"
+            assert "error" in result
+            assert "Connection refused" in result["error"]
 
     def test_health_check_includes_connection_info(self):
         """Test health check includes connection information."""
         checker = DatabaseHealthCheck()
         result = checker.check()
 
-        assert 'connection_info' in result
-        assert 'engine' in result['connection_info']
-        assert 'host' in result['connection_info']
-        assert 'name' in result['connection_info']
+        assert "connection_info" in result
+        assert "engine" in result["connection_info"]
+        assert "host" in result["connection_info"]
+        assert "name" in result["connection_info"]
         # Should not expose password
-        assert 'password' not in str(result).lower()
+        assert "password" not in str(result).lower()
 
     @pytest.mark.django_db
     def test_health_check_measures_response_time(self):
@@ -104,9 +106,9 @@ class TestDatabaseHealthCheck:
         checker = DatabaseHealthCheck()
         result = checker.check()
 
-        assert 'response_time_ms' in result
+        assert "response_time_ms" in result
         # Response time should be reasonable (< 1000ms for local DB)
-        assert 0 < result['response_time_ms'] < 1000
+        assert 0 < result["response_time_ms"] < 1000
 
 
 @pytest.mark.unit
@@ -117,44 +119,44 @@ class TestConnectionErrorHandling:
         """Test that connection errors produce clear messages."""
         checker = DatabaseHealthCheck()
 
-        with patch('django.db.connection.cursor') as mock_cursor:
+        with patch("django.db.connection.cursor") as mock_cursor:
             mock_cursor.side_effect = OperationalError(
                 "FATAL: database 'backend_db' does not exist"
             )
 
             result = checker.check()
 
-            assert 'error' in result
-            assert 'database' in result['error'].lower()
-            assert 'does not exist' in result['error'].lower()
+            assert "error" in result
+            assert "database" in result["error"].lower()
+            assert "does not exist" in result["error"].lower()
 
     def test_authentication_error_message(self):
         """Test that authentication errors produce clear messages."""
         checker = DatabaseHealthCheck()
 
-        with patch('django.db.connection.cursor') as mock_cursor:
+        with patch("django.db.connection.cursor") as mock_cursor:
             mock_cursor.side_effect = OperationalError(
                 "FATAL: password authentication failed for user 'postgres'"
             )
 
             result = checker.check()
 
-            assert 'error' in result
-            assert 'authentication' in result['error'].lower()
+            assert "error" in result
+            assert "authentication" in result["error"].lower()
 
     def test_connection_refused_error_message(self):
         """Test that connection refused errors produce clear messages."""
         checker = DatabaseHealthCheck()
 
-        with patch('django.db.connection.cursor') as mock_cursor:
+        with patch("django.db.connection.cursor") as mock_cursor:
             mock_cursor.side_effect = OperationalError(
                 "could not connect to server: Connection refused"
             )
 
             result = checker.check()
 
-            assert 'error' in result
-            assert 'connect' in result['error'].lower()
+            assert "error" in result
+            assert "connect" in result["error"].lower()
 
 
 @pytest.mark.unit
@@ -165,24 +167,26 @@ class TestEnvironmentConfiguration:
         """Test that database settings are loaded from environment variables."""
         from django.conf import settings
 
-        db_config = settings.DATABASES['default']
+        db_config = settings.DATABASES["default"]
 
         # Should be using environment variables (via python-decouple)
-        assert db_config['ENGINE'] == 'django.db.backends.postgresql'
-        assert 'NAME' in db_config
-        assert 'USER' in db_config
-        assert 'HOST' in db_config
-        assert 'PORT' in db_config
+        assert db_config["ENGINE"] == "django.db.backends.postgresql"
+        assert "NAME" in db_config
+        assert "USER" in db_config
+        assert "HOST" in db_config
+        assert "PORT" in db_config
 
         # Should have connection pooling
-        assert db_config.get('CONN_MAX_AGE', 0) == 600
-        assert db_config.get('ATOMIC_REQUESTS') is True
+        assert db_config.get("CONN_MAX_AGE", 0) == 600
+        assert db_config.get("ATOMIC_REQUESTS") is True
 
     def test_no_hardcoded_credentials(self):
         """Test that no credentials are hardcoded in settings."""
-        from django.conf import settings
-        import config.settings.base as base_settings
         import inspect
+
+        from django.conf import settings
+
+        import config.settings.base as base_settings
 
         # Get the source code of the settings file
         source = inspect.getsource(base_settings)
@@ -199,10 +203,10 @@ class TestEnvironmentConfiguration:
         """Test that connection pooling is properly configured."""
         from django.conf import settings
 
-        db_config = settings.DATABASES['default']
+        db_config = settings.DATABASES["default"]
 
         # CONN_MAX_AGE should be set for connection pooling
-        conn_max_age = db_config.get('CONN_MAX_AGE', 0)
+        conn_max_age = db_config.get("CONN_MAX_AGE", 0)
         assert conn_max_age > 0, "Connection pooling should be enabled"
         assert conn_max_age == 600, "Connection pool timeout should be 600 seconds"
 
@@ -210,7 +214,7 @@ class TestEnvironmentConfiguration:
         """Test that atomic requests are enabled for data integrity."""
         from django.conf import settings
 
-        db_config = settings.DATABASES['default']
+        db_config = settings.DATABASES["default"]
 
         # ATOMIC_REQUESTS should be True for data integrity
-        assert db_config.get('ATOMIC_REQUESTS') is True
+        assert db_config.get("ATOMIC_REQUESTS") is True

@@ -1,24 +1,26 @@
 """
 Custom exception handlers for the API.
 """
+
+import logging
 import traceback
 from datetime import datetime
+
 from django.conf import settings
-from django.http import Http404
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
-from rest_framework.views import exception_handler
-from rest_framework.response import Response
+from django.http import Http404
 from rest_framework import status
 from rest_framework.exceptions import (
-    ValidationError,
-    PermissionDenied,
+    APIException,
     NotAuthenticated,
     NotFound,
-    APIException,
+    PermissionDenied,
+    ValidationError,
 )
-import logging
+from rest_framework.response import Response
+from rest_framework.views import exception_handler
 
-logger = logging.getLogger('apps.exceptions')
+logger = logging.getLogger("apps.exceptions")
 
 
 class BaseAPIException(APIException):
@@ -31,16 +33,18 @@ class BaseAPIException(APIException):
 
 class ServiceUnavailableException(BaseAPIException):
     """Exception for service unavailable errors."""
+
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    default_detail = 'Service temporarily unavailable. Please try again later.'
-    default_code = 'service_unavailable'
+    default_detail = "Service temporarily unavailable. Please try again later."
+    default_code = "service_unavailable"
 
 
 class RateLimitExceededException(BaseAPIException):
     """Exception for rate limit exceeded errors."""
+
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
-    default_detail = 'Rate limit exceeded. Please try again later.'
-    default_code = 'rate_limit_exceeded'
+    default_detail = "Rate limit exceeded. Please try again later."
+    default_code = "rate_limit_exceeded"
 
 
 def custom_exception_handler(exc, context):
@@ -55,37 +59,39 @@ def custom_exception_handler(exc, context):
     - Request tracking with request_id
     """
     # Get request from context
-    request = context.get('request')
-    view = context.get('view')
+    request = context.get("request")
+    view = context.get("view")
 
     # Get request ID if available
-    request_id = getattr(request, 'request_id', 'unknown') if request else 'unknown'
+    request_id = getattr(request, "request_id", "unknown") if request else "unknown"
 
     # Convert Django exceptions to DRF exceptions
     if isinstance(exc, Http404):
-        exc = NotFound('Resource not found.')
+        exc = NotFound("Resource not found.")
     elif isinstance(exc, DjangoPermissionDenied):
-        exc = PermissionDenied('You do not have permission to perform this action.')
+        exc = PermissionDenied("You do not have permission to perform this action.")
 
     # Call REST framework's default exception handler first
     response = exception_handler(exc, context)
 
     # Build extra logging context
     extra_context = {
-        'request_id': request_id,
-        'exception_type': type(exc).__name__,
-        'timestamp': datetime.utcnow().isoformat(),
+        "request_id": request_id,
+        "exception_type": type(exc).__name__,
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
     if request:
-        extra_context.update({
-            'method': request.method,
-            'path': request.path,
-            'user': str(request.user) if hasattr(request, 'user') else 'anonymous',
-        })
+        extra_context.update(
+            {
+                "method": request.method,
+                "path": request.path,
+                "user": str(request.user) if hasattr(request, "user") else "anonymous",
+            }
+        )
 
     if view:
-        extra_context['view'] = view.__class__.__name__
+        extra_context["view"] = view.__class__.__name__
 
     # Determine log level and log message based on exception type
     if response is not None:
@@ -97,14 +103,11 @@ def custom_exception_handler(exc, context):
             logger.error(
                 f"Server error ({status_code}): {str(exc)}",
                 exc_info=settings.DEBUG,  # Include stack trace in debug mode
-                extra=extra_context
+                extra=extra_context,
             )
         elif status_code >= 400:
             # Client errors - log with warning level
-            logger.warning(
-                f"Client error ({status_code}): {str(exc)}",
-                extra=extra_context
-            )
+            logger.warning(f"Client error ({status_code}): {str(exc)}", extra=extra_context)
 
         # Customize the response data structure
         error_data = _format_error_response(exc, response, request_id)
@@ -115,19 +118,16 @@ def custom_exception_handler(exc, context):
         logger.error(
             f"Unhandled exception: {str(exc)}",
             exc_info=True,  # Always include stack trace for unhandled exceptions
-            extra=extra_context
+            extra=extra_context,
         )
 
         # Create response for unhandled exception
         error_data = _format_unhandled_error(exc, request_id)
-        response = Response(
-            error_data,
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        response = Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # Add request ID to response headers for debugging
-    if request_id != 'unknown':
-        response['X-Request-ID'] = request_id
+    if request_id != "unknown":
+        response["X-Request-ID"] = request_id
 
     return response
 
@@ -146,7 +146,7 @@ def _format_error_response(exc, response, request_id):
     """
     # Get error message
     if isinstance(response.data, dict):
-        message = response.data.get('detail', 'An error occurred')
+        message = response.data.get("detail", "An error occurred")
 
         # For validation errors, collect all field errors
         errors = None
@@ -154,7 +154,7 @@ def _format_error_response(exc, response, request_id):
             errors = response.data
 
     elif isinstance(response.data, list):
-        message = response.data[0] if response.data else 'An error occurred'
+        message = response.data[0] if response.data else "An error occurred"
         errors = response.data
     else:
         message = str(response.data)
@@ -162,21 +162,21 @@ def _format_error_response(exc, response, request_id):
 
     # Build response structure
     error_response = {
-        'error': True,
-        'status_code': response.status_code,
-        'message': message,
-        'request_id': request_id,
-        'timestamp': datetime.utcnow().isoformat(),
+        "error": True,
+        "status_code": response.status_code,
+        "message": message,
+        "request_id": request_id,
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
     # Add detailed errors if present and not just a simple detail message
-    if errors and (not isinstance(errors, dict) or len(errors) > 1 or 'detail' not in errors):
-        error_response['errors'] = errors
+    if errors and (not isinstance(errors, dict) or len(errors) > 1 or "detail" not in errors):
+        error_response["errors"] = errors
 
     # In development mode, add more debug information
     if settings.DEBUG:
-        error_response['debug'] = {
-            'exception_type': type(exc).__name__,
+        error_response["debug"] = {
+            "exception_type": type(exc).__name__,
         }
 
     return error_response
@@ -197,19 +197,19 @@ def _format_unhandled_error(exc, request_id):
         Dictionary with formatted error data
     """
     error_response = {
-        'error': True,
-        'status_code': 500,
-        'message': 'An unexpected error occurred. Please try again later.',
-        'request_id': request_id,
-        'timestamp': datetime.utcnow().isoformat(),
+        "error": True,
+        "status_code": 500,
+        "message": "An unexpected error occurred. Please try again later.",
+        "request_id": request_id,
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
     # In development mode, include exception details
     if settings.DEBUG:
-        error_response['debug'] = {
-            'exception_type': type(exc).__name__,
-            'exception_message': str(exc),
-            'traceback': traceback.format_exc(),
+        error_response["debug"] = {
+            "exception_type": type(exc).__name__,
+            "exception_message": str(exc),
+            "traceback": traceback.format_exc(),
         }
 
     return error_response
@@ -226,20 +226,20 @@ def _sanitize_data(data):
         Sanitized data with sensitive fields redacted
     """
     sensitive_fields = [
-        'password',
-        'token',
-        'secret',
-        'api_key',
-        'apikey',
-        'authorization',
-        'credentials',
+        "password",
+        "token",
+        "secret",
+        "api_key",
+        "apikey",
+        "authorization",
+        "credentials",
     ]
 
     if isinstance(data, dict):
         sanitized = {}
         for key, value in data.items():
             if any(sensitive in key.lower() for sensitive in sensitive_fields):
-                sanitized[key] = '***REDACTED***'
+                sanitized[key] = "***REDACTED***"
             elif isinstance(value, (dict, list)):
                 sanitized[key] = _sanitize_data(value)
             else:

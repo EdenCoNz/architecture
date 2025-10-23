@@ -3,39 +3,45 @@ User models for authentication system.
 Implements custom User model using email as the primary identifier.
 """
 
+from typing import Any, Optional
+
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
-class UserManager(BaseUserManager):
+class UserManager(BaseUserManager["User"]):
     """Custom manager for User model with email as the unique identifier."""
 
-    def create_user(self, email, password=None, **extra_fields):
+    def create_user(
+        self, email: str, password: Optional[str] = None, **extra_fields: Any
+    ) -> "User":
         """
         Create and save a regular User with the given email and password.
         """
         if not email:
-            raise ValueError(_('The Email field must be set'))
+            raise ValueError(_("The Email field must be set"))
 
         email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
+        user: User = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, password=None, **extra_fields):
+    def create_superuser(
+        self, email: str, password: Optional[str] = None, **extra_fields: Any
+    ) -> "User":
         """
         Create and save a SuperUser with the given email and password.
         """
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
 
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError(_('Superuser must have is_staff=True.'))
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError(_('Superuser must have is_superuser=True.'))
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError(_("Superuser must have is_staff=True."))
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError(_("Superuser must have is_superuser=True."))
 
         return self.create_user(email, password, **extra_fields)
 
@@ -56,41 +62,41 @@ class User(AbstractUser):
     """
 
     # Remove username field from AbstractUser
-    username = None
+    username = None  # type: ignore[assignment]
 
     # Use email as the unique identifier
     email = models.EmailField(
-        _('email address'),
+        _("email address"),
         unique=True,
         error_messages={
-            'unique': _('A user with that email already exists.'),
-        }
+            "unique": _("A user with that email already exists."),
+        },
     )
 
     # Set email as the USERNAME_FIELD
-    USERNAME_FIELD = 'email'
+    USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []  # Email is already the USERNAME_FIELD
 
     # Use the custom manager
-    objects = UserManager()
+    objects: UserManager = UserManager()  # type: ignore[assignment]
 
     class Meta:
-        verbose_name = _('user')
-        verbose_name_plural = _('users')
-        db_table = 'users'
-        ordering = ['-date_joined']
+        verbose_name = _("user")
+        verbose_name_plural = _("users")
+        db_table = "users"
+        ordering = ["-date_joined"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """String representation of the user."""
         return self.email
 
-    def get_full_name(self):
+    def get_full_name(self) -> str:
         """
         Return the first_name plus the last_name, with a space in between.
         """
-        full_name = f'{self.first_name} {self.last_name}'
+        full_name = f"{self.first_name} {self.last_name}"
         return full_name.strip()
 
-    def get_short_name(self):
+    def get_short_name(self) -> str:
         """Return the short name for the user."""
         return self.first_name
