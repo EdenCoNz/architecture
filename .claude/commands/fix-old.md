@@ -46,27 +46,26 @@ Automatically resolve GitHub issues by analyzing failure logs, creating targeted
    - If issue doesn't exist: STOP and inform user "Issue #{issue_number} not found"
 
 2. **Extract metadata from issue body**:
-   - Parse the issue body to extract the table fields:
-     - `featureID`: Look for `| featureID | {value} |` pattern
-     - `featureName`: Look for `| featureName | {value} |` pattern
-   - These fields are required - if either is missing or set to "N/A":
-     - STOP execution
-     - Display error: "Issue #{issue_number} is missing required metadata (featureID or featureName). This issue cannot be auto-fixed."
-     - Suggest manual intervention
+   - Determine issue type by checking for "## Workflow Information" section in body
+   - Extract metadata based on issue type:
 
-3. **Extract failed step log excerpt**:
-   - Parse the issue body to find the "## Failed Step Log Excerpt" section
+   **For Workflow Failure Issues** (contains "## Workflow Information"):
+   - Extract branch from the line: `- **Branch**: {branch_name}`
+   - Extract commit from the line: `- **Commit**: {commit_sha}`
+   - Extract run URL from the line: `- **Run URL**: [View on GitHub]({url})`
+   - Determine featureName and featureID:
+     - If branch starts with "feature/":
+       - Set featureName = branch (e.g., "feature/123")
+       - Extract featureID from branch name after "feature/" (e.g., "123")
+     - If branch is "main" or doesn't start with "feature/":
+       - Set featureName = "main"
+       - Set featureID = "N/A"
+       - STOP execution with message: "Issue #{issue_number} is for main branch infrastructure failure. Cannot auto-fix infrastructure issues on main branch."
 
-4. **Validate extracted data**:
-   - Confirm featureID is numeric
-   - Confirm featureName starts with "feature/"
-   - Display extracted metadata:
-     ```
-     Issue #{issue_number}: {title}
-     Feature ID: {featureID}
-     Branch: {featureName}
-     Log excerpt: {log_exerpt} characters
-     ```
+
+3. **Extract error details**:
+   - For workflow failure issues: Parse the "## Failed Jobs and Steps" section
+   - Store the full error context for use in Step 4
 
 ### Step 3: Update Local Branch
 
@@ -101,7 +100,7 @@ First, check what agents are available in .claude/agents/ to understand what imp
 
 Then, analyze this issue and create comprehensive user stories:
 
-{{{ log_exerpt }}}
+{{{ error_details }}}
 
 You MUST plan the user stories needed for this issue based on the available agents and feature requirements.
 
@@ -293,7 +292,9 @@ Provide a comprehensive summary with the following sections:
 
 Before finalizing, verify:
 
-- [ ] Issue metadata successfully extracted (featureID, featureName)
+- [ ] Issue type correctly identified (Workflow Failure vs Legacy Format)
+- [ ] Issue metadata successfully extracted (featureID, featureName) based on issue type
+- [ ] Main branch infrastructure failures rejected with clear message
 - [ ] Switched to correct feature branch
 - [ ] Product owner created 1-3 fix stories (not more)
 - [ ] User stories saved to correct location (docs/features/{featureID}/issues/{issue_number}/)
