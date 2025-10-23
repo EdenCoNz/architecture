@@ -71,13 +71,114 @@ Automatically resolve GitHub issues by analyzing CI/CD failure logs, creating ta
      - Set featureID = "N/A"
      - STOP execution with message: "Issue #{issue_number} is for main branch. Cannot auto-fix infrastructure issues on main branch. Please fix manually."
 
-4. **Extract error details**:
+4. **Extract Job URLs from issue**:
    - Parse the "## Failed Jobs and Steps" section from the issue body
-   - For each failed job/step, extract:
-     - Job name and step name (from section heading)
-     - Error log excerpt (from code block)
-   - Store all failed step information for use in Step 4
-   - Display: "Found {count} failed job(s)/step(s) in issue"
+   - For each failed job/step section, extract:
+     - Job name and step name (from section heading like "### 1. {failed_job} - {failed step}")
+     - Job URL (from line matching `**JobURL**:` or `**Job URL**:` followed by the URL)
+   - Store all Job URLs in an array for processing in Step 2.5
+   - Handle multiple URL formats:
+     - Direct URL on same line: `**JobURL**: https://github.com/...`
+     - URL on next line after label
+     - Markdown link format: `**JobURL**: [View Job](https://github.com/...)`
+   - Display: "Found {count} failed job(s)/step(s) with Job URLs in issue"
+   - If no Job URLs found but error logs exist inline: Display warning "Issue uses old format with inline logs. Consider updating to new format with Job URLs."
+
+### Step 2.5: Fetch Error Logs from Job URLs
+
+1. **Extract job IDs from URLs**:
+   - For each Job URL collected in Step 2.4, extract the job ID
+   - Job URLs typically have format: `https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}`
+   - Parse the URL to extract the job_id (numeric identifier at the end)
+   - Store mapping of job_id to job/step name for reference
+
+2. **Fetch logs using GitHub CLI**:
+   - For each job_id, use gh CLI to fetch the job logs:
+     - Command: `gh api repos/{owner}/{repo}/actions/jobs/{job_id}/logs`
+     - The logs are returned as plain text with ANSI color codes
+   - Store the raw logs temporarily for parsing
+
+3. **Parse error information from logs**:
+   - Search for error indicators in the logs:
+     - Lines containing "Error:", "error:", "ERROR", "FAIL", "Failed", "Exception"
+     - Exit code indicators (e.g., "Process exited with code")
+     - Test failure summaries
+     - Build failure messages
+   - Extract context around errors (5-10 lines before and after error line)
+   - Remove ANSI color codes and excessive whitespace
+   - Limit extracted error context to ~50 lines per job to keep it manageable
+
+4. **Handle fetch failures gracefully**:
+   - If gh CLI is not authenticated: Display error "GitHub CLI not authenticated. Run 'gh auth login' to authenticate."
+   - If job URL is invalid or inaccessible: Display warning "Could not fetch logs for job {job_id}. URL may be invalid or you may lack access permissions."
+   - If API rate limit exceeded: Display error "GitHub API rate limit exceeded. Wait before retrying or use a token with higher limits."
+   - For any failed fetches: Continue with other jobs and note which jobs failed
+   - Store successfully fetched error logs with their associated job/step names
+
+5. **Report fetch status**:
+   - Display: "Successfully fetched logs from {success_count}/{total_count} job(s)"
+   - If any fetches failed: List which job URLs failed and why
+   - Prepare error data structure for Step 2.6
+
+### Step 2.6: Summarize Errors for Product Owner
+
+This step creates a clear, non-technical summary of errors that a product owner can understand.
+
+1. **Analyze error patterns**:
+   - Group similar errors together (e.g., multiple test failures, build errors, linting issues)
+   - Identify root causes vs symptoms:
+     - Syntax errors in code
+     - Missing dependencies
+     - Test failures (unit, integration, e2e)
+     - Build/compilation failures
+     - Deployment/infrastructure issues
+     - Environment/configuration issues
+   - Count occurrences of each error type
+
+2. **Create product owner summary**:
+   - For each error group, create a plain-language summary:
+     - WHAT failed: "3 unit tests are failing in the authentication module"
+     - WHY it failed: "The tests expect a user ID field that no longer exists in the database schema"
+     - WHERE it failed: "Backend API tests in the login component"
+   - Avoid technical jargon where possible
+   - Focus on business impact, not stack traces
+   - Use bullet points for clarity
+
+3. **Format the summary**:
+   - Structure the summary as markdown with clear sections:
+     ```markdown
+     ## Error Summary for Product Owner
+
+     ### Overview
+     - Total failures: {count}
+     - Failure categories: {list}
+
+     ### Detailed Breakdown
+
+     #### 1. {Error Category Name}
+     - **What Failed**: {plain language description}
+     - **Why It Failed**: {root cause in simple terms}
+     - **Impact**: {business/user impact}
+     - **Jobs Affected**: {job names}
+
+     #### 2. {Another Error Category}
+     ...
+
+     ### Technical Details
+     {Condensed error logs for developer reference}
+     ```
+
+4. **Display summary to user**:
+   - Present the product owner summary before proceeding to fix
+   - This allows human oversight of what will be fixed
+   - Display: "Error Summary:"
+   - Print the formatted summary
+   - Display: "Proceeding with fix user story creation..."
+
+5. **Store summary for product owner agent**:
+   - Save the formatted summary to pass to product-owner agent in Step 4
+   - This gives the agent clear context for creating fix stories
+   - The summary should be comprehensive but concise (target: 200-500 words)
 
 ### Step 3: Update Local Branch
 
@@ -115,7 +216,7 @@ You are operating in FIX MODE to create user stories for resolving GitHub Issue 
 
 First, check what agents are available in .claude/agents/ to understand what implementation capabilities exist.
 
-Then, analyze the following CI/CD failure logs and create comprehensive user stories to fix the issues:
+Then, analyze the following error summary and create comprehensive user stories to fix the issues:
 
 ## Issue Details
 - **Issue Number**: #{issue_number}
@@ -123,9 +224,15 @@ Then, analyze the following CI/CD failure logs and create comprehensive user sto
 - **Feature ID**: {featureID}
 - **Branch**: {featureName}
 
-## Failed CI/CD Steps
+## Error Summary
 
-{failed_steps_details}
+{product_owner_summary}
+
+## Technical Error Details
+
+The following technical details were extracted from the CI/CD job logs for developer reference:
+
+{technical_error_details}
 
 ## Your Task
 
@@ -134,6 +241,7 @@ Create 1-3 atomic user stories to fix these failures. Each story should:
 - Be assigned to the appropriate agent (frontend-developer, backend-developer, devops-engineer, etc.)
 - Have clear, testable acceptance criteria
 - Focus on fixing the root cause, not just the symptom
+- Use the product owner summary to understand WHAT and WHY, and the technical details to understand HOW
 
 ## File Location Requirements
 
@@ -149,7 +257,7 @@ After creating the user stories file, you MUST also update `docs/features/featur
 2. Add an issue entry if one doesn't exist for this issue number
 3. Record that fix user stories have been created
 
-Plan the user stories based on the available agents and the nature of the failures.
+Plan the user stories based on the available agents and the nature of the failures. Use the product owner summary to communicate the business context, and reference the technical details as needed for implementation guidance.
 ```
 
 ### Step 5: Verify User Stories Created
@@ -328,7 +436,16 @@ Provide a comprehensive summary with the following sections:
 - Issue title
 - Feature ID: {featureID}
 - Branch name: {featureName}
-- Number of failed steps found: {count}
+- Number of failed jobs found: {count}
+- Job URLs extracted: {count}
+
+### Error Log Fetch Status
+- Job logs fetched: {success_count}/{total_count}
+- Failed fetches (if any):
+  - Job URL: {url}
+  - Reason: {error_reason}
+- Error summary created: (yes/no)
+- Error categories identified: {list of categories}
 
 ### Branch Status
 - Previous branch (if switched): {previous_branch}
@@ -398,38 +515,69 @@ Provide a comprehensive summary with the following sections:
    - Explain that auto-fix requires branch information in format: `- **Branch**: {branch}`
    - Suggest manual fix workflow
 
-3. **Main branch infrastructure issues**:
+3. **Missing Job URLs in issue**:
+   - Display error: "Issue #{issue_number} does not contain Job URLs in the expected format"
+   - Check if issue uses old format with inline error logs
+   - If old format detected: Suggest updating issue with Job URLs or proceeding with inline logs (fallback mode)
+   - If neither Job URLs nor inline logs found: STOP and display "Cannot proceed without error information. Please add Job URLs to the issue."
+
+4. **GitHub CLI authentication failure**:
+   - Display error: "GitHub CLI is not authenticated. Cannot fetch job logs."
+   - Provide authentication instructions: "Run 'gh auth login' to authenticate with GitHub"
+   - Suggest alternative: "Or manually add error logs to the issue in the old format"
+   - STOP execution (cannot fetch logs without authentication)
+
+5. **Job log fetch failures**:
+   - If some jobs succeed but others fail:
+     - Display warning: "Failed to fetch logs from {failed_count}/{total_count} job(s)"
+     - List which job URLs failed and the reason (invalid URL, access denied, rate limit, etc.)
+     - Ask user: "Continue with partial error information, or stop to investigate failed fetches?"
+     - If user chooses continue: Proceed with available error logs
+     - If user chooses stop: STOP execution
+   - If all jobs fail:
+     - Display error: "Could not fetch logs from any job URLs"
+     - List all failures with reasons
+     - Suggest checking: Job URL format, repository access permissions, API rate limits
+     - STOP execution (cannot create fix without any error information)
+
+6. **Empty or unparseable job logs**:
+   - Display warning: "Job logs for {job_id} contain no recognizable error patterns"
+   - Include the job URL for manual inspection
+   - Continue with other jobs if available
+   - If all logs are empty: Display error "No error information found in any job logs. Manual investigation required."
+
+7. **Main branch infrastructure issues**:
    - Clearly state that main branch issues cannot be auto-fixed
    - Explain that infrastructure issues require manual investigation
    - Suggest involving DevOps engineer
 
-4. **Branch checkout fails**:
+8. **Branch checkout fails**:
    - Display git error message
    - Check if branch exists locally with `git branch --list {branch}`
    - Suggest fetching from remote: `git fetch origin {branch}:{branch}`
    - Provide recovery command: `git checkout {featureName}`
 
-5. **Product owner fails to create stories**:
+9. **Product owner fails to create stories**:
    - Check if file was created but in wrong location
    - Display expected vs actual file locations
    - List contents of `docs/features/{featureID}/issues/` directory
    - Suggest manual story creation
 
-6. **Implementation incomplete**:
-   - List which stories failed with their status
-   - Provide path to implementation log for details
-   - Ask user if they want to continue with partial fix or stop
+10. **Implementation incomplete**:
+    - List which stories failed with their status
+    - Provide path to implementation log for details
+    - Ask user if they want to continue with partial fix or stop
 
-7. **Git operations fail**:
-   - Preserve all completed work (stories, implementation)
-   - Provide exact manual recovery commands
-   - Never lose implementation progress
-   - Distinguish between staging, commit, and push failures
+11. **Git operations fail**:
+    - Preserve all completed work (stories, implementation)
+    - Provide exact manual recovery commands
+    - Never lose implementation progress
+    - Distinguish between staging, commit, and push failures
 
-8. **Issue closure fails**:
-   - Treat as minor failure (fix is complete)
-   - Provide manual closure instructions
-   - Include link to issue for convenience
+12. **Issue closure fails**:
+    - Treat as minor failure (fix is complete)
+    - Provide manual closure instructions
+    - Include link to issue for convenience
 
 ## Self-Verification Checklist
 
@@ -437,6 +585,13 @@ Before finalizing, verify:
 
 - [ ] Issue number determined (from input or oldest issue)
 - [ ] Issue metadata successfully extracted (branch, featureID)
+- [ ] Job URLs extracted from issue (or fallback to inline logs with warning)
+- [ ] Job IDs parsed from Job URLs correctly
+- [ ] GitHub CLI authentication verified before fetching logs
+- [ ] Job logs fetched successfully (or partial fetch handled gracefully)
+- [ ] Error information parsed from logs (error patterns identified)
+- [ ] Product owner error summary created (non-technical, business-focused)
+- [ ] Error summary displayed to user before proceeding
 - [ ] Main branch infrastructure failures rejected with clear message
 - [ ] Switched to correct feature branch
 - [ ] Product owner created 1-3 fix stories (not more)
@@ -448,3 +603,4 @@ Before finalizing, verify:
 - [ ] Changes pushed to remote (or failure documented with recovery steps)
 - [ ] Issue closed on GitHub (or failure documented)
 - [ ] Clear status and next steps provided to user
+- [ ] All error scenarios properly handled (auth, fetch failures, empty logs, etc.)
