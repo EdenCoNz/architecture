@@ -7,11 +7,16 @@ name: Detect Workflow Failures
 #   - Frontend CI/CD and Backend CI/CD have inline failure detection
 #   - They create GitHub issues directly when failures occur on PR branches
 #
-# For main branch failures:
+# For main branch failures (workflow fails):
 #   - This external workflow provides detailed analysis
 #   - Creates a SINGLE aggregated issue per workflow run with all failures
 #   - Follows the structure defined in issue-log-template.json
 #   - Provides comprehensive failure reporting with log excerpts
+#
+# For main branch success (workflow succeeds):
+#   - Automatically closes issues created by previous failures of the same workflow
+#   - Searches for open issues with matching runURL metadata
+#   - Bulk closes all related failure issues
 #
 # This workflow detects failed jobs in completed workflows
 # It runs after Frontend CI/CD or Backend CI/CD workflows complete and checks for failures
@@ -24,7 +29,7 @@ on:
 permissions:
   contents: read  # Read repository contents and workflow files
   actions: read   # Read workflow run information via API
-  issues: write   # Create issues for workflow failures
+  issues: write   # Create issues for workflow failures and close them on success
 
 jobs:
   detect-failures:
@@ -342,3 +347,133 @@ jobs:
               echo "Created issue: ${{ steps.create-issue.outputs.issue_url }}"
             fi
           fi
+
+  auto-close-issues:
+    name: Auto-Close Issues on Success
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    # Only run if the workflow succeeded (not failed or cancelled)
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Auto-close workflow failure issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "## Auto-Close Workflow Failure Issues" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          RUN_NUMBER="${{ github.event.workflow_run.run_number }}"
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+
+          echo "**Workflow**: $WORKFLOW_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Run Number**: $RUN_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "**Run URL**: $RUN_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Query all open issues with the workflow-failure label
+          echo "Querying open workflow failure issues..." >> $GITHUB_STEP_SUMMARY
+          OPEN_ISSUES=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --label "workflow-failure" \
+            --json number,title,body \
+            --limit 1000 2>&1 || echo "[]")
+
+          if [ "$OPEN_ISSUES" == "[]" ]; then
+            echo "ℹ️ No open workflow failure issues found" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Count open issues
+          ISSUE_COUNT=$(echo "$OPEN_ISSUES" | jq '. | length')
+          echo "Found $ISSUE_COUNT open workflow failure issue(s)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Find issues related to this workflow by searching for matching workflow name in title
+          # We'll search for issues that contain this workflow's name
+          CLOSED_COUNT=0
+          FAILED_ISSUES=()
+
+          echo "Searching for issues related to workflow: $WORKFLOW_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Create a Python script to find matching issues by workflow name in title
+          cat > /tmp/find_workflow_issues.py << 'EOF'
+          import json
+          import sys
+
+          data = json.loads(sys.stdin.read())
+          workflow_name = sys.argv[1]
+
+          matching_issues = []
+
+          for issue in data:
+              issue_number = str(issue.get('number', ''))
+              issue_title = issue.get('title', '')
+
+              # Check if the workflow name appears in the issue title
+              # Issue titles are like: "Workflow Run #123 Failed: Frontend CI/CD (2 failure(s))"
+              if workflow_name in issue_title:
+                  matching_issues.append(issue_number)
+
+          for issue in matching_issues:
+              print(issue)
+          EOF
+
+          MATCHING_ISSUE_NUMBERS=$(echo "$OPEN_ISSUES" | python3 /tmp/find_workflow_issues.py "$WORKFLOW_NAME" 2>&1 || echo "")
+          rm -f /tmp/find_workflow_issues.py
+
+          if [ -z "$MATCHING_ISSUE_NUMBERS" ]; then
+            echo "ℹ️ No issues found for workflow: $WORKFLOW_NAME" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Count matching issues
+          MATCH_COUNT=$(echo "$MATCHING_ISSUE_NUMBERS" | wc -l)
+          echo "Found $MATCH_COUNT issue(s) to close for this workflow:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Close each matching issue
+          while IFS= read -r ISSUE_NUMBER; do
+            if [ -n "$ISSUE_NUMBER" ]; then
+              echo "Closing issue #$ISSUE_NUMBER..." >> $GITHUB_STEP_SUMMARY
+
+              CLOSE_COMMENT="Automatically closed - workflow ${WORKFLOW_NAME} succeeded in run #${RUN_NUMBER} (${RUN_URL}). Commit: ${HEAD_SHA}"
+
+              if gh issue close "$ISSUE_NUMBER" \
+                --repo "${{ github.repository }}" \
+                --comment "$CLOSE_COMMENT" 2>&1; then
+                echo "  ✅ Successfully closed issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+                CLOSED_COUNT=$((CLOSED_COUNT + 1))
+              else
+                echo "  ⚠️ Failed to close issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+                FAILED_ISSUES+=("$ISSUE_NUMBER")
+              fi
+            fi
+          done <<< "$MATCHING_ISSUE_NUMBERS"
+
+          # Summary report
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Workflow: $WORKFLOW_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- Issues closed: $CLOSED_COUNT" >> $GITHUB_STEP_SUMMARY
+
+          if [ ${#FAILED_ISSUES[@]} -gt 0 ]; then
+            echo "- Failed to close: ${#FAILED_ISSUES[@]} issue(s)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Failed issues:" >> $GITHUB_STEP_SUMMARY
+            for failed in "${FAILED_ISSUES[@]}"; do
+              echo "  - #$failed" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Auto-close completed for $WORKFLOW_NAME" >> $GITHUB_STEP_SUMMARY
