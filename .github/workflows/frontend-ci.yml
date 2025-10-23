@@ -265,13 +265,17 @@ jobs:
           npm audit --audit-level=moderate || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 6: Get Commit Message (for PR events)
-  get-commit-message:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    outputs:
-      commit-message: ${{ steps.get-message.outputs.message }}
-      commit-sha: ${{ steps.get-message.outputs.sha }}
+  # Job 6: Auto-Close Issue from Commit Message
+  auto-close-issue-from-commit:
+    name: Auto-Close Issue from Commit Message
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    # Always run this job, regardless of whether previous jobs succeeded or failed
+    if: always()
+    permissions:
+      issues: write
+      contents: read
+
     steps:
       - name: Get commit message
         id: get-message
@@ -296,21 +300,103 @@ jobs:
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 
-  # Job 7: Auto-Close Issue (Reusable Workflow)
-  auto-close-issue:
-    needs: [lint, typecheck, test, build, security, get-commit-message]
-    # Run on pull_request events or workflow_dispatch (needs ensures all jobs succeeded)
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/auto-close-issue.yml
-    with:
-      commit-message: ${{ needs.get-commit-message.outputs.commit-message }}
-      repository: ${{ github.repository }}
-      sha: ${{ needs.get-commit-message.outputs.commit-sha }}
-      workflow-name: 'Frontend CI/CD'
-    permissions:
-      issues: write
-      contents: read
-      pull-requests: write  # Required for auto-closing PRs when no issues remain
+          echo "## Commit Message Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Event**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Extract issue numbers from commit message
+        id: extract-issues
+        run: |
+          COMMIT_MESSAGE='${{ steps.get-message.outputs.message }}'
+
+          echo "**Commit Message**:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$COMMIT_MESSAGE" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract issue numbers using pattern: "fix issue #123" or "Fix issue #123" (case insensitive)
+          # This regex matches variations like:
+          # - "fix issue #123"
+          # - "Fix issue #456"
+          # - "fixes issue #789"
+          # - "fixed issue #999"
+          ISSUE_NUMBERS=$(echo "$COMMIT_MESSAGE" | grep -iEo 'fix(es|ed)? issue #[0-9]+' | grep -oE '[0-9]+' | sort -u)
+
+          if [ -z "$ISSUE_NUMBERS" ]; then
+            echo "has_issues=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No issue references found in commit message" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Pattern**: Looking for 'fix issue #<number>' (case insensitive)" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Convert to comma-separated list for output
+          ISSUE_LIST=$(echo "$ISSUE_NUMBERS" | tr '\n' ',' | sed 's/,$//')
+
+          echo "has_issues=true" >> $GITHUB_OUTPUT
+          echo "issue_list=$ISSUE_LIST" >> $GITHUB_OUTPUT
+          echo "issue_count=$(echo "$ISSUE_NUMBERS" | wc -l)" >> $GITHUB_OUTPUT
+
+          echo "✅ Found issue reference(s) in commit message:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for issue in $ISSUE_NUMBERS; do
+            echo "- Issue #$issue" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Close referenced issues
+        if: steps.extract-issues.outputs.has_issues == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_LIST="${{ steps.extract-issues.outputs.issue_list }}"
+          COMMIT_SHA="${{ steps.get-message.outputs.sha }}"
+          WORKFLOW_STATUS="${{ job.status }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          echo "## Closing Issues" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Convert comma-separated list to array
+          IFS=',' read -ra ISSUES <<< "$ISSUE_LIST"
+
+          for issue_number in "${ISSUES[@]}"; do
+            echo "Processing issue #$issue_number..." >> $GITHUB_STEP_SUMMARY
+
+            # Check if issue exists and is open
+            ISSUE_STATE=$(gh issue view "$issue_number" --json state --jq '.state' 2>/dev/null || echo "not_found")
+
+            if [ "$ISSUE_STATE" = "not_found" ]; then
+              echo "⚠️ Issue #$issue_number not found, skipping..." >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
+            if [ "$ISSUE_STATE" = "CLOSED" ]; then
+              echo "ℹ️ Issue #$issue_number is already closed, skipping..." >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
+            # Close the issue with a comment
+            CLOSE_COMMENT="✅ Fixed in commit $COMMIT_SHA
+
+          This issue has been automatically closed because it was referenced in a commit message with 'Fix issue #$issue_number'.
+
+          **Workflow Run**: $RUN_URL
+          **Workflow**: Frontend CI/CD"
+
+            gh issue close "$issue_number" --comment "$CLOSE_COMMENT"
+
+            if [ $? -eq 0 ]; then
+              echo "✅ Successfully closed issue #$issue_number" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Failed to close issue #$issue_number" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Summary**: Processed ${{ steps.extract-issues.outputs.issue_count }} issue(s)" >> $GITHUB_STEP_SUMMARY
 
   # Job 8: Detect Workflow Failures
   detect-workflow-failures:
