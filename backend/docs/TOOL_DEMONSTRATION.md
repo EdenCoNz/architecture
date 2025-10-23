@@ -152,8 +152,7 @@ Flake8 checks your code for:
 - **Style violations** (PEP 8 standards)
 - **Programming errors** (undefined variables, syntax errors)
 - **Complexity issues** (functions that are too complex)
-- **Django-specific issues** (via flake8-django plugin)
-- **Common bugs** (via flake8-bugbear plugin)
+- **Common bug patterns** (via flake8-bugbear plugin)
 
 ### Example: Common Issues
 
