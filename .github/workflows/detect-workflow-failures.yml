@@ -9,8 +9,9 @@ name: Detect Workflow Failures
 #
 # For main branch failures:
 #   - This external workflow provides detailed analysis
-#   - Creates issue log files and triggers issue creation
-#   - Provides comprehensive failure reporting
+#   - Creates a SINGLE aggregated issue per workflow run with all failures
+#   - Follows the structure defined in issue-log-template.json
+#   - Provides comprehensive failure reporting with log excerpts
 #
 # This workflow detects failed jobs in completed workflows
 # It runs after Frontend CI/CD or Backend CI/CD workflows complete and checks for failures
@@ -22,7 +23,8 @@ on:
 # Required permissions for workflow
 permissions:
   contents: read  # Read repository contents and workflow files
-  actions: write  # Read workflow run information via API and trigger workflow_dispatch
+  actions: read   # Read workflow run information via API
+  issues: write   # Create issues for workflow failures
 
 jobs:
   detect-failures:
@@ -152,139 +154,177 @@ jobs:
               ] | join("\n")
             )' >> $GITHUB_STEP_SUMMARY
 
-      - name: Create issue log files from template
-        id: create-logs
+      - name: Create aggregated failure JSON
+        id: create-failure-json
         if: steps.detect-failures.outputs.failed_jobs > 0
         run: |
-          # Create logs directory for storing issue log files
-          mkdir -p issue-logs
-
           JOBS_JSON='${{ steps.fetch-jobs.outputs.jobs_json }}'
-          TEMPLATE_PATH="docs/templates/issue-log-template.md"
           RUN_ID="${{ github.event.workflow_run.id }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
 
-          # Track created log files
-          LOG_FILES=()
+          echo "## Creating Aggregated Failure Data" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Process each failed job
+          # Create directory for failure data
+          mkdir -p failure-data
+
+          # Initialize the failure JSON structure based on issue-log-template.json
+          FAILURE_JSON='{"runID":0,"runURL":"","failedJobs":[]}'
+
+          # Set run-level metadata
+          FAILURE_JSON=$(echo "$FAILURE_JSON" | jq --arg run_id "$RUN_ID" '.runID = ($run_id | tonumber)')
+          FAILURE_JSON=$(echo "$FAILURE_JSON" | jq --arg run_url "$RUN_URL" '.runURL = $run_url')
+
+          # Process each failed job and extract failure details
           echo "$JOBS_JSON" | jq -c '.jobs[] | select(.conclusion == "failure")' | while read -r job; do
             JOB_ID=$(echo "$job" | jq -r '.id')
             JOB_NAME=$(echo "$job" | jq -r '.name')
 
-            # Find the first failed step in this job
-            FAILED_STEP=$(echo "$job" | jq -r '.steps[] | select(.conclusion == "failure") | .number' | head -n 1)
+            # Find all failed steps in this job
+            echo "$job" | jq -c '.steps[] | select(.conclusion == "failure")' | while read -r step; do
+              STEP_NAME=$(echo "$step" | jq -r '.name')
+              STEP_NUMBER=$(echo "$step" | jq -r '.number')
 
-            # If no failed step found (job-level failure), use step 0
-            if [ -z "$FAILED_STEP" ]; then
-              FAILED_STEP="0"
-            fi
+              # Fetch job logs to extract error details
+              echo "Fetching logs for Job: $JOB_NAME, Step: $STEP_NAME" >> $GITHUB_STEP_SUMMARY
 
-            # Generate filename with run, job, and step identifiers
-            LOG_FILENAME="issue-logs/issue-log-run-${RUN_ID}-job-${JOB_ID}-step-${FAILED_STEP}.md"
+              gh api \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs" > job_logs_${JOB_ID}.txt || {
+                  echo "Warning: Could not download logs for job $JOB_ID"
+                  echo "" > job_logs_${JOB_ID}.txt
+                }
 
-            # Copy template to create log file with empty fields
-            cp "$TEMPLATE_PATH" "$LOG_FILENAME"
+              # Extract relevant log excerpt (around error/failure patterns)
+              if grep -qi "error\|failed\|exception\|fatal" job_logs_${JOB_ID}.txt; then
+                FIRST_ERROR_LINE=$(grep -ni "error\|failed\|exception\|fatal" job_logs_${JOB_ID}.txt | head -n 1 | cut -d: -f1)
+                START_LINE=$((FIRST_ERROR_LINE - 30))
+                if [ $START_LINE -lt 1 ]; then
+                  START_LINE=1
+                fi
+                END_LINE=$((FIRST_ERROR_LINE + 20))
+                LOG_EXCERPT=$(sed -n "${START_LINE},${END_LINE}p" job_logs_${JOB_ID}.txt)
+              else
+                # If no clear error pattern, extract last 50 lines
+                LOG_EXCERPT=$(tail -n 50 job_logs_${JOB_ID}.txt)
+              fi
 
-            LOG_FILES+=("$LOG_FILENAME")
+              # Sanitize log excerpt
+              LOG_EXCERPT=$(printf '%s\n' "$LOG_EXCERPT" | sed 's/\x1b\[[0-9;]*m//g')
+              LINE_COUNT=$(echo "$LOG_EXCERPT" | wc -l)
 
-            echo "Created issue log file: $LOG_FILENAME"
-            echo "  - Run ID: $RUN_ID"
-            echo "  - Job ID: $JOB_ID"
-            echo "  - Job Name: $JOB_NAME"
-            echo "  - Failed Step: $FAILED_STEP"
+              # Add this failure to the JSON array
+              FAILURE_ENTRY=$(jq -n \
+                --arg job_name "$JOB_NAME" \
+                --arg step_name "$STEP_NAME" \
+                --argjson line_count "$LINE_COUNT" \
+                --arg log_detail "$LOG_EXCERPT" \
+                '{
+                  jobName: $job_name,
+                  stepName: $step_name,
+                  numberOfLinesInLog: $line_count,
+                  logDetail: $log_detail
+                }')
+
+              # Read current failure JSON, append the new entry, and write back
+              FAILURE_JSON=$(cat failure-data/workflow-failure-${RUN_ID}.json 2>/dev/null || echo "$FAILURE_JSON")
+              FAILURE_JSON=$(echo "$FAILURE_JSON" | jq --argjson entry "$FAILURE_ENTRY" '.failedJobs += [$entry]')
+              echo "$FAILURE_JSON" > failure-data/workflow-failure-${RUN_ID}.json
+            done
           done
 
-          # Output created log files for use in subsequent steps
-          echo "log_files_created=$(printf '%s,' "${LOG_FILES[@]}" | sed 's/,$//')" >> $GITHUB_OUTPUT
+          # Read the final JSON file
+          FINAL_JSON=$(cat failure-data/workflow-failure-${RUN_ID}.json)
+          FAILED_JOB_COUNT=$(echo "$FINAL_JSON" | jq '.failedJobs | length')
 
-          # Summary
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Issue Log Files Created" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: Created aggregated failure data" >> $GITHUB_STEP_SUMMARY
+          echo "**Failed Jobs/Steps**: $FAILED_JOB_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "**File**: \`failure-data/workflow-failure-${RUN_ID}.json\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Created ${#LOG_FILES[@]} issue log file(s) from template:" >> $GITHUB_STEP_SUMMARY
-          for log_file in "${LOG_FILES[@]}"; do
-            echo "- \`$log_file\`" >> $GITHUB_STEP_SUMMARY
-          done
 
-      - name: Upload issue log files as artifacts
+          # Output the JSON file path for next steps
+          echo "failure_json_path=failure-data/workflow-failure-${RUN_ID}.json" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload failure data as artifact
         if: steps.detect-failures.outputs.failed_jobs > 0
         uses: actions/upload-artifact@v4
         with:
-          name: issue-logs
-          path: issue-logs/
+          name: failure-data
+          path: failure-data/
           retention-days: 7
 
-      - name: Prepare issue creation triggers
-        id: prepare-triggers
+      - name: Create single aggregated issue
+        id: create-issue
         if: steps.detect-failures.outputs.failed_jobs > 0
         run: |
-          JOBS_JSON='${{ steps.fetch-jobs.outputs.jobs_json }}'
           RUN_ID="${{ github.event.workflow_run.id }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          RUN_NUMBER="${{ github.event.workflow_run.run_number }}"
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          FAILURE_JSON_PATH="${{ steps.create-failure-json.outputs.failure_json_path }}"
 
-          # Create JSON array of log file metadata for triggering reusable workflows
-          LOG_METADATA='{"logs":[]}'
-
-          echo "$JOBS_JSON" | jq -c '.jobs[] | select(.conclusion == "failure")' | while read -r job; do
-            JOB_ID=$(echo "$job" | jq -r '.id')
-
-            # Find the first failed step in this job
-            FAILED_STEP=$(echo "$job" | jq -r '.steps[] | select(.conclusion == "failure") | .number' | head -n 1)
-
-            # If no failed step found (job-level failure), use step 0
-            if [ -z "$FAILED_STEP" ]; then
-              FAILED_STEP="0"
-            fi
-
-            LOG_FILENAME="issue-logs/issue-log-run-${RUN_ID}-job-${JOB_ID}-step-${FAILED_STEP}.md"
-
-            # Add to metadata JSON
-            LOG_METADATA=$(echo "$LOG_METADATA" | jq --arg filename "$LOG_FILENAME" \
-              --arg run_id "$RUN_ID" \
-              --arg job_id "$JOB_ID" \
-              '.logs += [{"filename": $filename, "run_id": $run_id, "job_id": $job_id}]')
-          done
-
-          echo "log_metadata=$LOG_METADATA" >> $GITHUB_OUTPUT
-
-      - name: Trigger issue creation workflows
-        id: trigger-workflows
-        if: steps.detect-failures.outputs.failed_jobs > 0
-        run: |
-          JOBS_JSON='${{ steps.fetch-jobs.outputs.jobs_json }}'
-          RUN_ID="${{ github.event.workflow_run.id }}"
-
-          echo "## Issue Creation Workflow Triggers" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Triggering independent issue creation workflows for each failed job:" >> $GITHUB_STEP_SUMMARY
+          echo "## Creating Aggregated Failure Issue" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Process each failed job and trigger reusable workflow
-          TRIGGERED_COUNT=0
-          echo "$JOBS_JSON" | jq -c '.jobs[] | select(.conclusion == "failure")' | while read -r job; do
-            JOB_ID=$(echo "$job" | jq -r '.id')
+          # Read the aggregated failure JSON
+          FAILURE_DATA=$(cat "$FAILURE_JSON_PATH")
+          FAILED_JOB_COUNT=$(echo "$FAILURE_DATA" | jq '.failedJobs | length')
 
-            # Find the first failed step in this job
-            FAILED_STEP=$(echo "$job" | jq -r '.steps[] | select(.conclusion == "failure") | .number' | head -n 1)
+          # Create issue title
+          ISSUE_TITLE="Workflow Run #${RUN_NUMBER} Failed: ${WORKFLOW_NAME} (${FAILED_JOB_COUNT} failure(s))"
 
-            # If no failed step found (job-level failure), use step 0
-            if [ -z "$FAILED_STEP" ]; then
-              FAILED_STEP="0"
-            fi
+          # Build issue body
+          echo "# Workflow Failure Report" > issue_body_full.md
+          echo "" >> issue_body_full.md
+          echo "**Workflow**: ${WORKFLOW_NAME}" >> issue_body_full.md
+          echo "**Run Number**: ${RUN_NUMBER}" >> issue_body_full.md
+          echo "**Run ID**: ${RUN_ID}" >> issue_body_full.md
+          echo "**Branch**: ${HEAD_BRANCH}" >> issue_body_full.md
+          echo "**Commit**: ${HEAD_SHA}" >> issue_body_full.md
+          echo "**Run URL**: ${RUN_URL}" >> issue_body_full.md
+          echo "" >> issue_body_full.md
+          echo "---" >> issue_body_full.md
+          echo "" >> issue_body_full.md
+          echo "## Summary" >> issue_body_full.md
+          echo "" >> issue_body_full.md
+          echo "This workflow run failed with **${FAILED_JOB_COUNT}** job/step failure(s)." >> issue_body_full.md
+          echo "" >> issue_body_full.md
+          echo "## Failed Jobs and Steps" >> issue_body_full.md
+          echo "" >> issue_body_full.md
 
-            LOG_FILENAME="issue-logs/issue-log-run-${RUN_ID}-job-${JOB_ID}-step-${FAILED_STEP}.md"
+          # Add each failed job/step to the issue body
+          echo "$FAILURE_DATA" | jq -r '.failedJobs[] |
+            "### " + .jobName + " - " + .stepName + "\n\n" +
+            "**Log Lines**: " + (.numberOfLinesInLog | tostring) + "\n\n" +
+            "#### Error Log Excerpt\n\n" +
+            "```\n" + .logDetail + "\n```\n\n" +
+            "---\n"' >> issue_body_full.md
 
-            # Trigger the reusable workflow via workflow_dispatch
-            # Note: GitHub Actions doesn't support triggering reusable workflows dynamically
-            # Instead, we'll use a different job that calls the reusable workflow (see below)
-            echo "- Log file: \`$LOG_FILENAME\` (Run: $RUN_ID, Job: $JOB_ID)" >> $GITHUB_STEP_SUMMARY
+          # Create the GitHub issue
+          ISSUE_URL=$(gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body-file issue_body_full.md \
+            --label "workflow-failure")
 
-            TRIGGERED_COUNT=$((TRIGGERED_COUNT + 1))
-          done
+          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
 
+          # Extract issue number
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+
+          echo "**Status**: ✓ Created aggregated failure issue" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: ${ISSUE_URL}" >> $GITHUB_STEP_SUMMARY
+          echo "**Failures Included**: ${FAILED_JOB_COUNT}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total workflows to trigger**: $TRIGGERED_COUNT" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Note: Issue creation workflows will be triggered in the next job using the reusable workflow pattern." >> $GITHUB_STEP_SUMMARY
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Output failure detection results
         if: always()
@@ -298,135 +338,7 @@ jobs:
             echo "Failed job names: ${{ steps.detect-failures.outputs.failed_job_names }}"
             echo "Failed job IDs: ${{ steps.detect-failures.outputs.failed_job_ids }}"
 
-            if [ -n "${{ steps.create-logs.outputs.log_files_created }}" ]; then
-              echo "Issue log files created: ${{ steps.create-logs.outputs.log_files_created }}"
+            if [ -n "${{ steps.create-issue.outputs.issue_url }}" ]; then
+              echo "Created issue: ${{ steps.create-issue.outputs.issue_url }}"
             fi
           fi
-
-  # Prepare metadata for triggering independent issue creation workflows
-  # This job collects all failed job information and makes it available
-  # for the subsequent jobs that will call the reusable workflow
-  prepare-issue-creation:
-    name: Prepare Issue Creation Metadata
-    needs: detect-failures
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    if: needs.detect-failures.outputs.failed_jobs > 0
-    outputs:
-      failed_jobs_json: ${{ steps.prepare-metadata.outputs.failed_jobs_json }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Prepare metadata for each failed job
-        id: prepare-metadata
-        run: |
-          # Create structured JSON array of failed jobs for downstream processing
-          JOBS_JSON='${{ needs.detect-failures.outputs.jobs_json }}'
-          RUN_ID="${{ needs.detect-failures.outputs.run_id }}"
-
-          # Extract failed jobs into a structured array
-          FAILED_JOBS_ARRAY=$(echo "$JOBS_JSON" | jq -c '[.jobs[] | select(.conclusion == "failure") |
-            {
-              job_id: .id | tostring,
-              job_name: .name,
-              run_id: "'"$RUN_ID"'",
-              failed_step: (
-                [.steps[] | select(.conclusion == "failure") | .number][0] // 0 | tostring
-              )
-            }
-          ]')
-
-          echo "failed_jobs_json=$FAILED_JOBS_ARRAY" >> $GITHUB_OUTPUT
-
-          # Summary
-          echo "## Issue Creation Preparation" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Prepared metadata for $(echo "$FAILED_JOBS_ARRAY" | jq 'length') failed job(s):" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          echo "$FAILED_JOBS_ARRAY" | jq '.' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-  # Trigger independent issue creation workflow for each failed job
-  # Each call to the reusable workflow represents an independent issue creation process
-  # This satisfies the acceptance criteria that each failure triggers its own process
-  trigger-issue-creation:
-    name: Trigger Issue Creation Workflows
-    needs: [detect-failures, prepare-issue-creation]
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-    if: needs.detect-failures.outputs.failed_jobs > 0
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download issue log artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: issue-logs
-          path: issue-logs/
-
-      - name: Trigger reusable workflow for each failed job
-        run: |
-          # For each failed job, trigger an independent workflow_dispatch run
-          # of the create-issue-from-log workflow. This ensures that each
-          # failure gets its own independent issue creation process as required
-          # by the acceptance criteria.
-
-          echo "## Triggering Issue Creation Workflows" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          FAILED_JOBS='${{ needs.prepare-issue-creation.outputs.failed_jobs_json }}'
-          TRIGGERED_COUNT=0
-          FAILED_WORKFLOW_BRANCH="${{ github.event.workflow_run.head_branch }}"
-
-          echo "**Failed Workflow Branch**: $FAILED_WORKFLOW_BRANCH" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "$FAILED_JOBS" | jq -c '.[]' | while read -r job; do
-            JOB_ID=$(echo "$job" | jq -r '.job_id')
-            RUN_ID=$(echo "$job" | jq -r '.run_id')
-            FAILED_STEP=$(echo "$job" | jq -r '.failed_step')
-            JOB_NAME=$(echo "$job" | jq -r '.job_name')
-
-            LOG_FILENAME="issue-logs/issue-log-run-${RUN_ID}-job-${JOB_ID}-step-${FAILED_STEP}.md"
-
-            echo "Triggering workflow for: $LOG_FILENAME"
-            echo "  Job Name: $JOB_NAME"
-            echo "  Job ID: $JOB_ID"
-            echo "  Run ID: $RUN_ID"
-            echo "  Branch: $FAILED_WORKFLOW_BRANCH"
-
-            # Trigger independent workflow_dispatch run for this log file
-            # Each trigger creates a separate workflow run that processes
-            # the log file independently
-            # Note: run_id is the failed workflow (for metadata extraction)
-            # artifact_run_id is the current workflow (for artifact download)
-            # --ref uses the failed workflow's branch (not the current workflow's ref)
-            gh workflow run create-issue-from-log.yml \
-              -f log_filename="$LOG_FILENAME" \
-              -f run_id="$RUN_ID" \
-              -f artifact_run_id="${{ github.run_id }}" \
-              -f job_id="$JOB_ID" \
-              --ref "$FAILED_WORKFLOW_BRANCH" || {
-                echo "Warning: Failed to trigger workflow for $LOG_FILENAME"
-                echo "- ❌ Failed to trigger for \`$LOG_FILENAME\`" >> $GITHUB_STEP_SUMMARY
-                continue
-              }
-
-            TRIGGERED_COUNT=$((TRIGGERED_COUNT + 1))
-            echo "- ✓ Triggered issue creation for \`$LOG_FILENAME\` (Job: $JOB_NAME, Branch: $FAILED_WORKFLOW_BRANCH)" >> $GITHUB_STEP_SUMMARY
-          done
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total independent issue creation workflows triggered**: $TRIGGERED_COUNT" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Each triggered workflow runs independently with its own log file." >> $GITHUB_STEP_SUMMARY
-          echo "> Future stories (4-6) will populate the log files and create GitHub issues." >> $GITHUB_STEP_SUMMARY
-
-          echo "Successfully triggered $TRIGGERED_COUNT independent issue creation workflow(s)"
-        env:
-          GH_TOKEN: ${{ github.token }}

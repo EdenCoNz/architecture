@@ -1,0 +1,18 @@
+{
+  "runID": 1,
+  "runURL": "",
+  "failedJobs": [
+    {
+        "jobName" : "job 1",
+        "stepName" : "step 1",
+        "numberOfLinesInLog" : 2,
+        "logDetail": ""
+    },
+    {
+        "jobName" : "job 1",
+        "stepName" : "step 1",
+        "numberOfLinesInLog" : 2,
+        "logDetail": ""
+    }
+  ]
+}
