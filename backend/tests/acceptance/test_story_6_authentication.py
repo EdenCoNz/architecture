@@ -3,22 +3,20 @@ Acceptance tests for Story #6: Configure Authentication System
 
 These tests verify that all acceptance criteria are met:
 1. When I provide valid credentials, I should be able to authenticate successfully
-2. When I provide invalid credentials, I should receive a clear error message without revealing security details
-3. When I authenticate, I should receive credentials that allow me to access protected resources
-4. When my authentication expires, I should be informed and prompted to re-authenticate
+2. When I provide invalid credentials, I should receive a clear error message
+   without revealing security details
+3. When I authenticate, I should receive credentials that allow me to access
+   protected resources
+4. When my authentication expires, I should be informed and prompted to
+   re-authenticate
 """
-
-import time
-from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.settings import api_settings
-from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 

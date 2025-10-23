@@ -5,18 +5,13 @@ Custom exception handlers for the API.
 import logging
 import traceback
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
 from rest_framework import status
-from rest_framework.exceptions import (
-    APIException,
-    NotAuthenticated,
-    NotFound,
-    PermissionDenied,
-    ValidationError,
-)
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
@@ -26,7 +21,7 @@ logger = logging.getLogger("apps.exceptions")
 class BaseAPIException(APIException):
     """Base exception class for custom API exceptions."""
 
-    def __init__(self, detail=None, code=None):
+    def __init__(self, detail: Optional[str] = None, code: Optional[str] = None) -> None:
         """Initialize exception with detail and code."""
         super().__init__(detail, code)
 
@@ -47,7 +42,7 @@ class RateLimitExceededException(BaseAPIException):
     default_code = "rate_limit_exceeded"
 
 
-def custom_exception_handler(exc, context):
+def custom_exception_handler(exc: Exception, context: Dict[str, Any]) -> Optional[Response]:
     """
     Custom exception handler that provides consistent error responses.
 
@@ -86,7 +81,7 @@ def custom_exception_handler(exc, context):
             {
                 "method": request.method,
                 "path": request.path,
-                "user": str(request.user) if hasattr(request, "user") else "anonymous",
+                "user": (str(request.user) if hasattr(request, "user") else "anonymous"),
             }
         )
 
@@ -107,7 +102,10 @@ def custom_exception_handler(exc, context):
             )
         elif status_code >= 400:
             # Client errors - log with warning level
-            logger.warning(f"Client error ({status_code}): {str(exc)}", extra=extra_context)
+            logger.warning(
+                f"Client error ({status_code}): {str(exc)}",
+                extra=extra_context,
+            )
 
         # Customize the response data structure
         error_data = _format_error_response(exc, response, request_id)
@@ -132,7 +130,7 @@ def custom_exception_handler(exc, context):
     return response
 
 
-def _format_error_response(exc, response, request_id):
+def _format_error_response(exc: Exception, response: Response, request_id: str) -> Dict[str, Any]:
     """
     Format error response with consistent structure.
 
@@ -145,11 +143,11 @@ def _format_error_response(exc, response, request_id):
         Dictionary with formatted error data
     """
     # Get error message
+    errors: Optional[Union[Dict[str, Any], List[Any]]] = None
     if isinstance(response.data, dict):
         message = response.data.get("detail", "An error occurred")
 
         # For validation errors, collect all field errors
-        errors = None
         if isinstance(exc, ValidationError):
             errors = response.data
 
@@ -158,7 +156,6 @@ def _format_error_response(exc, response, request_id):
         errors = response.data
     else:
         message = str(response.data)
-        errors = None
 
     # Build response structure
     error_response = {
@@ -182,7 +179,7 @@ def _format_error_response(exc, response, request_id):
     return error_response
 
 
-def _format_unhandled_error(exc, request_id):
+def _format_unhandled_error(exc: Exception, request_id: str) -> Dict[str, Any]:
     """
     Format unhandled error response.
 
@@ -215,7 +212,7 @@ def _format_unhandled_error(exc, request_id):
     return error_response
 
 
-def _sanitize_data(data):
+def _sanitize_data(data: Any) -> Any:
     """
     Sanitize sensitive data from error responses.
 

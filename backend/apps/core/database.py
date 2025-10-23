@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Any, Dict
 
-from django.db import connection, connections
+from django.db import connections
 from django.db.utils import DatabaseError, OperationalError
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ class DatabaseHealthCheck:
             return {
                 "status": "unhealthy",
                 "database": "disconnected",
-                "error": f"Unexpected error: {error_message}",
+                "error": self._format_error_message(error_message),
                 "connection_info": self._get_connection_info(),
             }
 
@@ -128,33 +128,37 @@ class DatabaseHealthCheck:
         """
         error_lower = error.lower()
 
-        if "does not exist" in error_lower and "database" in error_lower:
-            db_name = self.connection.settings_dict.get("NAME", "unknown")
-            return (
-                f"Database '{db_name}' does not exist. "
-                f"Please create the database or check DB_NAME environment variable."
-            )
-
-        if "authentication failed" in error_lower or "password" in error_lower:
-            user = self.connection.settings_dict.get("USER", "unknown")
-            return (
-                f"Authentication failed for user '{user}'. "
-                f"Please check DB_USER and DB_PASSWORD environment variables."
-            )
-
+        # Check for connection errors first (most common)
         if "connection refused" in error_lower or "could not connect" in error_lower:
             host = self.connection.settings_dict.get("HOST", "unknown")
             port = self.connection.settings_dict.get("PORT", "unknown")
             return (
-                f"Could not connect to database server at {host}:{port}. "
-                f"Please ensure PostgreSQL is running and check DB_HOST and DB_PORT."
+                f"Could not connect to PostgreSQL database server at "
+                f"{host}:{port}. Please ensure PostgreSQL is running and "
+                f"check DB_HOST and DB_PORT."
+            )
+
+        if "does not exist" in error_lower and "database" in error_lower:
+            db_name = self.connection.settings_dict.get("NAME", "unknown")
+            return (
+                f"Database '{db_name}' does not exist. Please create the "
+                f"database or check DB_NAME environment variable."
+            )
+
+        if "authentication failed" in error_lower or (
+            "password" in error_lower and "failed" in error_lower
+        ):
+            user = self.connection.settings_dict.get("USER", "unknown")
+            return (
+                f"Authentication failed for user '{user}'. Please check "
+                f"DB_USER and DB_PASSWORD environment variables."
             )
 
         if "role" in error_lower and "does not exist" in error_lower:
             user = self.connection.settings_dict.get("USER", "unknown")
             return (
-                f"Database user '{user}' does not exist. "
-                f"Please create the user or check DB_USER environment variable."
+                f"Database user '{user}' does not exist. Please create "
+                f"the user or check DB_USER environment variable."
             )
 
         # Return original error if we can't format it better
@@ -180,12 +184,12 @@ def check_database_connection(verbose: bool = False) -> bool:
 
     if verbose:
         if result["status"] == "healthy":
-            print(f"✓ Database connection successful")
+            print("✓ Database connection successful")
             print(f"  Response time: {result['response_time_ms']}ms")
             print(f"  Host: {result['connection_info']['host']}")
             print(f"  Database: {result['connection_info']['name']}")
         else:
-            print(f"✗ Database connection failed")
+            print("✗ Database connection failed")
             print(f"  Error: {result.get('error', 'Unknown error')}")
 
     is_healthy: bool = result["status"] == "healthy"
@@ -217,10 +221,10 @@ def get_database_status() -> Dict[str, Any]:
         "engine": health["connection_info"].get("engine"),
         "error": health.get("error"),
         "connection_pooling": {
-            "enabled": connections["default"].settings_dict.get("CONN_MAX_AGE", 0) > 0,
-            "max_age": connections["default"].settings_dict.get("CONN_MAX_AGE", 0),
+            "enabled": (connections["default"].settings_dict.get("CONN_MAX_AGE", 0) > 0),
+            "max_age": (connections["default"].settings_dict.get("CONN_MAX_AGE", 0)),
         },
-        "atomic_requests": connections["default"].settings_dict.get("ATOMIC_REQUESTS", False),
+        "atomic_requests": (connections["default"].settings_dict.get("ATOMIC_REQUESTS", False)),
     }
 
 

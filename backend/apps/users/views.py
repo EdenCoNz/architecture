@@ -5,12 +5,9 @@ Authentication views for user registration, login, logout, and profile managemen
 from django.contrib.auth import get_user_model
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
-from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, inline_serializer
-from rest_framework import generics
 from rest_framework import serializers as drf_serializers
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -43,7 +40,8 @@ class UserRegistrationView(APIView):
         description=(
             "Create a new user account. This endpoint allows anyone to register "
             "by providing email, password, and optional profile information. "
-            "Password must meet security requirements (minimum 8 characters, not entirely numeric, etc.)."
+            "Password must meet security requirements "
+            "(minimum 8 characters, not entirely numeric, etc.)."
         ),
         request=UserRegistrationSerializer,
         responses={
@@ -75,7 +73,9 @@ class UserRegistrationView(APIView):
                 ],
             ),
             400: OpenApiResponse(
-                description="Validation error (passwords don't match, email already exists, etc.)",
+                description=(
+                    "Validation error (passwords don't match, " "email already exists, etc.)"
+                ),
                 examples=[
                     OpenApiExample(
                         "Validation Error",
@@ -312,7 +312,7 @@ class UserLogoutView(APIView):
 
             return Response({"message": "Logout successful."}, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception:
             return Response(
                 {"error": "Invalid token or token already blacklisted."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -481,7 +481,9 @@ class ChangePasswordView(APIView):
                 ],
             ),
             400: OpenApiResponse(
-                description="Validation error (incorrect old password, passwords don't match, etc.)",
+                description=(
+                    "Validation error (incorrect old password, " "passwords don't match, etc.)"
+                ),
                 examples=[
                     OpenApiExample(
                         "Incorrect Old Password",

@@ -21,13 +21,19 @@ urlpatterns = [
     path("", include(router.urls)),
     # API Documentation
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("docs/", SpectacularSwaggerView.as_view(url_name="api:schema"), name="swagger-ui"),
-    path("redoc/", SpectacularRedocView.as_view(url_name="api:schema"), name="redoc"),
+    path(
+        "docs/",
+        SpectacularSwaggerView.as_view(url_name="api:schema"),
+        name="swagger-ui",
+    ),
+    path(
+        "redoc/",
+        SpectacularRedocView.as_view(url_name="api:schema"),
+        name="redoc",
+    ),
     # Health check endpoints (Story #5)
     path("health/", HealthCheckView.as_view(), name="health"),
     path("status/", StatusView.as_view(), name="status"),
     path("health/ready/", ReadinessView.as_view(), name="readiness"),
     path("health/live/", LivenessView.as_view(), name="liveness"),
-    # Authentication endpoints
-    path("auth/", include("apps.users.urls")),
 ]

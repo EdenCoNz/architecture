@@ -124,84 +124,41 @@ After the `/implement` command completes:
    - Find the feature entry with matching featureID
    - Confirm that `userStoriesImplemented` has been set to a timestamp (this should have been done by /implement)
 
-### Step 6: Stage All Feature Changes
+### Step 6: Commit and Push Feature Changes
 
 After verifying implementation completion in Step 5:
-
-1. **Stage all modified files**:
-   - Use git add to stage all modified files in the working directory
-   - Use git add to stage all untracked files generated during implementation
-   - This ensures both modified files and new files are included in staging
-
-2. **Verify staging success**:
-   - Run git status to verify files were successfully staged
-   - Check that "Changes to be committed" section shows all expected files
-
-3. **Handle staging failures**:
-   - CRITICAL: If git add fails, implementation-log.json MUST remain unchanged - all completed stories stay marked as completed
-   - Capture the error message from git add command
-   - Provide manual recovery instructions: "Git staging failed. Manually run: git add . && git commit -m 'Feature {feature_id}: {feature_title}' && git push && gh pr create"
-   - CONTINUE to Step 7 (attempt commit anyway - files may already be staged from previous runs)
-
-4. **Report staging status**:
-   - Count the number of files staged
-   - Include staging confirmation in the final report
-
-### Step 7: Create Feature Commit
-
-After staging all changes in Step 6:
 
 1. **Read feature title**:
    - Read the feature-log.json file
    - Find the feature entry with matching featureID
    - Extract the feature title for use in the commit message
 
-2. **Create commit with standardized message**:
-   - Use git commit to create a commit with the message format: "Feature {feature_id}: {feature_title}"
-   - Use a HEREDOC to ensure proper formatting of multi-line commit messages
-   - Include the Claude Code attribution footer in the commit message
+2. **Use /push command to stage, commit, and push**:
+   - Use SlashCommand tool to execute: `/push "Feature {feature_id}: {feature_title}"`
+   - The /push command will automatically:
+     - Stage all changes with `git add .`
+     - Create a commit with the provided message (including Claude Code footer)
+     - Push to remote (configuring tracking if needed)
+   - Wait for /push to complete
 
-3. **Capture and verify commit**:
-   - Capture the commit hash from the git commit output
-   - Run git log -1 to verify the commit was created successfully
-   - Store the commit hash for reporting
+3. **Monitor /push completion**:
+   - The /push command handles all git operations automatically
+   - It will report staging, commit, and push status
+   - Capture the commit hash and push status from /push output
 
-4. **Handle commit failures**:
-   - CRITICAL: If git commit fails, implementation-log.json MUST remain unchanged - all completed stories stay marked as completed
-   - Capture the error message from git commit command
-   - Provide manual recovery instructions based on failure type
-   - If commit succeeded: CONTINUE to Step 8
-   - If commit failed: SKIP Steps 8-9 and jump to Report (cannot push/PR without commit)
+4. **Handle /push failures**:
+   - CRITICAL: If /push fails, implementation-log.json MUST remain unchanged - all completed stories stay marked as completed
+   - The /push command provides detailed error reporting for:
+     - Staging failures
+     - Commit failures
+     - Push failures (partial success if commit succeeded)
+   - Follow the recovery instructions provided by /push
+   - If /push succeeded: CONTINUE to Step 7
+   - If /push failed: SKIP Step 7 and jump to Report (cannot create PR without remote branch)
 
-### Step 8: Push to Remote Branch
+### Step 7: Create Pull Request
 
-After creating the feature commit in Step 7 (SKIP this step if commit failed):
-
-1. **Check remote tracking status**:
-   - Run git branch -vv to check if the current branch has remote tracking configured
-   - Parse the output to determine if the branch tracks a remote
-
-2. **Push to remote repository**:
-   - If branch has remote tracking: Use git push to push the commit
-   - If branch has no remote tracking: Use git push -u origin {branch-name} to create remote branch and set tracking
-
-3. **Verify push success**:
-   - Check the git push command exit code to verify success
-   - Capture any error output if the push fails
-   - Run git status to confirm the branch is up-to-date with remote
-
-4. **Handle push failures**:
-   - CRITICAL: If git push fails, implementation-log.json MUST remain unchanged - all completed stories stay marked as completed
-   - IMPORTANT: Commit already exists locally, so this is a PARTIAL SUCCESS scenario
-   - Capture the error message from git push command
-   - Provide manual recovery instructions: "Push failed. Commit exists locally (hash: {commit_hash}). Retry with: git push"
-   - Report PARTIAL SUCCESS: "Commit created locally but push failed"
-   - If push succeeded: CONTINUE to Step 9
-   - If push failed: SKIP Step 9 and jump to Report (cannot create PR without remote branch)
-
-### Step 9: Create Pull Request
-
-After successfully pushing to the remote branch in Step 8 (SKIP this step if push failed):
+After successfully pushing to the remote branch in Step 6 (SKIP this step if push failed):
 
 1. **Extract feature summary for PR body**:
    - Read the user-stories.md file at `docs/features/{feature_id}/user-stories.md`
@@ -255,22 +212,16 @@ Provide a comprehensive summary with the following sections:
 
 ### Git Workflow Status
 
-#### Staging
+#### /push Command Execution
+- Commit hash
+- Commit message: "Feature {feature_id}: {feature_title}"
+- Branch name
 - Number of files staged
 - Key files staged
-- Staging errors (if any)
-
-#### Commit
-- Commit hash
-- Commit message
-- Branch name
-- Commit errors (if any)
-
-#### Push
 - Push status (success/failure)
-- Branch name
 - Remote tracking status
-- Push errors with details (if any)
+- Overall /push status: (success/partial success/failure)
+- Error details (if any)
 
 #### Pull Request
 - PR URL (if successfully created)

@@ -181,7 +181,7 @@ After all phases complete:
    If ALL stories are completed:
    - Read the current `docs/features/feature-log.json` file
    - Find the feature entry with matching featureID
-   - If it's an issue, find the issue entry under the existing feature (If fix mode) 
+   - If it's an issue, find the issue entry under the existing feature (If fix mode)
    - Append a new implementation entry to the feature's `implementations` array (create array if it doesn't exist)
 
    **For FEATURE_MODE**:

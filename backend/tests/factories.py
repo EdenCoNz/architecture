@@ -24,7 +24,6 @@ Usage Examples:
 
 import factory
 from django.contrib.auth import get_user_model
-from factory import fuzzy
 from factory.django import DjangoModelFactory
 from faker import Faker
 
@@ -191,7 +190,9 @@ class TestDataBuilder:
             tuple: (user, password) for use in login tests
 
         Examples:
-            user, password = TestDataBuilder.create_user_with_credentials()
+            user, password = (
+                TestDataBuilder.create_user_with_credentials()
+            )
             # Use for login testing
         """
         email = email or fake.email()
@@ -219,9 +220,10 @@ class FixtureHelper:
             FixtureHelper.reset_sequences()
         """
         # Reset sequences for all factories
-        factory.random.reseed_random('test-seed')
-        # Note: Individual factory sequences are automatically reset by pytest-django
-        # between tests, so explicit reset is typically not needed
+        factory.random.reseed_random("test-seed")
+        # Note: Individual factory sequences are automatically reset by
+        # pytest-django between tests, so explicit reset is typically not
+        # needed
 
     @staticmethod
     def cleanup_users():

@@ -4,10 +4,11 @@ This is useful for development and testing environments.
 """
 
 import sys
+from typing import Any
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 
 User = get_user_model()
@@ -16,7 +17,7 @@ User = get_user_model()
 class Command(BaseCommand):
     help = "Seeds the database with test data for development and testing"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             "--clear",
             action="store_true",
@@ -34,7 +35,7 @@ class Command(BaseCommand):
             help="Create admin user (admin@example.com / admin123)",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         # Safety check: never run in production
         if not settings.DEBUG:
             raise CommandError(
@@ -81,7 +82,7 @@ class Command(BaseCommand):
             # Display created data summary
             self._display_summary()
 
-    def _clear_data(self):
+    def _clear_data(self) -> None:
         """Clear all data from the database."""
         # Clear users (except superusers to be safe)
         deleted_count = User.objects.filter(is_superuser=False).delete()[0]
@@ -93,7 +94,7 @@ class Command(BaseCommand):
         # deleted_count = MyModel.objects.all().delete()[0]
         # self.stdout.write(f'  Deleted {deleted_count} MyModel records')
 
-    def _create_admin_user(self):
+    def _create_admin_user(self) -> None:
         """Create an admin user for testing."""
         email = "admin@example.com"
         password = "admin123"
@@ -113,7 +114,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"  ✓ Created admin user: {email}"))
         self.stdout.write(f"    Password: {password}")
 
-    def _create_test_users(self, count):
+    def _create_test_users(self, count: int) -> None:
         """Create test users."""
         self.stdout.write(f"Creating {count} test users...")
 
@@ -140,12 +141,14 @@ class Command(BaseCommand):
             skipped = count - created_count
             self.stdout.write(self.style.WARNING(f"  ⚠ Skipped {skipped} users (already exist)"))
 
-    def _display_summary(self):
+    def _display_summary(self) -> None:
         """Display a summary of seeded data."""
         self.stdout.write("Database Summary:")
         self.stdout.write(f"  Total users: {User.objects.count()}")
-        self.stdout.write(f"  Admin users: {User.objects.filter(is_superuser=True).count()}")
-        self.stdout.write(f"  Regular users: {User.objects.filter(is_superuser=False).count()}")
+        admin_count = User.objects.filter(is_superuser=True).count()
+        self.stdout.write(f"  Admin users: {admin_count}")
+        regular_count = User.objects.filter(is_superuser=False).count()
+        self.stdout.write(f"  Regular users: {regular_count}")
         self.stdout.write("")
 
         # Display admin credentials if they exist

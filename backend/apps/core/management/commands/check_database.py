@@ -8,10 +8,9 @@ Usage:
 
 import sys
 import time
+from typing import Any, Dict
 
-from django.core.management.base import BaseCommand, CommandError
-from django.db import connection
-from django.db.utils import OperationalError
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.core.database import DatabaseHealthCheck, get_database_status
 
@@ -26,7 +25,7 @@ class Command(BaseCommand):
 
     help = "Check database connectivity and display status information"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         """Add command arguments."""
         parser.add_argument(
             "--wait",
@@ -41,7 +40,7 @@ class Command(BaseCommand):
             help="Seconds between retry attempts (default: 2)",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         """Execute the command."""
         wait_seconds = options["wait"]
         retry_interval = options["retry_interval"]
@@ -58,7 +57,7 @@ class Command(BaseCommand):
 
     def _check_once(self) -> None:
         """Perform a single database check."""
-        status = get_database_status()
+        status: Dict[str, Any] = get_database_status()
 
         if status["connected"]:
             self._print_success(status)
@@ -82,10 +81,11 @@ class Command(BaseCommand):
 
             if status["connected"]:
                 elapsed = time.time() - start_time
+                attempts_str = "s" if attempt > 1 else ""
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"\n✓ Database connected after {elapsed:.1f}s "
-                        f"({attempt} attempt{'s' if attempt > 1 else ''})"
+                        f"({attempt} attempt{attempts_str})"
                     )
                 )
                 self._print_success(status)
@@ -113,7 +113,7 @@ class Command(BaseCommand):
             time.sleep(retry_interval)
             attempt += 1
 
-    def _print_success(self, status: dict) -> None:
+    def _print_success(self, status: Dict[str, Any]) -> None:
         """Print success information."""
         self.stdout.write(self.style.SUCCESS("\n✓ Database connection successful!\n"))
 
@@ -121,7 +121,8 @@ class Command(BaseCommand):
         self.stdout.write(f"  Database:  {status['database']}")
         self.stdout.write(f"  Host:      {status['host']}:{status['port']}")
         self.stdout.write(f"  Engine:    {status['engine']}")
-        self.stdout.write(f"  Response:  {status.get('response_time_ms', 'N/A')}ms")
+        response_time = status.get("response_time_ms", "N/A")
+        self.stdout.write(f"  Response:  {response_time}ms")
 
         self.stdout.write(self.style.HTTP_INFO("\nConfiguration:"))
         pool_enabled = status["connection_pooling"]["enabled"]
@@ -136,7 +137,7 @@ class Command(BaseCommand):
 
         self.stdout.write("")
 
-    def _print_failure(self, status: dict) -> None:
+    def _print_failure(self, status: Dict[str, Any]) -> None:
         """Print failure information."""
         self.stdout.write(self.style.ERROR("\n✗ Database connection failed!\n"))
 

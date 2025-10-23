@@ -7,12 +7,13 @@ Usage:
     python manage.py check_config --list-all
 """
 
+from typing import Any
+
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
 
 from config.env_config import (
     ConfigurationError,
-    get_all_config_variables,
     get_environment,
     print_configuration_help,
     validate_configuration,
@@ -24,7 +25,7 @@ class Command(BaseCommand):
 
     help = "Check and validate environment-based configuration"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         """Add command line arguments."""
         parser.add_argument(
             "--environment",
@@ -37,7 +38,7 @@ class Command(BaseCommand):
             help="List all configuration variables with descriptions",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         """Execute the command."""
         # List all configuration variables if requested
         if options["list_all"]:
@@ -57,7 +58,7 @@ class Command(BaseCommand):
             validate_configuration(environment)
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"✓ Configuration validation passed for '{environment}' environment"
+                    f"✓ Configuration validation passed for " f"'{environment}' environment"
                 )
             )
 

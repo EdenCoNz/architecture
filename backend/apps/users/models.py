@@ -3,7 +3,7 @@ User models for authentication system.
 Implements custom User model using email as the primary identifier.
 """
 
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
@@ -75,10 +75,10 @@ class User(AbstractUser):
 
     # Set email as the USERNAME_FIELD
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []  # Email is already the USERNAME_FIELD
+    REQUIRED_FIELDS: list[str] = []  # Email is already the USERNAME_FIELD
 
     # Use the custom manager
-    objects: UserManager = UserManager()  # type: ignore[assignment]
+    objects: ClassVar["UserManager"] = UserManager()  # type: ignore
 
     class Meta:
         verbose_name = _("user")

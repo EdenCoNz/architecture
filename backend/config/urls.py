@@ -26,6 +26,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # API v1
     path("api/v1/", include("apps.api.urls")),
+    # Authentication endpoints (accessible via auth: namespace)
+    path("api/v1/auth/", include("apps.users.urls")),
 ]
 
 # Serve media files in development

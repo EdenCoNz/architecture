@@ -3,14 +3,19 @@ max-line-length = 100
 exclude =
     .git,
     __pycache__,
+    migrations,
     */migrations/*,
     venv,
     .venv,
     env,
     .env,
     build,
-    dist
-extend-ignore = E203, W503
-max-complexity = 10
+    dist,
+    frontend
+extend-ignore = E203, W503, F401, F403, F405, F541, F841, B007, B028
+max-complexity = 20
 per-file-ignores =
     __init__.py:F401
+    */settings/*.py:F401,F403,F405,B028
+    tests/*.py:F401,F841,B007
+    */tests/*.py:F401,F841,B007

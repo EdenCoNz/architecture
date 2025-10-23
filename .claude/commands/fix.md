@@ -311,105 +311,41 @@ After /implement completes:
    - Display: "Implementation complete: {completed}/{total} stories finished"
    - List all completed stories
 
-### Step 8: Stage All Changes
+### Step 8: Commit and Push Changes
 
 After verifying implementation completion in Step 7:
 
 1. **Check for changes**:
    - Run `git status --porcelain` to get list of modified/untracked files
    - Count the number of files with changes
-   - If no changes detected: Display warning "No changes detected to commit" and SKIP to Step 11 (Close Issue)
+   - If no changes detected: Display warning "No changes detected to commit" and SKIP to Step 9 (Close Issue)
 
-2. **Stage all modified files**:
-   - Use `git add .` to stage all modified and new files in the working directory
-   - This ensures both modified files and new files are included in staging
+2. **Use /push command to stage, commit, and push**:
+   - Use SlashCommand tool to execute: `/push "Fix issue #{issue_number}: {issue_title}"`
+   - The /push command will automatically:
+     - Stage all changes with `git add .`
+     - Create a commit with the provided message (including Claude Code footer)
+     - Push to remote (configuring tracking if needed)
+   - Wait for /push to complete
 
-3. **Verify staging success**:
-   - Run `git status` to verify files were successfully staged
-   - Check that "Changes to be committed" section shows all expected files
-   - Count the number of staged files
+3. **Monitor /push completion**:
+   - The /push command handles all git operations automatically
+   - It will report staging, commit, and push status
+   - Capture the commit hash and push status from /push output
 
-4. **Handle staging failures**:
-   - If git add fails:
-     - Capture the error message from git add command
-     - Display: "Git staging failed: {error_message}. Manual staging required."
-     - Provide manual recovery instructions: "Manually run: git add . && git commit -m 'Fix issue #{issue_number}: {issue_title}' && git push"
-     - STOP execution (cannot commit without staging)
+4. **Handle /push failures**:
+   - CRITICAL: If /push fails, implementation-log.json MUST remain unchanged
+   - The /push command provides detailed error reporting for:
+     - Staging failures
+     - Commit failures
+     - Push failures (partial success if commit succeeded)
+   - Follow the recovery instructions provided by /push
+   - If /push succeeded: CONTINUE to Step 9
+   - If /push failed: SKIP Step 9 and jump to Report (cannot close issue without confirming remote has changes)
 
-5. **Report staging status**:
-   - Display: "Staged {count} file(s) for commit"
-   - List key files staged (user stories, implementation log, modified source files)
+### Step 9: Close GitHub Issue
 
-### Step 9: Create Fix Commit
-
-After staging all changes in Step 8:
-
-1. **Create commit with standardized message**:
-   - Commit message format: "Fix issue #{issue_number}: {issue_title}"
-   - Use git commit with HEREDOC format:
-     ```bash
-     git commit -m "$(cat <<'EOF'
-     Fix issue #{issue_number}: {issue_title}
-
-     🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-     Co-Authored-By: Claude <noreply@anthropic.com>
-     EOF
-     )"
-     ```
-   - Replace {issue_number} and {issue_title} with actual values
-
-2. **Capture and verify commit**:
-   - Capture the commit hash from git commit output
-   - Run `git log -1 --oneline` to verify the commit was created successfully
-   - Store the commit hash for reporting
-
-3. **Handle commit failures**:
-   - CRITICAL: If git commit fails, implementation-log.json MUST remain unchanged
-   - Capture the error message from git commit command
-   - Provide manual recovery instructions based on failure type
-   - Display: "Commit failed: {error_message}. Manual intervention required."
-   - If commit succeeded: CONTINUE to Step 10
-   - If commit failed: SKIP Step 10 and jump to Report (cannot push without commit)
-
-4. **Report commit status**:
-   - Display: "Commit created successfully"
-   - Display commit hash
-   - Display commit message preview
-
-### Step 10: Push to Remote Branch
-
-After creating the fix commit in Step 9 (SKIP this step if commit failed):
-
-1. **Check remote tracking status**:
-   - Run `git branch -vv` to check if the current branch has remote tracking configured
-   - Parse the output to determine if the branch tracks a remote
-
-2. **Push to remote repository**:
-   - If branch has remote tracking: Use `git push` to push the commit
-   - If branch has no remote tracking: Use `git push -u origin {featureName}` to create remote branch and set tracking
-
-3. **Verify push success**:
-   - Check the git push command exit code to verify success
-   - Capture any error output if the push fails
-   - Run `git status` to confirm the branch is up-to-date with remote
-
-4. **Handle push failures**:
-   - CRITICAL: If git push fails, implementation-log.json MUST remain unchanged
-   - IMPORTANT: Commit already exists locally, so this is a PARTIAL SUCCESS scenario
-   - Capture the error message from git push command
-   - Provide manual recovery instructions: "Push failed: {error_message}. Commit exists locally ({commit_hash}). Retry with: git push"
-   - Report PARTIAL SUCCESS: "Commit created locally but push failed"
-   - If push succeeded: CONTINUE to Step 11
-   - If push failed: SKIP Step 11 and jump to Report (cannot close issue without confirming remote has changes)
-
-5. **Report push status**:
-   - Display: "Changes pushed successfully to remote branch {featureName}"
-   - Display remote tracking information
-
-### Step 11: Close GitHub Issue
-
-After successfully pushing changes in Step 10 (SKIP this step if push failed):
+After successfully pushing changes in Step 8 (SKIP this step if push failed):
 
 1. **Close the issue with comment**:
    - Use `gh issue close {issue_number} --comment "Fixed in commit {commit_hash}. All CI/CD failures have been resolved."`
@@ -469,23 +405,18 @@ Provide a comprehensive summary with the following sections:
 
 ### Git Workflow Status
 
-#### Staging
+#### /push Command Execution
+- Commit hash: {hash}
+- Commit message: "Fix issue #{issue_number}: {issue_title}"
 - Files staged: {count}
 - Key files:
   - User stories
   - Implementation log
   - Modified source files (list key ones)
-- Staging status: (success/failure)
-
-#### Commit
-- Commit hash: {hash}
-- Commit message: "Fix issue #{issue_number}: {issue_title}"
-- Commit status: (success/failure)
-
-#### Push
 - Push status: (success/failure)
 - Remote tracking: (configured/newly configured)
 - Branch name: {featureName}
+- Overall /push status: (success/partial success/failure)
 - Error details (if any): {error_message}
 
 #### Issue Closure
@@ -494,13 +425,13 @@ Provide a comprehensive summary with the following sections:
 
 ### Overall Status
 - If ALL steps successful: Display "✅ Fix workflow completed successfully. Issue #{issue_number} has been fixed, pushed to {featureName}, and closed."
-- If partial success (commit but no push): Display "⚠️ Fix committed locally but push failed. Manual push required: git push"
+- If partial success (commit but no push): Display "⚠️ Fix committed locally but push failed. Retry with: `/push \"Fix issue #{issue_number}: {issue_title}\"`"
 - If partial success (pushed but issue not closed): Display "⚠️ Fix committed and pushed but failed to close issue. Please close issue #{issue_number} manually."
 - If any major failures: Display error summary with recovery instructions
 
 ### Next Steps
 - If fully successful: "The fix has been pushed to {featureName}. You can now test the changes or merge the pull request if one exists."
-- If partial success: Provide specific manual recovery steps based on what failed
+- If partial success: Provide specific manual recovery steps based on what failed (follow /push command's error guidance)
 
 ## Error Handling
 
@@ -570,9 +501,9 @@ Provide a comprehensive summary with the following sections:
 
 11. **Git operations fail**:
     - Preserve all completed work (stories, implementation)
-    - Provide exact manual recovery commands
+    - The /push command provides detailed error reporting and recovery instructions
     - Never lose implementation progress
-    - Distinguish between staging, commit, and push failures
+    - Follow the specific recovery steps provided by /push command output
 
 12. **Issue closure fails**:
     - Treat as minor failure (fix is complete)
@@ -598,9 +529,8 @@ Before finalizing, verify:
 - [ ] User stories saved to correct location (docs/features/{featureID}/issues/{issue_number}/)
 - [ ] /implement command invoked with correct syntax: `/implement fix {issue_number}`
 - [ ] All fix stories completed (or user acknowledged partial completion)
-- [ ] Changes staged successfully
-- [ ] Changes committed with proper message format
-- [ ] Changes pushed to remote (or failure documented with recovery steps)
+- [ ] /push command invoked with correct message format
+- [ ] /push command completed successfully (or failure documented with recovery steps)
 - [ ] Issue closed on GitHub (or failure documented)
 - [ ] Clear status and next steps provided to user
 - [ ] All error scenarios properly handled (auth, fetch failures, empty logs, etc.)

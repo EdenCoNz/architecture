@@ -5,8 +5,10 @@ Custom middleware for the application.
 import logging
 import time
 import uuid
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from django.conf import settings
+from django.http import HttpRequest, HttpResponse
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger("apps.middleware")
@@ -43,20 +45,20 @@ class RequestLoggingMiddleware(MiddlewareMixin):
         "csrfmiddlewaretoken",
     ]
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         """Initialize middleware."""
         self.get_response = get_response
         super().__init__(get_response)
 
-    def process_request(self, request):
+    def process_request(self, request: HttpRequest) -> None:
         """Process request before view execution."""
         # Add request ID for tracking
-        request.request_id = str(uuid.uuid4())
+        request.request_id = str(uuid.uuid4())  # type: ignore[attr-defined]
 
         # Record start time
-        request.start_time = time.time()
+        request.start_time = time.time()  # type: ignore[attr-defined]
 
-    def process_response(self, request, response):
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
         """Process response after view execution."""
         # Calculate response time
         if hasattr(request, "start_time"):
@@ -72,7 +74,7 @@ class RequestLoggingMiddleware(MiddlewareMixin):
         username = "anonymous"
         if hasattr(request, "user") and request.user.is_authenticated:
             user_id = request.user.id
-            username = request.user.username
+            username = str(getattr(request.user, "email", "authenticated"))
 
         # Get query parameters (sanitized)
         query_params = self._sanitize_data(dict(request.GET.items()))
@@ -96,7 +98,7 @@ class RequestLoggingMiddleware(MiddlewareMixin):
             "username": username,
             "query_params": query_params,
             "ip_address": self._get_client_ip(request),
-            "user_agent": request.META.get("HTTP_USER_AGENT", "unknown")[:200],
+            "user_agent": (request.META.get("HTTP_USER_AGENT", "unknown")[:200]),
         }
 
         # Log at appropriate level based on status code
@@ -112,12 +114,12 @@ class RequestLoggingMiddleware(MiddlewareMixin):
 
         return response
 
-    def process_exception(self, request, exception):
+    def process_exception(self, request: HttpRequest, exception: Exception) -> None:
         """Process exceptions that occur during request processing."""
         request_id = getattr(request, "request_id", "unknown")
 
         logger.error(
-            f"Exception during request {request.method} {request.path}: {str(exception)}",
+            f"Exception during request {request.method} {request.path}: " f"{str(exception)}",
             exc_info=True,
             extra={
                 "request_id": request_id,
@@ -127,16 +129,16 @@ class RequestLoggingMiddleware(MiddlewareMixin):
             },
         )
 
-    def _get_client_ip(self, request):
+    def _get_client_ip(self, request: HttpRequest) -> str:
         """Extract client IP address from request."""
         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0].strip()
+            ip: str = str(x_forwarded_for).split(",")[0].strip()
         else:
-            ip = request.META.get("REMOTE_ADDR", "unknown")
+            ip = str(request.META.get("REMOTE_ADDR", "unknown"))
         return ip
 
-    def _sanitize_data(self, data):
+    def _sanitize_data(self, data: Any) -> Any:
         """
         Sanitize sensitive data from dictionary.
 
@@ -156,7 +158,7 @@ class RequestLoggingMiddleware(MiddlewareMixin):
             elif isinstance(value, dict):
                 sanitized[key] = self._sanitize_data(value)
             elif isinstance(value, list):
-                sanitized[key] = [
+                sanitized[key] = [  # type: ignore[assignment]
                     self._sanitize_data(item) if isinstance(item, dict) else item for item in value
                 ]
             else:
@@ -172,18 +174,18 @@ class PerformanceLoggingMiddleware(MiddlewareMixin):
     Logs requests that exceed the configured threshold.
     """
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         """Initialize middleware."""
         self.get_response = get_response
         # Configurable threshold (default 1000ms)
         self.slow_request_threshold = getattr(settings, "SLOW_REQUEST_THRESHOLD_MS", 1000)
         super().__init__(get_response)
 
-    def process_request(self, request):
+    def process_request(self, request: HttpRequest) -> None:
         """Process request before view execution."""
-        request.perf_start_time = time.time()
+        request.perf_start_time = time.time()  # type: ignore[attr-defined]
 
-    def process_response(self, request, response):
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
         """Process response and log if slow."""
         if hasattr(request, "perf_start_time"):
             response_time = (time.time() - request.perf_start_time) * 1000
@@ -191,7 +193,8 @@ class PerformanceLoggingMiddleware(MiddlewareMixin):
             if response_time > self.slow_request_threshold:
                 logger.warning(
                     f"SLOW REQUEST: {request.method} {request.path} "
-                    f"took {response_time:.2f}ms (threshold: {self.slow_request_threshold}ms)",
+                    f"took {response_time:.2f}ms "
+                    f"(threshold: {self.slow_request_threshold}ms)",
                     extra={
                         "request_id": getattr(request, "request_id", "unknown"),
                         "method": request.method,
@@ -220,15 +223,15 @@ class HealthCheckLoggingExemptionMiddleware(MiddlewareMixin):
         "/api/v1/health/",
     ]
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         """Initialize middleware."""
         self.get_response = get_response
         super().__init__(get_response)
 
-    def process_request(self, request):
+    def process_request(self, request: HttpRequest) -> None:
         """Mark health check requests to skip logging."""
         if any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
-            request.skip_logging = True
+            request.skip_logging = True  # type: ignore[attr-defined]
 
 
 class SecurityHeadersMiddleware(MiddlewareMixin):
@@ -245,12 +248,12 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
     - Permissions-Policy: Controls browser features
     """
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         """Initialize middleware."""
         self.get_response = get_response
         super().__init__(get_response)
 
-    def process_response(self, request, response):
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
         """Add security headers to response."""
         # X-Content-Type-Options: Prevent MIME type sniffing
         response["X-Content-Type-Options"] = "nosniff"

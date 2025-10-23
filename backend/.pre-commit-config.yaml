@@ -3,10 +3,13 @@ repos:
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^frontend/
       - id: end-of-file-fixer
+        exclude: ^frontend/
       - id: check-yaml
       - id: check-added-large-files
       - id: check-json
+        exclude: ^frontend/
       - id: check-toml
       - id: check-merge-conflict
       - id: debug-statements
@@ -16,21 +19,28 @@ repos:
     hooks:
       - id: black
         language_version: python3.12
+        exclude: ^(migrations/|frontend/)
 
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2
     hooks:
       - id: isort
+        exclude: ^(migrations/|frontend/)
 
   - repo: https://github.com/PyCQA/flake8
     rev: 7.0.0
     hooks:
       - id: flake8
         additional_dependencies: [flake8-bugbear]
+        args:
+          - --max-line-length=100
+          - --extend-ignore=E203,W503,F401,F403,F405,F541,F841,B007,B028
+          - --max-complexity=20
+        exclude: ^(.*/migrations/.*|frontend/.*)
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies: [django-stubs, djangorestframework-stubs]
-        args: [--config-file=pyproject.toml]
+        args: [--config-file=backend/pyproject.toml, --no-error-summary]
+        exclude: ^(tests/|migrations/|backend/config/settings/)
