@@ -1,14 +1,9 @@
 name: Backend CI/CD
 
-# Trigger on pull requests from feature branches and pushes to main branch
+# Trigger only on pull requests to main branch
 on:
   push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-ci.yml'
-  pull_request:
-    branches: [main]
+    branches: [main, 'feature/**']
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
@@ -420,29 +415,7 @@ jobs:
           echo "✅ Django deployment checks passed" >> $GITHUB_STEP_SUMMARY
           echo "✅ Migration state verified" >> $GITHUB_STEP_SUMMARY
 
-  # Job 6: Deployment Readiness (only on main branch)
-  deployment-check:
-    name: Deployment Readiness Check
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    needs: [lint, typecheck, test, security, build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Verify deployment readiness
-        run: |
-          echo "## Deployment Readiness" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All checks passed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Linting completed successfully" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Type checking completed successfully" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Tests passed with coverage" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Security audit completed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Build verification successful" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🚀 Ready for deployment to production" >> $GITHUB_STEP_SUMMARY
-
-  # Job 7: Auto-Close Issue from Commit Message
+  # Job 6: Auto-Close Issue from Commit Message
   auto-close-issue-from-commit:
     name: Auto-Close Issue from Commit Message
     runs-on: ubuntu-22.04
@@ -468,10 +441,12 @@ jobs:
             echo "${MESSAGE}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            # For push events, use the head commit
-            echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            # For workflow_dispatch events, use the current commit
+            SHA="${{ github.sha }}"
+            MESSAGE=$(gh api repos/${{ github.repository }}/commits/${SHA} --jq '.commit.message')
+            echo "sha=${SHA}" >> $GITHUB_OUTPUT
             echo "message<<EOF" >> $GITHUB_OUTPUT
-            echo "${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
+            echo "${MESSAGE}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 

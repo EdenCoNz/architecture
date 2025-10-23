@@ -1,14 +1,9 @@
 name: Frontend CI/CD
 
-# Trigger on pull requests from feature branches and pushes to main branch
+# Trigger only on pull requests to main branch
 on:
   push:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ci.yml'
-  pull_request:
-    branches: [main]
+    branches: [main, 'feature/**']
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
@@ -32,7 +27,7 @@ jobs:
     name: Lint and Format Check
     runs-on: ubuntu-22.04
     timeout-minutes: 10
-    # Only run on feature branches for PRs, or always for pushes/manual triggers
+    # Only run on feature branches for PRs, or always for manual triggers
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
@@ -270,48 +265,10 @@ jobs:
           npm audit --audit-level=moderate || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 6: Deployment Readiness (only on main branch)
-  deployment-check:
-    name: Deployment Readiness Check
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    needs: [lint, typecheck, test, build, security]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build-${{ github.sha }}
-          path: dist/
-
-      - name: Verify build artifacts
-        run: |
-          echo "## Deployment Readiness" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All checks passed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Build artifacts generated successfully" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Ready for deployment" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Artifact Contents" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          ls -lah dist/ >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-      - name: Check index.html exists
-        run: |
-          if [ ! -f "dist/index.html" ]; then
-            echo "❌ Error: index.html not found in build artifacts"
-            exit 1
-          fi
-          echo "✅ index.html exists in build artifacts"
-
-  # Job 7a: Get Commit Message (for PR events)
+  # Job 6: Get Commit Message (for PR events)
   get-commit-message:
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/'))) ||
-      github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     outputs:
       commit-message: ${{ steps.get-message.outputs.message }}
       commit-sha: ${{ steps.get-message.outputs.sha }}
@@ -330,20 +287,20 @@ jobs:
             echo "${MESSAGE}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            # For push events, use the head commit
-            echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            # For workflow_dispatch events, use the current commit
+            SHA="${{ github.sha }}"
+            MESSAGE=$(gh api repos/${{ github.repository }}/commits/${SHA} --jq '.commit.message')
+            echo "sha=${SHA}" >> $GITHUB_OUTPUT
             echo "message<<EOF" >> $GITHUB_OUTPUT
-            echo "${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
+            echo "${MESSAGE}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 
-  # Job 7b: Auto-Close Issue (Reusable Workflow)
+  # Job 7: Auto-Close Issue (Reusable Workflow)
   auto-close-issue:
     needs: [lint, typecheck, test, build, security, get-commit-message]
-    # Run on push to main/feature branches OR on pull_request events (needs ensures all jobs succeeded)
-    if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/'))) ||
-      github.event_name == 'pull_request'
+    # Run on pull_request events or workflow_dispatch (needs ensures all jobs succeeded)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/auto-close-issue.yml
     with:
       commit-message: ${{ needs.get-commit-message.outputs.commit-message }}
