@@ -218,7 +218,10 @@ class FixtureHelper:
         Examples:
             FixtureHelper.reset_sequences()
         """
-        factory.Sequence.reset()
+        # Reset sequences for all factories
+        factory.random.reseed_random('test-seed')
+        # Note: Individual factory sequences are automatically reset by pytest-django
+        # between tests, so explicit reset is typically not needed
 
     @staticmethod
     def cleanup_users():

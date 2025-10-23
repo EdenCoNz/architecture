@@ -314,6 +314,19 @@
             "backend-developer"
           ],
           "description": "Fix Backend CI/CD dependency resolution failure - django-stubs and djangorestframework-stubs version conflicts"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 161,
+          "timestamp": "2025-10-24T00:00:00Z",
+          "status": "planned",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/161/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD failures - test framework configuration error (426 tests blocked), code quality violations (50+ linting issues), and missing type annotations (53 type errors)"
         }
       ]
     }
