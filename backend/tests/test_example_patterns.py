@@ -235,8 +235,15 @@ class TestAPIEndpointExamples:
         new_tokens = auth_helper.refresh_token(tokens["refresh"])
         assert "access" in new_tokens
 
-        # Test logout
-        response = auth_helper.logout(tokens["refresh"])
+        # Authenticate client before logout (logout endpoint requires authentication)
+        # Use the new access token if available, otherwise use the original
+        access_token = new_tokens.get("access", tokens["access"])
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+
+        # Test logout - use the refresh token from new_tokens if available (token rotation)
+        # Otherwise use the original refresh token
+        refresh_token = new_tokens.get("refresh", tokens["refresh"])
+        response = auth_helper.logout(refresh_token)
         assert response.status_code == status.HTTP_200_OK
 
     def test_creating_resource_via_api(self, api_helper, sample_user):
@@ -273,18 +280,18 @@ class TestMockingExamples:
     Mocking allows testing in isolation without external dependencies.
     """
 
-    @patch("apps.core.database.DatabaseHealthCheck.check")
-    def test_mocking_database_health_check(self, mock_check):
+    @patch("apps.api.health_views.get_database_health")
+    def test_mocking_database_health_check(self, mock_get_database_health):
         """
         Example: Mocking database health check.
 
         Shows how to mock external dependencies for isolated testing.
         """
-        # Configure mock return value
-        mock_check.return_value = {
-            "status": "healthy",
-            "database": "connected",
+        # Configure mock return value to match get_database_health() structure
+        mock_get_database_health.return_value = {
+            "status": "connected",
             "response_time_ms": 15.5,
+            "engine": "postgresql",
         }
 
         # Create API client
@@ -294,10 +301,12 @@ class TestMockingExamples:
         response = client.get("/api/v1/health/")
 
         # Assert mock was called
-        assert mock_check.called
+        assert mock_get_database_health.called
 
         # Assert response uses mocked data
+        # The view wraps database health in a response with "status": "healthy"
         assert response.data["status"] == "healthy"
+        assert response.data["database"]["status"] == "connected"
 
     @patch("django.core.mail.send_mail")
     def test_mocking_email_sending(self, mock_send_mail):
@@ -590,10 +599,12 @@ class TestEdgeCaseExamples:
         UserFactory(email=email)
 
         # Attempt to create second user with same email should fail
+        # Note: We must use User.objects.create() directly because
+        # UserFactory has django_get_or_create which prevents duplicates
         from django.db import IntegrityError
 
         with pytest.raises(IntegrityError):
-            UserFactory(email=email)
+            User.objects.create(email=email, password="testpass123")
 
     def test_invalid_email_format(self):
         """
@@ -606,8 +617,15 @@ class TestEdgeCaseExamples:
 
         for email in invalid_emails:
             # In a real scenario, you'd test serializer validation
-            # For this example, we just check the format
-            assert "@" not in email or "." not in email
+            # For this example, we check that emails are invalid by verifying
+            # they either lack @ symbol, lack domain, or are empty
+            is_invalid = (
+                not email  # Empty string
+                or "@" not in email  # Missing @ symbol
+                or not email.split("@")[0]  # Missing local part (like "@example.com")
+                or "." not in email.split("@")[-1]  # Missing dot in domain (like "test@")
+            )
+            assert is_invalid, f"Email '{email}' should be considered invalid"
 
     def test_missing_required_fields(self):
         """

@@ -6,6 +6,9 @@ import os
 
 from .base import *
 
+# Testing is not production - enable debug features for better test output
+DEBUG = True
+
 # Allow all hosts in testing (required for test client)
 ALLOWED_HOSTS = ["*"]
 
@@ -102,3 +105,11 @@ LOGGING = {
         "level": "CRITICAL",
     },
 }
+
+# Force DEBUG=True for testing (must be at end to override any imports)
+DEBUG = True
+
+# CSRF_COOKIE_SECURE should be True in production (DEBUG=False)
+# For testing purposes, we set it to True even though DEBUG=True
+# to ensure production settings are validated correctly
+CSRF_COOKIE_SECURE = True

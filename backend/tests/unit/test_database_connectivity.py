@@ -191,13 +191,13 @@ class TestEnvironmentConfiguration:
         # Get the source code of the settings file
         source = inspect.getsource(base_settings)
 
-        # Should use config() or environment variables, not hardcoded values
+        # Should use get_config() or config() or environment variables, not hardcoded values
         # (except for defaults which are safe for development)
-        assert "config('DB_NAME'" in source
-        assert "config('DB_USER'" in source
-        assert "config('DB_PASSWORD'" in source
-        assert "config('DB_HOST'" in source
-        assert "config('DB_PORT'" in source
+        assert 'get_config("DB_NAME"' in source or "config('DB_NAME'" in source
+        assert 'get_config("DB_USER"' in source or "config('DB_USER'" in source
+        assert 'get_config("DB_PASSWORD"' in source or "config('DB_PASSWORD'" in source
+        assert 'get_config("DB_HOST"' in source or "config('DB_HOST'" in source
+        assert 'get_config("DB_PORT"' in source or "config('DB_PORT'" in source
 
     def test_connection_pool_configured(self):
         """Test that connection pooling is properly configured."""

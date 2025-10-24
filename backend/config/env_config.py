@@ -268,6 +268,13 @@ def get_config(
         >>> get_config('DEBUG', default=False, cast=bool)
         True
     """
+    # Check if required variable is missing
+    if required and key not in os.environ:
+        raise ConfigurationError(
+            f"Required configuration variable '{key}' is not set. "
+            f"Please set it in your .env file or environment variables."
+        )
+
     try:
         if cast:
             result: T = config(key, default=default, cast=cast)

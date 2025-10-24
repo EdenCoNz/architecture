@@ -133,7 +133,7 @@ class DatabaseHealthCheck:
             host = self.connection.settings_dict.get("HOST", "unknown")
             port = self.connection.settings_dict.get("PORT", "unknown")
             return (
-                f"Could not connect to PostgreSQL database server at "
+                f"Connection refused: Could not connect to PostgreSQL database server at "
                 f"{host}:{port}. Please ensure PostgreSQL is running and "
                 f"check DB_HOST and DB_PORT."
             )

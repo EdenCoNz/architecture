@@ -15,6 +15,33 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from apps.core.database import DatabaseHealthCheck, get_database_status
 
 
+def get_database_type(engine: str) -> str:
+    """
+    Convert Django database engine string to friendly database type name.
+
+    Args:
+        engine: Django database engine string (e.g., 'django.db.backends.postgresql')
+
+    Returns:
+        Friendly database type name (e.g., 'PostgreSQL')
+
+    Example:
+        >>> get_database_type('django.db.backends.postgresql')
+        'PostgreSQL'
+        >>> get_database_type('django.db.backends.mysql')
+        'MySQL'
+    """
+    engine_mapping = {
+        "django.db.backends.postgresql": "PostgreSQL",
+        "django.db.backends.postgresql_psycopg2": "PostgreSQL",
+        "django.db.backends.mysql": "MySQL",
+        "django.db.backends.sqlite3": "SQLite",
+        "django.db.backends.oracle": "Oracle",
+    }
+
+    return engine_mapping.get(engine, engine)
+
+
 class Command(BaseCommand):
     """
     Check database connectivity and display status information.
@@ -128,8 +155,12 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("\n✓ Database connection successful!\n"))
 
+        # Get friendly database type name
+        db_type = get_database_type(status["engine"])
+
         self.stdout.write(self.style.HTTP_INFO("Connection Details:"))
         self.stdout.write(f"  Database:  {status['database']}")
+        self.stdout.write(f"  Type:      {db_type}")
         self.stdout.write(f"  Host:      {status['host']}:{status['port']}")
         self.stdout.write(f"  Engine:    {status['engine']}")
         response_time = status.get("response_time_ms", "N/A")
