@@ -530,6 +530,33 @@ jobs:
     # Only run on feature branches for PRs, or always for pushes/manual triggers
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
+    services:
+      # PostgreSQL database for container startup validation
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: container_test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      # Redis cache for container startup validation
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -580,25 +607,45 @@ jobs:
           echo "### Container Startup Test" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Start container in background with minimal config
+          # Generate a secure secret key for testing
+          TEST_SECRET_KEY="container-startup-test-$(date +%s)-$(openssl rand -hex 16)"
+
+          # Start container in background with proper database configuration
+          # The container will run its entrypoint script which validates configuration,
+          # checks database connectivity, runs deployment checks, applies migrations,
+          # and collects static files before starting the server
           docker run -d \
             --name backend-prod-test \
-            -e SECRET_KEY=test-key-for-ci \
-            -e DB_NAME=sqlite \
+            -e SECRET_KEY="$TEST_SECRET_KEY" \
             -e DEBUG=False \
             -e DJANGO_SETTINGS_MODULE=config.settings.production \
-            backend-prod:${{ github.sha }} \
-            tail -f /dev/null
+            -e ALLOWED_HOSTS=localhost,127.0.0.1,backend-prod-test \
+            -e DB_NAME=container_test_db \
+            -e DB_USER=test_user \
+            -e DB_PASSWORD=test_password \
+            -e DB_HOST=172.17.0.1 \
+            -e DB_PORT=5432 \
+            -e REDIS_URL=redis://172.17.0.1:6379/1 \
+            -e CELERY_BROKER_URL=redis://172.17.0.1:6379/0 \
+            -e CELERY_RESULT_BACKEND=redis://172.17.0.1:6379/0 \
+            -e CORS_ALLOWED_ORIGINS=http://localhost:3000 \
+            -e CSRF_TRUSTED_ORIGINS=http://localhost:8000 \
+            backend-prod:${{ github.sha }}
 
-          # Wait for container to be ready
-          sleep 5
+          # Wait for container to initialize (entrypoint script runs checks, migrations, collectstatic)
+          echo "Waiting for container to complete initialization..." >> $GITHUB_STEP_SUMMARY
+          sleep 15
 
           # Check container is running
           if docker ps | grep -q backend-prod-test; then
-            echo "✅ Container started successfully" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Container started successfully and remains running" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Container failed to start" >> $GITHUB_STEP_SUMMARY
-            docker logs backend-prod-test
+            echo "❌ Container failed to start or exited" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Container Logs" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            docker logs backend-prod-test 2>&1 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
@@ -611,6 +658,8 @@ jobs:
           fi
 
           # Verify Python packages are accessible
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Python Dependencies Check" >> $GITHUB_STEP_SUMMARY
           if docker exec backend-prod-test python -c "import django; print(f'Django version: {django.VERSION}')"; then
             echo "✅ Python dependencies accessible" >> $GITHUB_STEP_SUMMARY
           else
@@ -618,9 +667,24 @@ jobs:
             exit 1
           fi
 
+          # Check container logs for errors
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Container Initialization Logs" >> $GITHUB_STEP_SUMMARY
+          ERROR_COUNT=$(docker logs backend-prod-test 2>&1 | grep -i error | wc -l)
+          if [ $ERROR_COUNT -eq 0 ]; then
+            echo "✅ No errors detected in container logs" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Found $ERROR_COUNT error(s) in logs" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            docker logs backend-prod-test 2>&1 | grep -i error | head -10 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
           # Clean up
+          echo "" >> $GITHUB_STEP_SUMMARY
           docker stop backend-prod-test
           docker rm backend-prod-test
+          echo "✅ Container startup validation completed successfully" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload container artifact
         uses: actions/upload-artifact@v4
