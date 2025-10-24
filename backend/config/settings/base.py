@@ -436,6 +436,10 @@ SPECTACULAR_SETTINGS = {
         {"name": "Authentication", "description": "User authentication and authorization"},
         {"name": "Users", "description": "User profile and account management"},
         {"name": "Configuration", "description": "Runtime configuration endpoints"},
+        {
+            "name": "Testing",
+            "description": "Integration testing and connectivity verification endpoints",
+        },
     ],
     # Sorting and Display
     "SORT_OPERATIONS": True,
