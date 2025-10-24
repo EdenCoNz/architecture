@@ -7,8 +7,18 @@ Configuration is validated on startup to catch errors early.
 """
 
 import os
+from pathlib import Path
 
 from config.env_config import check_configuration_on_startup
+
+# Ensure required directories exist before Django initializes
+# This prevents FileNotFoundError when logging configuration is loaded
+BASE_DIR = Path(__file__).resolve().parent.parent
+LOGS_DIR = BASE_DIR / "logs"
+
+# Create logs directory if it doesn't exist
+# This is idempotent and safe to run multiple times
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Validate configuration when settings are imported
 # This ensures invalid configuration is caught before the app starts
