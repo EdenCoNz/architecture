@@ -55,8 +55,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements/dev.txt
 
 # Create directories for logs and media files
-RUN mkdir -p /app/logs /app/media /app/staticfiles && \
-    chown -R django:django /app/logs /app/media /app/staticfiles
+RUN mkdir -p /app/logs /app/media /app/staticfiles /app/static && \
+    chown -R django:django /app/logs /app/media /app/staticfiles /app/static
 
 # Copy application code
 # In development, this will be overridden by volume mount for live code reloading
@@ -157,8 +157,8 @@ COPY --from=builder --chown=django:django /root/.local /home/django/.local
 COPY --chown=django:django . /app/
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/media /app/staticfiles && \
-    chown -R django:django /app/logs /app/media /app/staticfiles
+RUN mkdir -p /app/logs /app/media /app/staticfiles /app/static && \
+    chown -R django:django /app/logs /app/media /app/staticfiles /app/static
 
 # Create production entrypoint script
 RUN echo '#!/bin/bash\n\
