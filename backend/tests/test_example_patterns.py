@@ -14,25 +14,17 @@ It demonstrates:
 Use this file as a template when writing new tests.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from tests.factories import AdminUserFactory, InactiveUserFactory, TestDataBuilder, UserFactory
+
 # Import test utilities
-from tests.utils import (
-    APITestHelper,
-    AuthenticationTestHelper,
-    AssertionHelper,
-    DatabaseTestHelper,
-)
-from tests.factories import (
-    UserFactory,
-    AdminUserFactory,
-    InactiveUserFactory,
-    TestDataBuilder,
-)
+from tests.utils import APITestHelper, AssertionHelper, AuthenticationTestHelper, DatabaseTestHelper
 
 User = get_user_model()
 
@@ -64,7 +56,7 @@ class TestUserModelExamples:
         # Assert basic properties
         assert user.email is not None
         assert user.is_active is True
-        assert user.check_password('testpass123')
+        assert user.check_password("testpass123")
 
     @pytest.mark.django_db
     def test_user_creation_with_custom_attributes(self):
@@ -74,17 +66,13 @@ class TestUserModelExamples:
         Factories allow overriding default values for specific test needs.
         """
         # Create user with custom attributes
-        user = UserFactory(
-            email='custom@example.com',
-            first_name='John',
-            last_name='Doe'
-        )
+        user = UserFactory(email="custom@example.com", first_name="John", last_name="Doe")
 
         # Assert custom attributes
-        assert user.email == 'custom@example.com'
-        assert user.first_name == 'John'
-        assert user.last_name == 'Doe'
-        assert user.get_full_name() == 'John Doe'
+        assert user.email == "custom@example.com"
+        assert user.first_name == "John"
+        assert user.last_name == "Doe"
+        assert user.get_full_name() == "John Doe"
 
     @pytest.mark.django_db
     def test_creating_multiple_users(self):
@@ -145,16 +133,16 @@ class TestUserModelExamples:
         DatabaseTestHelper provides convenient assertions for database operations.
         """
         # Create a user
-        user = UserFactory(email='helper@example.com')
+        user = UserFactory(email="helper@example.com")
 
         # Assert object exists
-        DatabaseTestHelper.assert_object_exists(User, email='helper@example.com')
+        DatabaseTestHelper.assert_object_exists(User, email="helper@example.com")
 
         # Assert count
-        DatabaseTestHelper.assert_count(User, 1, email='helper@example.com')
+        DatabaseTestHelper.assert_count(User, 1, email="helper@example.com")
 
         # Get or fail
-        retrieved_user = DatabaseTestHelper.get_or_fail(User, email='helper@example.com')
+        retrieved_user = DatabaseTestHelper.get_or_fail(User, email="helper@example.com")
         assert retrieved_user.id == user.id
 
 
@@ -195,13 +183,13 @@ class TestAPIEndpointExamples:
         APITestHelper provides convenient methods for API testing.
         """
         # Make GET request
-        response = api_helper.get('/api/v1/health/')
+        response = api_helper.get("/api/v1/health/")
 
         # Assert success
         api_helper.assert_success(response, 200)
 
         # Assert response has required keys
-        api_helper.assert_has_keys(response.data, ['status', 'timestamp'])
+        api_helper.assert_has_keys(response.data, ["status", "timestamp"])
 
     def test_authenticated_endpoint(self, api_helper, sample_user):
         """
@@ -213,13 +201,13 @@ class TestAPIEndpointExamples:
         access_token, refresh_token = api_helper.authenticate(sample_user)
 
         # Make authenticated request
-        response = api_helper.get('/api/v1/auth/me/')
+        response = api_helper.get("/api/v1/auth/me/")
 
         # Assert success
         api_helper.assert_success(response, 200)
 
         # Assert response contains user data
-        assert response.data['email'] == sample_user.email
+        assert response.data["email"] == sample_user.email
 
         # Clear credentials
         api_helper.clear_credentials()
@@ -232,8 +220,7 @@ class TestAPIEndpointExamples:
         """
         # Create user with known credentials
         user, password = TestDataBuilder.create_user_with_credentials(
-            email='flow@example.com',
-            password='testpass123'
+            email="flow@example.com", password="testpass123"
         )
 
         # Initialize helper
@@ -241,15 +228,22 @@ class TestAPIEndpointExamples:
 
         # Test login
         tokens = auth_helper.login(user.email, password)
-        assert 'access' in tokens
-        assert 'refresh' in tokens
+        assert "access" in tokens
+        assert "refresh" in tokens
 
         # Test token refresh
-        new_tokens = auth_helper.refresh_token(tokens['refresh'])
-        assert 'access' in new_tokens
+        new_tokens = auth_helper.refresh_token(tokens["refresh"])
+        assert "access" in new_tokens
 
-        # Test logout
-        response = auth_helper.logout(tokens['refresh'])
+        # Authenticate client before logout (logout endpoint requires authentication)
+        # Use the new access token if available, otherwise use the original
+        access_token = new_tokens.get("access", tokens["access"])
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+
+        # Test logout - use the refresh token from new_tokens if available (token rotation)
+        # Otherwise use the original refresh token
+        refresh_token = new_tokens.get("refresh", tokens["refresh"])
+        response = auth_helper.logout(refresh_token)
         assert response.status_code == status.HTTP_200_OK
 
     def test_creating_resource_via_api(self, api_helper, sample_user):
@@ -263,10 +257,7 @@ class TestAPIEndpointExamples:
 
         # Note: This is an example - adjust endpoint to your actual API
         # POST request to create resource
-        payload = {
-            'title': 'Test Item',
-            'description': 'Test Description'
-        }
+        payload = {"title": "Test Item", "description": "Test Description"}
 
         # This endpoint doesn't exist - it's just an example pattern
         # response = api_helper.post('/api/v1/items/', payload)
@@ -289,33 +280,35 @@ class TestMockingExamples:
     Mocking allows testing in isolation without external dependencies.
     """
 
-    @patch('apps.core.database.DatabaseHealthCheck.check')
-    def test_mocking_database_health_check(self, mock_check):
+    @patch("apps.api.health_views.get_database_health")
+    def test_mocking_database_health_check(self, mock_get_database_health):
         """
         Example: Mocking database health check.
 
         Shows how to mock external dependencies for isolated testing.
         """
-        # Configure mock return value
-        mock_check.return_value = {
-            'status': 'healthy',
-            'database': 'connected',
-            'response_time_ms': 15.5,
+        # Configure mock return value to match get_database_health() structure
+        mock_get_database_health.return_value = {
+            "status": "connected",
+            "response_time_ms": 15.5,
+            "engine": "postgresql",
         }
 
         # Create API client
         client = APIClient()
 
         # Make request (will use mocked health check)
-        response = client.get('/api/v1/health/')
+        response = client.get("/api/v1/health/")
 
         # Assert mock was called
-        assert mock_check.called
+        assert mock_get_database_health.called
 
         # Assert response uses mocked data
-        assert response.data['status'] == 'healthy'
+        # The view wraps database health in a response with "status": "healthy"
+        assert response.data["status"] == "healthy"
+        assert response.data["database"]["status"] == "connected"
 
-    @patch('django.core.mail.send_mail')
+    @patch("django.core.mail.send_mail")
     def test_mocking_email_sending(self, mock_send_mail):
         """
         Example: Mocking email sending.
@@ -327,12 +320,8 @@ class TestMockingExamples:
 
         # Code that would send email
         from django.core.mail import send_mail
-        result = send_mail(
-            'Test Subject',
-            'Test Message',
-            'from@example.com',
-            ['to@example.com']
-        )
+
+        result = send_mail("Test Subject", "Test Message", "from@example.com", ["to@example.com"])
 
         # Assert email was "sent"
         assert result == 1
@@ -340,10 +329,7 @@ class TestMockingExamples:
 
         # Assert called with correct arguments
         mock_send_mail.assert_called_once_with(
-            'Test Subject',
-            'Test Message',
-            'from@example.com',
-            ['to@example.com']
+            "Test Subject", "Test Message", "from@example.com", ["to@example.com"]
         )
 
 
@@ -373,8 +359,8 @@ class TestAssertionExamples:
         assert user.is_staff is False
 
         # String operations
-        assert '@' in user.email
-        assert user.email.endswith('.com')
+        assert "@" in user.email
+        assert user.email.endswith(".com")
 
         # Collections
         assert isinstance(user.email, str)
@@ -387,17 +373,19 @@ class TestAssertionExamples:
         """
         # Valid UUID assertion
         import uuid
+
         test_uuid = str(uuid.uuid4())
         AssertionHelper.assert_valid_uuid(test_uuid)
 
         # Valid timestamp assertion
         from datetime import datetime
+
         timestamp = datetime.now().isoformat()
         AssertionHelper.assert_valid_timestamp(timestamp)
 
         # Dictionary subset assertion
-        full_dict = {'a': 1, 'b': 2, 'c': 3}
-        subset = {'a': 1, 'b': 2}
+        full_dict = {"a": 1, "b": 2, "c": 3}
+        subset = {"a": 1, "b": 2}
         AssertionHelper.assert_dict_subset(subset, full_dict)
 
 
@@ -461,7 +449,7 @@ class TestFixtureExamples:
         Shows how fixtures can provide ready-to-use clients.
         """
         # Client is already authenticated
-        response = authenticated_client.get('/api/v1/auth/me/')
+        response = authenticated_client.get("/api/v1/auth/me/")
         assert response.status_code == status.HTTP_200_OK
 
 
@@ -478,11 +466,14 @@ class TestParameterizedExamples:
     Parameterized tests allow testing multiple scenarios with the same logic.
     """
 
-    @pytest.mark.parametrize('email,expected', [
-        ('Test@Example.com', 'Test@example.com'),
-        ('USER@DOMAIN.COM', 'USER@domain.com'),
-        ('test@test.com', 'test@test.com'),
-    ])
+    @pytest.mark.parametrize(
+        "email,expected",
+        [
+            ("Test@Example.com", "Test@example.com"),
+            ("USER@DOMAIN.COM", "USER@domain.com"),
+            ("test@test.com", "test@test.com"),
+        ],
+    )
     def test_email_normalization(self, email, expected):
         """
         Example: Parameterized test for email normalization.
@@ -490,16 +481,19 @@ class TestParameterizedExamples:
         One test method runs multiple times with different inputs.
         """
         # Normalize email (domain part only)
-        normalized = email.split('@')[0] + '@' + email.split('@')[1].lower()
+        normalized = email.split("@")[0] + "@" + email.split("@")[1].lower()
         assert normalized == expected
 
     @pytest.mark.django_db
-    @pytest.mark.parametrize('is_staff,is_superuser,expected_admin', [
-        (False, False, False),
-        (True, False, False),
-        (False, True, False),
-        (True, True, True),
-    ])
+    @pytest.mark.parametrize(
+        "is_staff,is_superuser,expected_admin",
+        [
+            (False, False, False),
+            (True, False, False),
+            (False, True, False),
+            (True, True, True),
+        ],
+    )
     def test_admin_status(self, is_staff, is_superuser, expected_admin):
         """
         Example: Parameterized test for admin status.
@@ -534,14 +528,14 @@ class TestComplexScenarioExamples:
         Tests multiple operations in sequence to verify a complete workflow.
         """
         # 1. Create user via factory
-        user = UserFactory(email='lifecycle@example.com')
-        DatabaseTestHelper.assert_object_exists(User, email='lifecycle@example.com')
+        user = UserFactory(email="lifecycle@example.com")
+        DatabaseTestHelper.assert_object_exists(User, email="lifecycle@example.com")
 
         # 2. Verify user can authenticate
         client = APIClient()
         auth_helper = AuthenticationTestHelper(client)
-        tokens = auth_helper.login(user.email, 'testpass123')
-        assert 'access' in tokens
+        tokens = auth_helper.login(user.email, "testpass123")
+        assert "access" in tokens
 
         # 3. Update user profile (example pattern)
         api_helper = APITestHelper(client)
@@ -558,9 +552,7 @@ class TestComplexScenarioExamples:
         # 6. Verify deactivated user cannot login
         # (This would fail in login endpoint validation)
         DatabaseTestHelper.assert_object_exists(
-            User,
-            email='lifecycle@example.com',
-            is_active=False
+            User, email="lifecycle@example.com", is_active=False
         )
 
     def test_multiple_users_scenario(self):
@@ -573,9 +565,9 @@ class TestComplexScenarioExamples:
         scenario = TestDataBuilder.create_authenticated_scenario()
 
         # Verify each user type
-        assert scenario['user'].is_staff is False
-        assert scenario['admin'].is_staff is True
-        assert scenario['inactive_user'].is_active is False
+        assert scenario["user"].is_staff is False
+        assert scenario["admin"].is_staff is True
+        assert scenario["inactive_user"].is_active is False
 
         # Test interactions between users
         DatabaseTestHelper.assert_count(User, 3)
@@ -601,15 +593,18 @@ class TestEdgeCaseExamples:
 
         Tests error conditions and validation.
         """
-        email = 'duplicate@example.com'
+        email = "duplicate@example.com"
 
         # Create first user
         UserFactory(email=email)
 
         # Attempt to create second user with same email should fail
+        # Note: We must use User.objects.create() directly because
+        # UserFactory has django_get_or_create which prevents duplicates
         from django.db import IntegrityError
+
         with pytest.raises(IntegrityError):
-            UserFactory(email=email)
+            User.objects.create(email=email, password="testpass123")
 
     def test_invalid_email_format(self):
         """
@@ -618,12 +613,19 @@ class TestEdgeCaseExamples:
         Tests validation logic.
         """
         # This would typically be tested at the serializer level
-        invalid_emails = ['not-an-email', '@example.com', 'test@', '']
+        invalid_emails = ["not-an-email", "@example.com", "test@", ""]
 
         for email in invalid_emails:
             # In a real scenario, you'd test serializer validation
-            # For this example, we just check the format
-            assert '@' not in email or '.' not in email
+            # For this example, we check that emails are invalid by verifying
+            # they either lack @ symbol, lack domain, or are empty
+            is_invalid = (
+                not email  # Empty string
+                or "@" not in email  # Missing @ symbol
+                or not email.split("@")[0]  # Missing local part (like "@example.com")
+                or "." not in email.split("@")[-1]  # Missing dot in domain (like "test@")
+            )
+            assert is_invalid, f"Email '{email}' should be considered invalid"
 
     def test_missing_required_fields(self):
         """
@@ -633,8 +635,9 @@ class TestEdgeCaseExamples:
         """
         # Attempt to create user without email
         from django.core.exceptions import ValidationError
+
         with pytest.raises(ValueError):
-            User.objects.create_user('', 'password')
+            User.objects.create_user("", "password")
 
 
 """

@@ -8,22 +8,21 @@ Provides endpoints for monitoring the API's operational status, including:
 - Kubernetes liveness probe (GET /api/v1/health/live/)
 """
 
-import time
-import psutil
 import platform
-from datetime import datetime
-from typing import Dict, Any
+import time
+from datetime import UTC, datetime
+from typing import Any, Dict
 
+import psutil
 from django.conf import settings
-from rest_framework.views import APIView
-from rest_framework.response import Response
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.core.database import DatabaseHealthCheck
 from config.env_config import get_environment
-
 
 # Track server start time for uptime calculation
 SERVER_START_TIME = time.time()
@@ -37,10 +36,10 @@ def get_version_info() -> Dict[str, str]:
         Dictionary containing version information
     """
     return {
-        'version': '1.0.0',  # Application version
-        'api_version': 'v1',
-        'django_version': platform.python_version(),
-        'python_version': platform.python_version(),
+        "version": "1.0.0",  # Application version
+        "api_version": "v1",
+        "django_version": platform.python_version(),
+        "python_version": platform.python_version(),
     }
 
 
@@ -55,8 +54,8 @@ def get_memory_usage() -> Dict[str, Any]:
     memory_info = process.memory_info()
 
     return {
-        'used_mb': round(memory_info.rss / 1024 / 1024, 2),
-        'percent': round(process.memory_percent(), 2),
+        "used_mb": round(memory_info.rss / 1024 / 1024, 2),
+        "percent": round(process.memory_percent(), 2),
     }
 
 
@@ -81,14 +80,14 @@ def get_database_health() -> Dict[str, Any]:
     result = checker.check()
 
     database_info = {
-        'status': result['database'],
-        'response_time_ms': result.get('response_time_ms'),
-        'engine': result['connection_info'].get('engine'),
+        "status": result["database"],
+        "response_time_ms": result.get("response_time_ms"),
+        "engine": result["connection_info"].get("engine"),
     }
 
     # Include error if present
-    if 'error' in result:
-        database_info['error'] = result['error']
+    if "error" in result:
+        database_info["error"] = result["error"]
 
     return database_info
 
@@ -110,45 +109,45 @@ class HealthCheckView(APIView):
     @extend_schema(
         summary="Health Check",
         description="Check if the API is operational and healthy. "
-                    "Returns 200 if healthy, 503 if unhealthy.",
+        "Returns 200 if healthy, 503 if unhealthy.",
         responses={
             200: OpenApiResponse(
                 description="Service is healthy",
                 response={
-                    'type': 'object',
-                    'properties': {
-                        'status': {'type': 'string', 'example': 'healthy'},
-                        'timestamp': {'type': 'string', 'format': 'date-time'},
-                        'database': {
-                            'type': 'object',
-                            'properties': {
-                                'status': {'type': 'string', 'example': 'connected'},
-                                'response_time_ms': {'type': 'number', 'example': 15.5},
-                                'engine': {'type': 'string'},
-                            }
-                        }
-                    }
-                }
+                    "type": "object",
+                    "properties": {
+                        "status": {"type": "string", "example": "healthy"},
+                        "timestamp": {"type": "string", "format": "date-time"},
+                        "database": {
+                            "type": "object",
+                            "properties": {
+                                "status": {"type": "string", "example": "connected"},
+                                "response_time_ms": {"type": "number", "example": 15.5},
+                                "engine": {"type": "string"},
+                            },
+                        },
+                    },
+                },
             ),
             503: OpenApiResponse(
                 description="Service is unhealthy",
                 response={
-                    'type': 'object',
-                    'properties': {
-                        'status': {'type': 'string', 'example': 'unhealthy'},
-                        'timestamp': {'type': 'string', 'format': 'date-time'},
-                        'database': {
-                            'type': 'object',
-                            'properties': {
-                                'status': {'type': 'string', 'example': 'disconnected'},
-                                'error': {'type': 'string'},
-                            }
-                        }
-                    }
-                }
-            )
+                    "type": "object",
+                    "properties": {
+                        "status": {"type": "string", "example": "unhealthy"},
+                        "timestamp": {"type": "string", "format": "date-time"},
+                        "database": {
+                            "type": "object",
+                            "properties": {
+                                "status": {"type": "string", "example": "disconnected"},
+                                "error": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            ),
         },
-        tags=['Health']
+        tags=["Health"],
     )
     def get(self, request) -> Response:
         """
@@ -161,18 +160,15 @@ class HealthCheckView(APIView):
         database_health = get_database_health()
 
         # Determine overall health status
-        is_healthy = database_health['status'] == 'connected'
+        is_healthy = database_health["status"] == "connected"
 
         response_data = {
-            'status': 'healthy' if is_healthy else 'unhealthy',
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'database': database_health,
+            "status": "healthy" if is_healthy else "unhealthy",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "database": database_health,
         }
 
-        http_status = (
-            status.HTTP_200_OK if is_healthy
-            else status.HTTP_503_SERVICE_UNAVAILABLE
-        )
+        http_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
         return Response(response_data, status=http_status)
 
@@ -198,39 +194,39 @@ class StatusView(APIView):
     @extend_schema(
         summary="System Status",
         description="Get detailed system status including version, uptime, "
-                    "memory usage, and database status.",
+        "memory usage, and database status.",
         responses={
             200: OpenApiResponse(
                 description="System status information",
                 response={
-                    'type': 'object',
-                    'properties': {
-                        'status': {'type': 'string', 'example': 'healthy'},
-                        'timestamp': {'type': 'string', 'format': 'date-time'},
-                        'version': {'type': 'string', 'example': '1.0.0'},
-                        'api_version': {'type': 'string', 'example': 'v1'},
-                        'environment': {'type': 'string', 'example': 'development'},
-                        'uptime_seconds': {'type': 'number', 'example': 3600.5},
-                        'memory': {
-                            'type': 'object',
-                            'properties': {
-                                'used_mb': {'type': 'number', 'example': 256.5},
-                                'percent': {'type': 'number', 'example': 12.5},
-                            }
+                    "type": "object",
+                    "properties": {
+                        "status": {"type": "string", "example": "healthy"},
+                        "timestamp": {"type": "string", "format": "date-time"},
+                        "version": {"type": "string", "example": "1.0.0"},
+                        "api_version": {"type": "string", "example": "v1"},
+                        "environment": {"type": "string", "example": "development"},
+                        "uptime_seconds": {"type": "number", "example": 3600.5},
+                        "memory": {
+                            "type": "object",
+                            "properties": {
+                                "used_mb": {"type": "number", "example": 256.5},
+                                "percent": {"type": "number", "example": 12.5},
+                            },
                         },
-                        'database': {
-                            'type': 'object',
-                            'properties': {
-                                'status': {'type': 'string', 'example': 'connected'},
-                                'response_time_ms': {'type': 'number', 'example': 15.5},
-                                'engine': {'type': 'string'},
-                            }
-                        }
-                    }
-                }
+                        "database": {
+                            "type": "object",
+                            "properties": {
+                                "status": {"type": "string", "example": "connected"},
+                                "response_time_ms": {"type": "number", "example": 15.5},
+                                "engine": {"type": "string"},
+                            },
+                        },
+                    },
+                },
             )
         },
-        tags=['Health']
+        tags=["Health"],
     )
     def get(self, request) -> Response:
         """
@@ -243,17 +239,17 @@ class StatusView(APIView):
         version_info = get_version_info()
 
         # Determine overall health status
-        is_healthy = database_health['status'] == 'connected'
+        is_healthy = database_health["status"] == "connected"
 
         response_data = {
-            'status': 'healthy' if is_healthy else 'unhealthy',
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'version': version_info['version'],
-            'api_version': version_info['api_version'],
-            'environment': get_environment(),
-            'uptime_seconds': get_uptime_seconds(),
-            'memory': get_memory_usage(),
-            'database': database_health,
+            "status": "healthy" if is_healthy else "unhealthy",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "version": version_info["version"],
+            "api_version": version_info["api_version"],
+            "environment": get_environment(),
+            "uptime_seconds": get_uptime_seconds(),
+            "memory": get_memory_usage(),
+            "database": database_health,
         }
 
         # Status endpoint always returns 200 (even if unhealthy)
@@ -277,30 +273,30 @@ class ReadinessView(APIView):
     @extend_schema(
         summary="Readiness Probe",
         description="Check if the service is ready to accept traffic. "
-                    "Used by Kubernetes readiness probes.",
+        "Used by Kubernetes readiness probes.",
         responses={
             200: OpenApiResponse(
                 description="Service is ready",
                 response={
-                    'type': 'object',
-                    'properties': {
-                        'ready': {'type': 'boolean', 'example': True},
-                        'timestamp': {'type': 'string', 'format': 'date-time'},
-                    }
-                }
+                    "type": "object",
+                    "properties": {
+                        "ready": {"type": "boolean", "example": True},
+                        "timestamp": {"type": "string", "format": "date-time"},
+                    },
+                },
             ),
             503: OpenApiResponse(
                 description="Service is not ready",
                 response={
-                    'type': 'object',
-                    'properties': {
-                        'ready': {'type': 'boolean', 'example': False},
-                        'timestamp': {'type': 'string', 'format': 'date-time'},
-                    }
-                }
-            )
+                    "type": "object",
+                    "properties": {
+                        "ready": {"type": "boolean", "example": False},
+                        "timestamp": {"type": "string", "format": "date-time"},
+                    },
+                },
+            ),
         },
-        tags=['Health']
+        tags=["Health"],
     )
     def get(self, request) -> Response:
         """
@@ -311,17 +307,14 @@ class ReadinessView(APIView):
             HTTP 503 if not ready
         """
         database_health = get_database_health()
-        is_ready = database_health['status'] == 'connected'
+        is_ready = database_health["status"] == "connected"
 
         response_data = {
-            'ready': is_ready,
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            "ready": is_ready,
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-        http_status = (
-            status.HTTP_200_OK if is_ready
-            else status.HTTP_503_SERVICE_UNAVAILABLE
-        )
+        http_status = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
 
         return Response(response_data, status=http_status)
 
@@ -342,21 +335,21 @@ class LivenessView(APIView):
     @extend_schema(
         summary="Liveness Probe",
         description="Check if the service is alive and responsive. "
-                    "Always returns 200 if server is running. "
-                    "Used by Kubernetes liveness probes.",
+        "Always returns 200 if server is running. "
+        "Used by Kubernetes liveness probes.",
         responses={
             200: OpenApiResponse(
                 description="Service is alive",
                 response={
-                    'type': 'object',
-                    'properties': {
-                        'alive': {'type': 'boolean', 'example': True},
-                        'timestamp': {'type': 'string', 'format': 'date-time'},
-                    }
-                }
+                    "type": "object",
+                    "properties": {
+                        "alive": {"type": "boolean", "example": True},
+                        "timestamp": {"type": "string", "format": "date-time"},
+                    },
+                },
             )
         },
-        tags=['Health']
+        tags=["Health"],
     )
     def get(self, request) -> Response:
         """
@@ -366,8 +359,8 @@ class LivenessView(APIView):
             Response with alive status (always HTTP 200)
         """
         response_data = {
-            'alive': True,
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            "alive": True,
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
         return Response(response_data, status=status.HTTP_200_OK)

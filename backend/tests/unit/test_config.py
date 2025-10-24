@@ -18,18 +18,14 @@ class TestEnvironmentDetection:
 
     def test_detect_development_environment(self) -> None:
         """When DJANGO_SETTINGS_MODULE is development, should detect development."""
-        with patch.dict(
-            os.environ, {"DJANGO_SETTINGS_MODULE": "config.settings.development"}
-        ):
+        with patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": "config.settings.development"}):
             from config.env_config import get_environment
 
             assert get_environment() == "development"
 
     def test_detect_production_environment(self) -> None:
         """When DJANGO_SETTINGS_MODULE is production, should detect production."""
-        with patch.dict(
-            os.environ, {"DJANGO_SETTINGS_MODULE": "config.settings.production"}
-        ):
+        with patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": "config.settings.production"}):
             from config.env_config import get_environment
 
             assert get_environment() == "production"

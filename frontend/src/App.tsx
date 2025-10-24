@@ -16,7 +16,7 @@ function App() {
   return (
     <ThemeProvider>
       {/* React Router for client-side routing */}
-      <BrowserRoutewr>
+      <BrowserRouter>
         {/* Skip link for accessibility - keyboard and screen reader users */}
         <a href="#main-content" className="skip-link">
           Skip to main content

@@ -127,5 +127,5 @@ echo ""
 trap 'echo -e "\n${YELLOW}Shutting down development server...${NC}"; exit 0' INT TERM
 
 # Start the development server with auto-reload
-# The --noreload flag is NOT used, so hot reload is enabled by default
+# Hot reload is enabled by default (do not use the noreload flag)
 python manage.py runserver "${HOST}:${PORT}"

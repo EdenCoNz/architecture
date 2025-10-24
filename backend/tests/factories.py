@@ -23,10 +23,9 @@ Usage Examples:
 """
 
 import factory
-from factory import fuzzy
+from django.contrib.auth import get_user_model
 from factory.django import DjangoModelFactory
 from faker import Faker
-from django.contrib.auth import get_user_model
 
 fake = Faker()
 User = get_user_model()
@@ -61,11 +60,11 @@ class UserFactory(DjangoModelFactory):
 
     class Meta:
         model = User
-        django_get_or_create = ('email',)
+        django_get_or_create = ("email",)
 
-    email = factory.Sequence(lambda n: f'user{n}@example.com')
-    first_name = factory.Faker('first_name')
-    last_name = factory.Faker('last_name')
+    email = factory.Sequence(lambda n: f"user{n}@example.com")
+    first_name = factory.Faker("first_name")
+    last_name = factory.Faker("last_name")
     is_active = True
     is_staff = False
     is_superuser = False
@@ -81,7 +80,7 @@ class UserFactory(DjangoModelFactory):
         if extracted:
             self.set_password(extracted)
         else:
-            self.set_password('testpass123')
+            self.set_password("testpass123")
 
         if create:
             self.save()
@@ -103,7 +102,7 @@ class AdminUserFactory(UserFactory):
 
     is_staff = True
     is_superuser = True
-    email = factory.Sequence(lambda n: f'admin{n}@example.com')
+    email = factory.Sequence(lambda n: f"admin{n}@example.com")
 
 
 class InactiveUserFactory(UserFactory):
@@ -118,7 +117,7 @@ class InactiveUserFactory(UserFactory):
     """
 
     is_active = False
-    email = factory.Sequence(lambda n: f'inactive{n}@example.com')
+    email = factory.Sequence(lambda n: f"inactive{n}@example.com")
 
 
 # Test Data Helpers
@@ -173,13 +172,13 @@ class TestDataBuilder:
             admin_user = scenario['admin']
         """
         return {
-            'user': UserFactory(),
-            'admin': AdminUserFactory(),
-            'inactive_user': InactiveUserFactory(),
+            "user": UserFactory(),
+            "admin": AdminUserFactory(),
+            "inactive_user": InactiveUserFactory(),
         }
 
     @staticmethod
-    def create_user_with_credentials(email=None, password='testpass123'):
+    def create_user_with_credentials(email=None, password="testpass123"):
         """
         Create a user with known credentials for login testing.
 
@@ -191,7 +190,9 @@ class TestDataBuilder:
             tuple: (user, password) for use in login tests
 
         Examples:
-            user, password = TestDataBuilder.create_user_with_credentials()
+            user, password = (
+                TestDataBuilder.create_user_with_credentials()
+            )
             # Use for login testing
         """
         email = email or fake.email()
@@ -218,7 +219,11 @@ class FixtureHelper:
         Examples:
             FixtureHelper.reset_sequences()
         """
-        factory.Sequence.reset()
+        # Reset sequences for all factories
+        factory.Faker._get_faker().seed_instance(0)
+        # Note: Individual factory sequences are automatically reset by
+        # pytest-django between tests, so explicit reset is typically not
+        # needed
 
     @staticmethod
     def cleanup_users():

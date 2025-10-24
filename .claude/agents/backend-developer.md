@@ -82,6 +82,30 @@ You are an elite backend developer with extensive experience building production
 - Provide database migration scripts
 - Use environment variables for sensitive data
 
+## Token Optimization Guidelines
+
+**Avoid Reading Large Files Unless Necessary**:
+- **Implementation logs**: Do NOT read `docs/features/*/implementation-log.json` files unless you absolutely need context from previous work
+- **Use summaries instead**: If you need context, read `docs/features/implementation-log-summary.json` (400 lines) instead of individual logs (thousands of lines)
+- **Check feature log first**: For completion status, read `docs/features/feature-log.json` instead of implementation logs
+- **Context documentation (lazy loading)**:
+  - Do NOT preemptively read files from `context/backend/` directory
+  - Only read specific best practices files when you encounter a problem that needs guidance
+  - Examples of when to read:
+    - `context/backend/django-drf-postgresql-best-practices.md` - Only when designing Django models or DRF APIs
+    - `context/testing/django-drf-testing-best-practices-2025.md` - Only when writing complex tests
+  - If you know Django/DRF patterns well, implement directly without reading docs
+
+**When You SHOULD Read Implementation Logs**:
+- You're explicitly told to update or append to the log
+- You need to understand a specific technical decision from a previous story
+- You're debugging an issue that requires knowing what was done before
+
+**When You SHOULD NOT Read Implementation Logs**:
+- Just to see if you should do something (check feature-log.json instead)
+- To understand project structure (explore the codebase directly)
+- For general context (use summaries or ask for clarification)
+
 ## Workflow
 
 1. **Understand Requirements Deeply**

@@ -2,12 +2,29 @@
 Serializers for user authentication and management.
 """
 
+import re
+from typing import Any, Dict
+
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 User = get_user_model()
+
+
+def sanitize_html_input(value: str) -> str:
+    """
+    Sanitize input by removing HTML tags and script content.
+    This prevents XSS attacks by stripping potentially dangerous HTML.
+    """
+    if not value:
+        return value
+    # Remove script tags and their content
+    value = re.sub(r"<script[^>]*>.*?</script>", "", value, flags=re.IGNORECASE | re.DOTALL)
+    # Remove all HTML tags
+    value = re.sub(r"<[^>]+>", "", value)
+    return value
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -18,8 +35,15 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'is_active', 'date_joined')
-        read_only_fields = ('id', 'date_joined', 'is_active')
+        fields = (
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "is_active",
+            "date_joined",
+        )
+        read_only_fields = ("id", "date_joined", "is_active")
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -29,44 +53,54 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     """
 
     password = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
+        write_only=True, required=True, style={"input_type": "password"}
     )
     password_confirm = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
+        write_only=True, required=True, style={"input_type": "password"}
     )
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'password', 'password_confirm', 'first_name', 'last_name')
-        read_only_fields = ('id',)
+        fields = (
+            "id",
+            "email",
+            "password",
+            "password_confirm",
+            "first_name",
+            "last_name",
+        )
+        read_only_fields = ("id",)
 
-    def validate(self, attrs):
+    def validate_first_name(self, value: str) -> str:
+        """Sanitize first name to prevent XSS attacks."""
+        return sanitize_html_input(value)
+
+    def validate_last_name(self, value: str) -> str:
+        """Sanitize last name to prevent XSS attacks."""
+        return sanitize_html_input(value)
+
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validate that passwords match and meet requirements.
         """
-        password = attrs.get('password')
-        password_confirm = attrs.pop('password_confirm', None)
+        password = attrs.get("password")
+        password_confirm = attrs.pop("password_confirm", None)
 
         if password != password_confirm:
-            raise ValidationError({'password': 'Passwords do not match.'})
+            raise ValidationError({"password": "Passwords do not match."})
 
         # Validate password against Django's password validators
         validate_password(password)
 
         return attrs
 
-    def create(self, validated_data):
+    def create(self, validated_data: Dict[str, Any]) -> Any:
         """
         Create a new user with encrypted password.
         """
-        password = validated_data.pop('password')
-        user = User.objects.create_user(
-            password=password,
-            **validated_data
+        pwd = validated_data.pop("password")
+        user = User.objects.create_user(  # type: ignore[attr-defined]
+            password=pwd, **validated_data
         )
         return user
 
@@ -79,17 +113,15 @@ class UserLoginSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=True)
     password = serializers.CharField(
-        required=True,
-        style={'input_type': 'password'},
-        write_only=True
+        required=True, style={"input_type": "password"}, write_only=True
     )
 
-    def validate(self, attrs):
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validate user credentials.
         """
-        email = attrs.get('email')
-        password = attrs.get('password')
+        email = attrs.get("email")
+        password = attrs.get("password")
 
         if email and password:
             # Check if user exists and is active
@@ -97,32 +129,28 @@ class UserLoginSerializer(serializers.Serializer):
                 user = User.objects.get(email=email)
             except User.DoesNotExist:
                 raise ValidationError(
-                    {'non_field_errors': ['Invalid credentials. Please try again.']}
+                    {"non_field_errors": ["Invalid credentials. Please try again."]}
                 )
 
             if not user.is_active:
-                raise ValidationError(
-                    {'non_field_errors': ['This account has been deactivated.']}
-                )
+                raise ValidationError({"non_field_errors": ["This account has been deactivated."]})
 
             # Authenticate user
-            user = authenticate(
-                request=self.context.get('request'),
+            authenticated_user = authenticate(
+                request=self.context.get("request"),
                 username=email,
-                password=password
+                password=password,
             )
 
-            if not user:
+            if not authenticated_user:
                 raise ValidationError(
-                    {'non_field_errors': ['Invalid credentials. Please try again.']}
+                    {"non_field_errors": ["Invalid credentials. Please try again."]}
                 )
 
-            attrs['user'] = user
+            attrs["user"] = authenticated_user
             return attrs
         else:
-            raise ValidationError(
-                {'non_field_errors': ['Email and password are required.']}
-            )
+            raise ValidationError({"non_field_errors": ["Email and password are required."]})
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -131,50 +159,45 @@ class ChangePasswordSerializer(serializers.Serializer):
     """
 
     old_password = serializers.CharField(
-        required=True,
-        style={'input_type': 'password'},
-        write_only=True
+        required=True, style={"input_type": "password"}, write_only=True
     )
     new_password = serializers.CharField(
-        required=True,
-        style={'input_type': 'password'},
-        write_only=True
+        required=True, style={"input_type": "password"}, write_only=True
     )
     new_password_confirm = serializers.CharField(
-        required=True,
-        style={'input_type': 'password'},
-        write_only=True
+        required=True, style={"input_type": "password"}, write_only=True
     )
 
-    def validate_old_password(self, value):
+    def validate_old_password(self, value: str) -> str:
         """
         Validate that the old password is correct.
         """
-        user = self.context['request'].user
+        user = self.context["request"].user
         if not user.check_password(value):
-            raise ValidationError('Old password is incorrect.')
+            raise ValidationError("Old password is incorrect.")
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validate that new passwords match and meet requirements.
         """
-        new_password = attrs.get('new_password')
-        new_password_confirm = attrs.get('new_password_confirm')
+        new_password = attrs.get("new_password")
+        new_password_confirm = attrs.get("new_password_confirm")
 
         if new_password != new_password_confirm:
-            raise ValidationError({'new_password': 'New passwords do not match.'})
+            raise ValidationError({"new_password": "New passwords do not match."})
 
         # Validate password against Django's password validators
-        validate_password(new_password, user=self.context['request'].user)
+        if new_password:
+            validate_password(str(new_password), user=self.context["request"].user)
 
         return attrs
 
-    def save(self, **kwargs):
+    def save(self, **kwargs: Any) -> Any:
         """
         Update the user's password.
         """
-        user = self.context['request'].user
-        user.set_password(self.validated_data['new_password'])
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
         user.save()
         return user

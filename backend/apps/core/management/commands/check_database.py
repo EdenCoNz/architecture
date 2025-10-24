@@ -6,12 +6,40 @@ Usage:
     python manage.py check_database --wait
 """
 
-import time
 import sys
-from django.core.management.base import BaseCommand, CommandError
-from django.db import connection
-from django.db.utils import OperationalError
+import time
+from typing import Any, Dict
+
+from django.core.management.base import BaseCommand, CommandError, CommandParser
+
 from apps.core.database import DatabaseHealthCheck, get_database_status
+
+
+def get_database_type(engine: str) -> str:
+    """
+    Convert Django database engine string to friendly database type name.
+
+    Args:
+        engine: Django database engine string (e.g., 'django.db.backends.postgresql')
+
+    Returns:
+        Friendly database type name (e.g., 'PostgreSQL')
+
+    Example:
+        >>> get_database_type('django.db.backends.postgresql')
+        'PostgreSQL'
+        >>> get_database_type('django.db.backends.mysql')
+        'MySQL'
+    """
+    engine_mapping = {
+        "django.db.backends.postgresql": "PostgreSQL",
+        "django.db.backends.postgresql_psycopg2": "PostgreSQL",
+        "django.db.backends.mysql": "MySQL",
+        "django.db.backends.sqlite3": "SQLite",
+        "django.db.backends.oracle": "Oracle",
+    }
+
+    return engine_mapping.get(engine, engine)
 
 
 class Command(BaseCommand):
@@ -22,30 +50,37 @@ class Command(BaseCommand):
     configured. Useful for startup checks and debugging connection issues.
     """
 
-    help = 'Check database connectivity and display status information'
+    help = "Check database connectivity and display status information"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         """Add command arguments."""
         parser.add_argument(
-            '--wait',
+            "--wait",
             type=int,
             default=0,
-            help='Wait up to N seconds for database to become available',
+            help="Wait up to N seconds for database to become available",
         )
         parser.add_argument(
-            '--retry-interval',
+            "--retry-interval",
             type=int,
             default=2,
-            help='Seconds between retry attempts (default: 2)',
+            help="Seconds between retry attempts (default: 2)",
+        )
+        parser.add_argument(
+            "--quiet",
+            action="store_true",
+            help="Suppress non-essential output",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         """Execute the command."""
-        wait_seconds = options['wait']
-        retry_interval = options['retry_interval']
+        wait_seconds = options["wait"]
+        retry_interval = options["retry_interval"]
+        self.quiet = options.get("quiet", False)
 
-        self.stdout.write("\nChecking database connectivity...")
-        self.stdout.write("=" * 60)
+        if not self.quiet:
+            self.stdout.write("\nChecking database connectivity...")
+            self.stdout.write("=" * 60)
 
         if wait_seconds > 0:
             # Wait mode - retry until timeout
@@ -56,9 +91,9 @@ class Command(BaseCommand):
 
     def _check_once(self) -> None:
         """Perform a single database check."""
-        status = get_database_status()
+        status: Dict[str, Any] = get_database_status()
 
-        if status['connected']:
+        if status["connected"]:
             self._print_success(status)
         else:
             self._print_failure(status)
@@ -78,12 +113,13 @@ class Command(BaseCommand):
         while True:
             status = get_database_status()
 
-            if status['connected']:
+            if status["connected"]:
                 elapsed = time.time() - start_time
+                attempts_str = "s" if attempt > 1 else ""
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"\n✓ Database connected after {elapsed:.1f}s "
-                        f"({attempt} attempt{'s' if attempt > 1 else ''})"
+                        f"({attempt} attempt{attempts_str})"
                     )
                 )
                 self._print_success(status)
@@ -93,8 +129,7 @@ class Command(BaseCommand):
             if elapsed >= max_wait:
                 self.stdout.write(
                     self.style.ERROR(
-                        f"\n✗ Database connection failed after {max_wait}s "
-                        f"({attempt} attempts)"
+                        f"\n✗ Database connection failed after {max_wait}s " f"({attempt} attempts)"
                     )
                 )
                 self._print_failure(status)
@@ -112,41 +147,49 @@ class Command(BaseCommand):
             time.sleep(retry_interval)
             attempt += 1
 
-    def _print_success(self, status: dict) -> None:
+    def _print_success(self, status: Dict[str, Any]) -> None:
         """Print success information."""
-        self.stdout.write(
-            self.style.SUCCESS("\n✓ Database connection successful!\n")
-        )
+        if self.quiet:
+            self.stdout.write("Database connection successful")
+            return
+
+        self.stdout.write(self.style.SUCCESS("\n✓ Database connection successful!\n"))
+
+        # Get friendly database type name
+        db_type = get_database_type(status["engine"])
 
         self.stdout.write(self.style.HTTP_INFO("Connection Details:"))
         self.stdout.write(f"  Database:  {status['database']}")
+        self.stdout.write(f"  Type:      {db_type}")
         self.stdout.write(f"  Host:      {status['host']}:{status['port']}")
         self.stdout.write(f"  Engine:    {status['engine']}")
-        self.stdout.write(
-            f"  Response:  {status.get('response_time_ms', 'N/A')}ms"
-        )
+        response_time = status.get("response_time_ms", "N/A")
+        self.stdout.write(f"  Response:  {response_time}ms")
 
         self.stdout.write(self.style.HTTP_INFO("\nConfiguration:"))
-        pool_enabled = status['connection_pooling']['enabled']
+        pool_enabled = status["connection_pooling"]["enabled"]
         pool_status = "Enabled" if pool_enabled else "Disabled"
         if pool_enabled:
-            max_age = status['connection_pooling']['max_age']
+            max_age = status["connection_pooling"]["max_age"]
             pool_status += f" (max age: {max_age}s)"
         self.stdout.write(f"  Connection Pooling: {pool_status}")
 
-        atomic = "Enabled" if status['atomic_requests'] else "Disabled"
+        atomic = "Enabled" if status["atomic_requests"] else "Disabled"
         self.stdout.write(f"  Atomic Requests:    {atomic}")
 
         self.stdout.write("")
 
-    def _print_failure(self, status: dict) -> None:
+    def _print_failure(self, status: Dict[str, Any]) -> None:
         """Print failure information."""
-        self.stdout.write(
-            self.style.ERROR("\n✗ Database connection failed!\n")
-        )
+        error = status.get("error", "Unknown error")
+
+        if self.quiet:
+            self.stdout.write(f"Database connection failed: {error}")
+            return
+
+        self.stdout.write(self.style.ERROR("\n✗ Database connection failed!\n"))
 
         self.stdout.write(self.style.HTTP_INFO("Error Details:"))
-        error = status.get('error', 'Unknown error')
         self.stdout.write(self.style.ERROR(f"  {error}"))
 
         self.stdout.write(self.style.HTTP_INFO("\nConnection Configuration:"))
@@ -158,12 +201,8 @@ class Command(BaseCommand):
         self.stdout.write("  1. Ensure PostgreSQL is running")
         self.stdout.write("  2. Check database connection settings in .env file")
         self.stdout.write("  3. Verify database exists: createdb backend_db")
-        self.stdout.write(
-            "  4. Verify user credentials: psql -U postgres -h localhost"
-        )
-        self.stdout.write(
-            "  5. Check firewall settings if using remote database"
-        )
+        self.stdout.write("  4. Verify user credentials: psql -U postgres -h localhost")
+        self.stdout.write("  5. Check firewall settings if using remote database")
         self.stdout.write("")
 
 
@@ -185,8 +224,8 @@ class DatabaseReadyCheck:
         checker = DatabaseHealthCheck()
         result = checker.check()
 
-        if result['status'] != 'healthy':
-            error = result.get('error', 'Unknown error')
+        if result["status"] != "healthy":
+            error = result.get("error", "Unknown error")
             print(
                 f"\n{'=' * 60}\n"
                 f"⚠️  WARNING: Database connection failed!\n"
@@ -197,7 +236,7 @@ class DatabaseReadyCheck:
                 f"\nTo diagnose the issue, run:\n"
                 f"  python manage.py check_database\n"
                 f"{'=' * 60}\n",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return False
 
@@ -214,8 +253,8 @@ class DatabaseReadyCheck:
         checker = DatabaseHealthCheck()
         result = checker.check()
 
-        if result['status'] != 'healthy':
-            error = result.get('error', 'Unknown error')
+        if result["status"] != "healthy":
+            error = result.get("error", "Unknown error")
             print(
                 f"\n{'=' * 60}\n"
                 f"❌ FATAL: Database connection failed!\n"
@@ -225,13 +264,11 @@ class DatabaseReadyCheck:
                 f"\nTo diagnose the issue, run:\n"
                 f"  python manage.py check_database\n"
                 f"{'=' * 60}\n",
-                file=sys.stderr
+                file=sys.stderr,
             )
             sys.exit(1)
 
         # Success - print confirmation
-        response_time = result.get('response_time_ms', 'N/A')
-        db_name = result['connection_info'].get('name', 'unknown')
-        print(
-            f"✓ Database connected: {db_name} ({response_time}ms)"
-        )
+        response_time = result.get("response_time_ms", "N/A")
+        db_name = result["connection_info"].get("name", "unknown")
+        print(f"✓ Database connected: {db_name} ({response_time}ms)")

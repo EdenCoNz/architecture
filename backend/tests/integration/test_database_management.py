@@ -5,11 +5,13 @@ Tests the full database connectivity stack including Django management
 commands and graceful degradation.
 """
 
-import pytest
 from io import StringIO
+from unittest.mock import patch
+
+import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from unittest.mock import patch
+
 from apps.core.management.commands.check_database import DatabaseReadyCheck
 
 
@@ -21,28 +23,28 @@ class TestCheckDatabaseCommand:
     def test_command_success_with_database_available(self):
         """Test command succeeds when database is available."""
         out = StringIO()
-        call_command('check_database', stdout=out)
+        call_command("check_database", stdout=out)
 
         output = out.getvalue()
-        assert '✓ Database connection successful' in output
-        assert 'Connection Details:' in output
-        assert 'Database:' in output
-        assert 'Host:' in output
+        assert "✓ Database connection successful" in output
+        assert "Connection Details:" in output
+        assert "Database:" in output
+        assert "Host:" in output
 
     def test_command_displays_connection_details(self):
         """Test command displays detailed connection information."""
         out = StringIO()
-        call_command('check_database', stdout=out)
+        call_command("check_database", stdout=out)
 
         output = out.getvalue()
         # Should show database details
-        assert 'backend_db' in output or 'Database:' in output
-        assert 'localhost' in output or 'Host:' in output
+        assert "backend_db" in output or "Database:" in output
+        assert "localhost" in output or "Host:" in output
         # Should show performance metrics
-        assert 'ms' in output  # Response time
+        assert "ms" in output  # Response time
         # Should show configuration
-        assert 'Connection Pooling' in output
-        assert 'Atomic Requests' in output
+        assert "Connection Pooling" in output
+        assert "Atomic Requests" in output
 
     def test_command_failure_without_database(self):
         """Test command fails gracefully when database is unavailable."""
@@ -50,34 +52,46 @@ class TestCheckDatabaseCommand:
         err = StringIO()
 
         # Mock database connection failure
-        with patch('apps.core.database.connections') as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+        with patch("apps.core.database.connections") as mock_conn:
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Connection refused")
 
             with pytest.raises(CommandError):
-                call_command('check_database', stdout=out, stderr=err)
+                call_command("check_database", stdout=out, stderr=err)
 
             output = out.getvalue()
-            assert '✗ Database connection failed' in output
-            assert 'Troubleshooting:' in output
+            assert "✗ Database connection failed" in output
+            assert "Troubleshooting:" in output
 
     def test_command_shows_troubleshooting_on_failure(self):
         """Test command shows helpful troubleshooting steps on failure."""
         out = StringIO()
 
-        with patch('apps.core.database.connections') as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+        with patch("apps.core.database.connections") as mock_conn:
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Database does not exist")
 
             try:
-                call_command('check_database', stdout=out)
+                call_command("check_database", stdout=out)
             except CommandError:
                 pass
 
             output = out.getvalue()
-            assert 'Troubleshooting:' in output
-            assert 'PostgreSQL is running' in output
-            assert 'createdb' in output or 'database' in output.lower()
+            assert "Troubleshooting:" in output
+            assert "PostgreSQL is running" in output
+            assert "createdb" in output or "database" in output.lower()
 
 
 @pytest.mark.integration
@@ -93,12 +107,18 @@ class TestDatabaseReadyCheck:
 
         # Should not print warnings on success
         captured = capsys.readouterr()
-        assert 'WARNING' not in captured.err
+        assert "WARNING" not in captured.err
 
     def test_check_and_warn_failure(self, capsys):
         """Test check_and_warn returns False and prints warning on failure."""
-        with patch('apps.core.database.connections') as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+        with patch("apps.core.database.connections") as mock_conn:
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Connection refused")
 
             result = DatabaseReadyCheck.check_and_warn()
@@ -107,9 +127,9 @@ class TestDatabaseReadyCheck:
 
             # Should print warning to stderr
             captured = capsys.readouterr()
-            assert 'WARNING' in captured.err
-            assert 'Database connection failed' in captured.err
-            assert 'check_database' in captured.err
+            assert "WARNING" in captured.err
+            assert "Database connection failed" in captured.err
+            assert "check_database" in captured.err
 
     @pytest.mark.django_db
     def test_ensure_or_fail_success(self, capsys):
@@ -118,12 +138,18 @@ class TestDatabaseReadyCheck:
         DatabaseReadyCheck.ensure_or_fail()
 
         captured = capsys.readouterr()
-        assert '✓ Database connected' in captured.out
+        assert "✓ Database connected" in captured.out
 
     def test_ensure_or_fail_exits_on_failure(self, capsys):
         """Test ensure_or_fail exits application on database failure."""
-        with patch('apps.core.database.connections') as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+        with patch("apps.core.database.connections") as mock_conn:
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Connection refused")
 
             with pytest.raises(SystemExit) as exc_info:
@@ -132,8 +158,8 @@ class TestDatabaseReadyCheck:
             assert exc_info.value.code == 1
 
             captured = capsys.readouterr()
-            assert 'FATAL' in captured.err
-            assert 'Database connection failed' in captured.err
+            assert "FATAL" in captured.err
+            assert "Database connection failed" in captured.err
 
 
 @pytest.mark.integration
@@ -145,18 +171,17 @@ class TestDatabaseConfiguration:
         """Test that PostgreSQL is configured as the database engine."""
         from django.conf import settings
 
-        assert settings.DATABASES['default']['ENGINE'] == \
-            'django.db.backends.postgresql'
+        assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
 
     def test_connection_pooling_configuration(self):
         """Test connection pooling is properly configured."""
         from django.conf import settings
 
-        db_settings = settings.DATABASES['default']
+        db_settings = settings.DATABASES["default"]
 
         # Should have connection pooling enabled
-        assert db_settings['CONN_MAX_AGE'] == 600
-        assert db_settings['ATOMIC_REQUESTS'] is True
+        assert db_settings["CONN_MAX_AGE"] == 600
+        assert db_settings["ATOMIC_REQUESTS"] is True
 
     def test_database_can_execute_queries(self):
         """Test that database can execute SQL queries."""
@@ -169,7 +194,7 @@ class TestDatabaseConfiguration:
 
             # Should return PostgreSQL version
             assert result is not None
-            assert 'PostgreSQL' in result[0]
+            assert "PostgreSQL" in result[0]
 
     def test_transaction_support(self):
         """Test that database supports transactions."""
@@ -198,11 +223,12 @@ class TestDatabaseMigrations:
     def test_migrations_can_be_checked(self):
         """Test that Django can check migration status."""
         from io import StringIO
+
         from django.core.management import call_command
 
         out = StringIO()
         # This should not raise an error
-        call_command('showmigrations', stdout=out)
+        call_command("showmigrations", stdout=out)
 
         output = out.getvalue()
         # Should show migration status (even if no migrations yet)
@@ -214,11 +240,13 @@ class TestDatabaseMigrations:
 
         # Should be able to get table names
         with connection.cursor() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-            """)
+            """
+            )
             tables = cursor.fetchall()
 
             # May or may not have tables, but query should work

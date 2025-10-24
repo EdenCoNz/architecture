@@ -7,8 +7,8 @@
       "createdAt": "2025-10-15T00:00:00Z",
       "userStoriesCreated": "2025-10-15T00:00:00Z",
       "userStoriesImplemented": "2025-10-15T19:45:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "totalStories": 10,
       "completedStories": 10,
       "assignedAgents": [
@@ -34,8 +34,8 @@
       "createdAt": "2025-10-20T00:00:00Z",
       "userStoriesCreated": "2025-10-20T00:00:00Z",
       "userStoriesImplemented": "2025-10-20T23:25:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": []
     },
     {
@@ -44,8 +44,8 @@
       "createdAt": "2025-10-20T23:30:00Z",
       "userStoriesCreated": "2025-10-20T23:30:00Z",
       "userStoriesImplemented": "2025-10-20T12:15:45Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": []
     },
     {
@@ -54,8 +54,8 @@
       "createdAt": "2025-10-21T00:00:00Z",
       "userStoriesCreated": "2025-10-21T00:00:00Z",
       "userStoriesImplemented": "2025-10-21T10:45:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": []
     },
     {
@@ -64,8 +64,8 @@
       "createdAt": "2025-10-21T00:00:00Z",
       "userStoriesCreated": "2025-10-21T00:00:00Z",
       "userStoriesImplemented": "2025-10-21T15:35:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": [
         {
           "actionType": "design",
@@ -110,7 +110,9 @@
           "implementationLog": "docs/features/5/implementation-log.json",
           "userStoriesPath": "docs/features/5/fix-117-user-stories.md",
           "totalStories": 1,
-          "assignedAgents": ["frontend-developer"],
+          "assignedAgents": [
+            "frontend-developer"
+          ],
           "description": "Fix JSX syntax error in App.tsx - BrowserRouter tag mismatch"
         },
         {
@@ -121,7 +123,9 @@
           "implementationLog": "docs/features/5/implementation-log.json",
           "userStoriesPath": "docs/features/5/issues/122/user-stories.md",
           "totalStories": 1,
-          "assignedAgents": ["frontend-developer"],
+          "assignedAgents": [
+            "frontend-developer"
+          ],
           "description": "Fix TypeScript build error - BrowserRouter JSX tag typo"
         },
         {
@@ -132,7 +136,9 @@
           "implementationLog": "docs/features/5/implementation-log.json",
           "userStoriesPath": "docs/features/5/issues/126/user-stories.md",
           "totalStories": 1,
-          "assignedAgents": ["frontend-developer"],
+          "assignedAgents": [
+            "frontend-developer"
+          ],
           "description": "Fix TypeScript build error - Box component JSX tag typo (Boxees)"
         },
         {
@@ -143,7 +149,9 @@
           "implementationLog": "docs/features/5/implementation-log.json",
           "userStoriesPath": "docs/features/5/issues/130/user-stories.md",
           "totalStories": 1,
-          "assignedAgents": ["frontend-developer"],
+          "assignedAgents": [
+            "frontend-developer"
+          ],
           "description": "Fix JSX parsing error - Box component JSX tag typo (Boxsas)"
         }
       ]
@@ -155,8 +163,8 @@
       "createdAt": "2025-10-22T00:00:00Z",
       "userStoriesCreated": "2025-10-22T00:00:00Z",
       "userStoriesImplemented": "2025-10-22T11:00:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "totalStories": 7,
       "completedStories": 7,
       "assignedAgents": [
@@ -194,7 +202,9 @@
           "implementationLog": "docs/features/6/implementation-log.json",
           "userStoriesPath": "docs/features/6/issues/138/user-stories.md",
           "totalStories": 5,
-          "assignedAgents": ["frontend-developer"],
+          "assignedAgents": [
+            "frontend-developer"
+          ],
           "description": "Fix ESLint errors in dark mode feature - duplicate imports, formatting, and type safety"
         }
       ]
@@ -206,8 +216,8 @@
       "createdAt": "2025-10-23T00:00:00Z",
       "userStoriesCreated": "2025-10-23T00:00:00Z",
       "userStoriesImplemented": "2025-10-23T14:30:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "totalStories": 14,
       "completedStories": 14,
       "assignedAgents": [
@@ -225,6 +235,215 @@
           "timestamp": "2025-10-23T14:30:00Z",
           "status": "completed",
           "implementationLog": "docs/features/7/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 146,
+          "timestamp": "2025-10-23T20:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/146/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD dependency conflict between flake8>=7.0 and flake8-django 1.4"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 147,
+          "timestamp": "2025-10-23T21:15:34Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/147/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "devops-engineer"
+          ],
+          "description": "Verify Security Audit workflow success after flake8-django removal (same root cause as #146)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 156,
+          "timestamp": "2025-10-23T08:37:26Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/156/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer",
+            "devops-engineer"
+          ],
+          "description": "Fix CI/CD pipeline failures - syntax error in authentication code, missing SECRET_KEY configuration, and test collection errors"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 157,
+          "timestamp": "2025-10-23T08:50:42Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/157/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix Frontend CI/CD failures - JSX syntax error in App.tsx (BrowserRoutewr typo)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 158,
+          "timestamp": "2025-10-23T22:20:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/158/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD failures - mypy type errors, Black formatting issues, and missing startup script tests"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 160,
+          "timestamp": "2025-10-24T00:00:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/160/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD dependency resolution failure - django-stubs and djangorestframework-stubs version conflicts"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 161,
+          "timestamp": "2025-10-24T00:00:00Z",
+          "status": "planned",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/161/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD failures - test framework configuration error (426 tests blocked), code quality violations (50+ linting issues), and missing type annotations (53 type errors)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 162,
+          "timestamp": "2025-10-23T17:43:03.388527Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/162/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD pipeline failures - 174 test failures (database, authentication, security), code formatting violations (Black), and type checking errors (47 mypy errors)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 163,
+          "timestamp": "2025-10-24T00:14:11Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/163/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD pipeline failures - mypy type checking errors and test suite failures"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 164,
+          "timestamp": "2025-10-24T00:37:37Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/164/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD pipeline failures - type checking error in user serializer and API documentation test failures"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 165,
+          "timestamp": "2025-10-24T01:01:52.598135+00:00",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/165/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD test failures - database configuration (PostgreSQL vs SQLite), test data seeding, rate limiting, and management command issues (29 test failures)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 166,
+          "timestamp": "2025-10-24T14:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/166/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD test failures - configuration validation, database connection testing, example test patterns, and management command output (11 test failures)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 167,
+          "timestamp": "2025-10-24T15:45:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/issues/167/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/167/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD test failures - database connection closure/reopening and test database name configuration (2 test failures)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 168,
+          "timestamp": "2025-10-24T21:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/issues/168/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/168/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD test failure - database connection lifecycle management (1 test failure) and deprecation warnings cleanup (313 warnings)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 169,
+          "timestamp": "2025-10-24T16:25:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/issues/169/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/169/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "devops-engineer"
+          ],
+          "description": "Fix Backend CI/CD build failure - missing log directory preventing application initialization"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 170,
+          "timestamp": "2025-10-24T03:40:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/7/issues/170/implementation-log.json",
+          "userStoriesPath": "docs/features/7/issues/170/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD build failure - unconditional import of development-only debug_toolbar package in production"
         }
       ]
     }

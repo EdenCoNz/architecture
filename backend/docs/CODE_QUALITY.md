@@ -85,7 +85,7 @@ multi_line_output = 3
 **Key Features**:
 - Max line length: 100 characters
 - Max complexity: 10 (warns about overly complex functions)
-- Plugins: flake8-django, flake8-bugbear
+- Plugins: flake8-bugbear
 - Ignores: E203, W503 (Black compatibility)
 
 **What It Catches**:
@@ -94,7 +94,7 @@ multi_line_output = 3
 - Syntax errors
 - Style violations
 - Complexity issues
-- Django-specific anti-patterns
+- Common bug patterns (via flake8-bugbear)
 
 **Configuration**: `.flake8`
 

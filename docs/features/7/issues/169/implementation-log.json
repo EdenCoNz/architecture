@@ -1,0 +1,67 @@
+[
+  {
+    "story_number": 1,
+    "story_title": "Ensure Log Directory Exists Before Application Starts",
+    "timestamp": "2025-10-24T16:25:00Z",
+    "status": "completed",
+    "files_created": [
+      "backend/logs/.gitkeep"
+    ],
+    "files_modified": [
+      "backend/config/__init__.py"
+    ],
+    "actions_taken": [
+      {
+        "action": "Created .gitkeep file in backend/logs directory",
+        "details": "This ensures the logs directory is tracked in git and exists when the repository is cloned in CI/CD environments"
+      },
+      {
+        "action": "Updated backend/config/__init__.py to create logs directory on Django initialization",
+        "details": "Added code to create the logs directory using pathlib.Path.mkdir(parents=True, exist_ok=True) before Django initializes the logging configuration. This ensures the directory exists before the RotatingFileHandler attempts to write log files."
+      },
+      {
+        "action": "Tested the solution locally",
+        "details": "Verified that:\n1. The logs directory is created automatically when config module is imported\n2. The collectstatic command completes successfully without FileNotFoundError\n3. Log files are created properly in the logs directory\n4. The solution is idempotent and safe to run multiple times"
+      }
+    ],
+    "implementation_details": {
+      "approach": "Application-level directory creation in config/__init__.py",
+      "rationale": "This ensures the logs directory exists before Django loads the LOGGING configuration in settings/base.py. The code runs during Django initialization and is idempotent, making it safe across all environments (development, testing, CI/CD, production).",
+      "key_changes": [
+        "Added pathlib.Path import to config/__init__.py",
+        "Calculated BASE_DIR and LOGS_DIR paths",
+        "Used LOGS_DIR.mkdir(parents=True, exist_ok=True) to create directory",
+        "Added .gitkeep file to ensure directory is tracked in version control"
+      ]
+    },
+    "acceptance_criteria_verification": {
+      "criteria_1": {
+        "description": "Given the application is starting in a clean environment, when the logging system initializes, then the logs directory should exist automatically",
+        "status": "PASSED",
+        "evidence": "Tested by removing logs directory and running collectstatic command. Directory was created automatically before logging initialization."
+      },
+      "criteria_2": {
+        "description": "Given the logs directory already exists, when the application starts, then the existing directory should be preserved and reused",
+        "status": "PASSED",
+        "evidence": "Using mkdir(exist_ok=True) ensures no error is raised if directory already exists. Verified by running collectstatic multiple times."
+      },
+      "criteria_3": {
+        "description": "Given the application runs the collectstatic command in CI/CD, when Django initializes the logging configuration, then the build should complete successfully without FileNotFoundError",
+        "status": "PASSED",
+        "evidence": "Simulated CI/CD environment by removing logs directory and running 'python manage.py collectstatic --noinput'. Command completed successfully with log files created."
+      },
+      "criteria_4": {
+        "description": "Given the application is deployed to any environment, when log files need to be written, then the files should be created successfully in the logs directory",
+        "status": "PASSED",
+        "evidence": "Verified that all log files (errors.log, exceptions.log, general.log, requests.log) were created successfully during collectstatic execution."
+      }
+    },
+    "issues_encountered": [],
+    "notes": [
+      "The solution uses pathlib.Path for cross-platform compatibility",
+      "The mkdir() call with parents=True and exist_ok=True makes the operation idempotent",
+      "The .gitkeep file ensures the directory structure is preserved in version control",
+      "This approach works across all environments without requiring changes to CI/CD workflows or Docker configurations"
+    ]
+  }
+]

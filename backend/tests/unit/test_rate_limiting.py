@@ -9,11 +9,12 @@ Tests verify that:
 """
 
 import pytest
-from django.test import RequestFactory, override_settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from apps.users.views import UserLoginView, UserRegistrationView
+from django.test import RequestFactory, override_settings
 from rest_framework.test import APIClient
+
+from apps.users.views import UserLoginView, UserRegistrationView
 
 User = get_user_model()
 
@@ -23,8 +24,11 @@ class TestRateLimiting:
     """Test rate limiting functionality."""
 
     @pytest.fixture(autouse=True)
-    def setup(self):
+    def setup(self, settings):
         """Set up test fixtures."""
+        # Enable rate limiting for these tests
+        settings.RATELIMIT_ENABLE = True
+
         self.client = APIClient()
         self.factory = RequestFactory()
         # Clear cache before each test
@@ -33,30 +37,23 @@ class TestRateLimiting:
     @pytest.fixture
     def test_user(self):
         """Create a test user."""
-        return User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
+        return User.objects.create_user(email="test@example.com", password="testpass123")
 
     def test_login_rate_limit_anonymous(self):
         """Test rate limiting on login endpoint for anonymous users."""
         # Make multiple login attempts
-        login_data = {
-            'username': 'testuser',
-            'password': 'wrongpass'
-        }
+        login_data = {"email": "testuser@example.com", "password": "wrongpass"}
 
         # Should allow first few requests
         for i in range(5):
-            response = self.client.post('/api/v1/auth/login/', login_data)
+            response = self.client.post("/api/v1/auth/login/", login_data)
             # Should get 400 (bad credentials) not 429 (rate limited)
             assert response.status_code in [400, 401, 429]
 
         # After many requests, should get rate limited
         responses = []
         for i in range(20):
-            response = self.client.post('/api/v1/auth/login/', login_data)
+            response = self.client.post("/api/v1/auth/login/", login_data)
             responses.append(response.status_code)
 
         # At least one should be rate limited
@@ -64,10 +61,9 @@ class TestRateLimiting:
 
     def test_rate_limit_headers_present(self):
         """Test that rate limit headers are present in responses."""
-        response = self.client.post('/api/v1/auth/login/', {
-            'username': 'test',
-            'password': 'test'
-        })
+        response = self.client.post(
+            "/api/v1/auth/login/", {"email": "test@example.com", "password": "test"}
+        )
 
         # Check for common rate limit headers
         # X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
@@ -78,20 +74,18 @@ class TestRateLimiting:
     def test_registration_rate_limit(self):
         """Test rate limiting on registration endpoint."""
         registration_data = {
-            'username': 'newuser',
-            'email': 'new@example.com',
-            'password': 'newpass123',
-            'password2': 'newpass123'
+            "email": "new@example.com",
+            "password": "newpass123",
+            "password2": "newpass123",
         }
 
         # Make many registration attempts
         responses = []
         for i in range(15):
             # Change email to avoid unique constraint
-            registration_data['email'] = f'user{i}@example.com'
-            registration_data['username'] = f'user{i}'
+            registration_data["email"] = f"user{i}@example.com"
 
-            response = self.client.post('/api/v1/auth/register/', registration_data)
+            response = self.client.post("/api/v1/auth/register/", registration_data)
             responses.append(response.status_code)
 
         # Should eventually get rate limited
@@ -106,7 +100,7 @@ class TestRateLimiting:
         # Make many requests to a protected endpoint
         responses = []
         for i in range(50):
-            response = self.client.get('/api/v1/auth/me/')
+            response = self.client.get("/api/v1/auth/me/")
             responses.append(response.status_code)
 
         # Should not be rate limited as easily as anonymous users
@@ -117,14 +111,12 @@ class TestRateLimiting:
         """Test rate limiting is applied per IP address."""
         # This test verifies IP-based rate limiting
         # Multiple requests from same IP should be rate limited
-        login_data = {'username': 'test', 'password': 'test'}
+        login_data = {"email": "test@example.com", "password": "test"}
 
         responses = []
         for i in range(25):
             response = self.client.post(
-                '/api/v1/auth/login/',
-                login_data,
-                REMOTE_ADDR='192.168.1.1'
+                "/api/v1/auth/login/", login_data, REMOTE_ADDR="192.168.1.1"
             )
             responses.append(response.status_code)
 
@@ -135,11 +127,11 @@ class TestRateLimiting:
         """Test that rate limits reset after the time window."""
         # This test would need to manipulate time or wait
         # For now, verify the concept exists
-        login_data = {'username': 'test', 'password': 'test'}
+        login_data = {"email": "test@example.com", "password": "test"}
 
         # Make requests until rate limited
         for i in range(30):
-            response = self.client.post('/api/v1/auth/login/', login_data)
+            response = self.client.post("/api/v1/auth/login/", login_data)
             if response.status_code == 429:
                 break
 
@@ -152,22 +144,23 @@ class TestRateLimiting:
         # Login endpoint might have stricter limits
         login_responses = []
         for i in range(20):
-            response = self.client.post('/api/v1/auth/login/', {
-                'username': 'test',
-                'password': 'test'
-            })
+            response = self.client.post(
+                "/api/v1/auth/login/", {"email": "test@example.com", "password": "test"}
+            )
             login_responses.append(response.status_code)
 
         # Registration endpoint might have different limits
         cache.clear()  # Clear to reset limits
         reg_responses = []
         for i in range(20):
-            response = self.client.post('/api/v1/auth/register/', {
-                'username': f'user{i}',
-                'email': f'user{i}@example.com',
-                'password': 'test123',
-                'password2': 'test123'
-            })
+            response = self.client.post(
+                "/api/v1/auth/register/",
+                {
+                    "email": f"user{i}@example.com",
+                    "password": "test123",
+                    "password2": "test123",
+                },
+            )
             reg_responses.append(response.status_code)
 
         # Both should work independently
@@ -176,21 +169,22 @@ class TestRateLimiting:
 
     def test_rate_limit_message_is_clear(self):
         """Test that rate limit error messages are clear and helpful."""
-        login_data = {'username': 'test', 'password': 'test'}
+        login_data = {"email": "test@example.com", "password": "test"}
 
         # Make many requests to trigger rate limit
         response = None
         for i in range(30):
-            response = self.client.post('/api/v1/auth/login/', login_data)
+            response = self.client.post("/api/v1/auth/login/", login_data)
             if response.status_code == 429:
                 break
 
         if response and response.status_code == 429:
             # Check response has helpful message
-            assert response.data is not None
+            response_data = response.json() if hasattr(response, "json") else {}
+            assert response_data is not None
             # Should contain information about rate limiting
-            response_str = str(response.data).lower()
-            assert 'rate' in response_str or 'limit' in response_str or 'too many' in response_str
+            response_str = str(response_data).lower()
+            assert "rate" in response_str or "limit" in response_str or "too many" in response_str
 
 
 @pytest.mark.django_db
@@ -204,7 +198,7 @@ class TestRateLimitConfiguration:
 
         # Check that key endpoints have rate limiting
         try:
-            login_view = resolve('/api/v1/auth/login/')
+            login_view = resolve("/api/v1/auth/login/")
             # Should have ratelimit decorator or be configured
             assert login_view is not None
         except Resolver404:
@@ -216,8 +210,8 @@ class TestRateLimitConfiguration:
         from django.conf import settings
 
         # Should have cache configured
-        assert hasattr(settings, 'CACHES')
-        assert 'default' in settings.CACHES
+        assert hasattr(settings, "CACHES")
+        assert "default" in settings.CACHES
 
     @override_settings(RATELIMIT_ENABLE=False)
     def test_rate_limiting_can_be_disabled(self):
@@ -225,4 +219,5 @@ class TestRateLimitConfiguration:
         # When disabled, should not rate limit
         # This is useful for testing environments
         from django.conf import settings
+
         assert settings.RATELIMIT_ENABLE is False

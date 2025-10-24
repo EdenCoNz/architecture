@@ -40,11 +40,11 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
         "example": "your-secret-key-here-generate-using-python-secrets",
         "validation": lambda v, env: (
             len(v) >= 50 if env == "production" else len(v) > 0,
-            "SECRET_KEY must be at least 50 characters in production",
+            ("SECRET_KEY must be at least 50 characters in " "production"),
         ),
         "production_validation": lambda v: (
             "django-insecure" not in v.lower(),
-            "SECRET_KEY cannot contain 'django-insecure' in production",
+            ("SECRET_KEY cannot contain 'django-insecure' in " "production"),
         ),
     },
     "DEBUG": {
@@ -96,7 +96,7 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
         "example": "5432",
         "validation": lambda v, env: (
             v.isdigit() and 1 <= int(v) <= 65535,
-            "DB_PORT must be a valid port number (1-65535)",
+            ("DB_PORT must be a valid integer port number (1-65535)"),
         ),
     },
     # Redis Settings
@@ -141,7 +141,7 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
         "example": "587",
         "validation": lambda v, env: (
             v.isdigit() and 1 <= int(v) <= 65535,
-            "EMAIL_PORT must be a valid port number (1-65535)",
+            ("EMAIL_PORT must be a valid integer port number (1-65535)"),
         ),
     },
     "EMAIL_HOST_USER": {
@@ -165,13 +165,13 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
     },
     # Logging Settings
     "LOG_LEVEL": {
-        "description": "Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        "description": ("Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"),
         "required": False,
         "default": "INFO",
         "example": "INFO",
         "validation": lambda v, env: (
             v.upper() in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            "LOG_LEVEL must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL",
+            ("LOG_LEVEL must be one of: DEBUG, INFO, WARNING, ERROR, " "CRITICAL"),
         ),
     },
     # JWT Settings
@@ -182,7 +182,7 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
         "example": "15",
         "validation": lambda v, env: (
             v.isdigit() and int(v) > 0,
-            "JWT_ACCESS_TOKEN_LIFETIME_MINUTES must be a positive integer",
+            ("JWT_ACCESS_TOKEN_LIFETIME_MINUTES must be a positive " "integer"),
         ),
     },
     "JWT_REFRESH_TOKEN_LIFETIME_DAYS": {
@@ -192,7 +192,7 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
         "example": "7",
         "validation": lambda v, env: (
             v.isdigit() and int(v) > 0,
-            "JWT_REFRESH_TOKEN_LIFETIME_DAYS must be a positive integer",
+            ("JWT_REFRESH_TOKEN_LIFETIME_DAYS must be a positive " "integer"),
         ),
     },
     # Security Settings (Production)
@@ -225,13 +225,13 @@ def get_environment() -> str:
         Environment name: 'development', 'production', or 'testing'
 
     Examples:
-        >>> os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings.production'
+        >>> os.environ['DJANGO_SETTINGS_MODULE'] = (
+        ...     'config.settings.production'
+        ... )
         >>> get_environment()
         'production'
     """
-    settings_module = os.environ.get(
-        "DJANGO_SETTINGS_MODULE", "config.settings.development"
-    )
+    settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "config.settings.development")
 
     if "production" in settings_module:
         return "production"
@@ -243,7 +243,7 @@ def get_environment() -> str:
 
 def get_config(
     key: str,
-    default: Optional[Any] = None,
+    default: Union[str, T, None] = None,
     cast: Optional[Callable[[str], T]] = None,
     required: bool = False,
 ) -> Union[str, T, None]:
@@ -268,16 +268,25 @@ def get_config(
         >>> get_config('DEBUG', default=False, cast=bool)
         True
     """
+    # Check if required variable is missing
+    if required and key not in os.environ:
+        raise ConfigurationError(
+            f"Required configuration variable '{key}' is not set. "
+            f"Please set it in your .env file or environment variables."
+        )
+
     try:
         if cast:
-            return config(key, default=default, cast=cast)  # type: ignore
-        return config(key, default=default)
+            result: T = config(key, default=default, cast=cast)
+            return result
+        value: str = config(key, default=default)
+        return value
     except Exception as e:
         if required:
             raise ConfigurationError(
                 f"Required configuration variable '{key}' is not set. "
-                f"Please set it in your .env file or environment variables. "
-                f"Error: {str(e)}"
+                f"Please set it in your .env file or environment "
+                f"variables. Error: {str(e)}"
             ) from e
         if default is not None:
             return default
@@ -359,9 +368,7 @@ def validate_configuration(environment: Optional[str] = None) -> None:
 
     # Build error message if there are issues
     if missing_vars or invalid_vars:
-        error_parts = [
-            f"\nConfiguration validation failed for '{environment}' environment:\n"
-        ]
+        error_parts = [f"\nConfiguration validation failed for '{environment}' " f"environment:\n"]
 
         if missing_vars:
             error_parts.append("Missing required configuration variables:")
@@ -379,11 +386,9 @@ def validate_configuration(environment: Optional[str] = None) -> None:
                 error_parts.append(f"  - {var}: {message}")
 
         error_parts.append(
-            "\nPlease update your .env file or environment variables and try again."
+            "\nPlease update your .env file or environment variables " "and try again."
         )
-        error_parts.append(
-            "See docs/CONFIGURATION.md for detailed configuration documentation."
-        )
+        error_parts.append("See docs/CONFIGURATION.md for detailed configuration " "documentation.")
 
         raise ConfigurationError("\n".join(error_parts))
 
@@ -459,7 +464,10 @@ def check_configuration_on_startup() -> None:
 
     try:
         validate_configuration(environment)
-        print(f"✓ Configuration validation passed for '{environment}' environment\n")
+        print(f"✓ Configuration validation passed for '{environment}' " f"environment\n")
     except ConfigurationError as e:
-        print(f"\n✗ Configuration validation failed:\n{str(e)}\n", file=sys.stderr)
+        print(
+            f"\n✗ Configuration validation failed:\n{str(e)}\n",
+            file=sys.stderr,
+        )
         sys.exit(1)

@@ -13,9 +13,10 @@ done in a real environment due to subprocess complexity.
 """
 
 import os
-import pytest
 import subprocess
 from pathlib import Path
+
+import pytest
 
 
 @pytest.mark.acceptance
@@ -26,7 +27,7 @@ class TestStory13StartupScripts:
     def setup(self):
         """Setup test fixtures."""
         self.backend_root = Path(__file__).parent.parent.parent
-        self.scripts_dir = self.backend_root / 'scripts'
+        self.scripts_dir = self.backend_root / "scripts"
 
     def test_dev_script_exists_and_executable(self):
         """
@@ -36,7 +37,7 @@ class TestStory13StartupScripts:
         Verification: Check dev.sh exists, is executable, and contains
         runserver command (which enables hot reload by default).
         """
-        dev_script = self.scripts_dir / 'dev.sh'
+        dev_script = self.scripts_dir / "dev.sh"
 
         # Script exists
         assert dev_script.exists(), "dev.sh script does not exist"
@@ -46,15 +47,14 @@ class TestStory13StartupScripts:
 
         # Script contains runserver command
         content = dev_script.read_text()
-        assert 'runserver' in content, "dev.sh does not contain runserver command"
+        assert "runserver" in content, "dev.sh does not contain runserver command"
 
         # Script does NOT disable hot reload
-        assert '--noreload' not in content, \
-            "dev.sh should not disable hot reload"
+        assert "--noreload" not in content, "dev.sh should not disable hot reload"
 
         # Script has proper configuration
-        assert 'HOST=' in content or 'host' in content.lower()
-        assert 'PORT=' in content or 'port' in content.lower()
+        assert "HOST=" in content or "host" in content.lower()
+        assert "PORT=" in content or "port" in content.lower()
 
     def test_dev_script_has_hot_reload_documentation(self):
         """
@@ -63,19 +63,17 @@ class TestStory13StartupScripts:
 
         Verification: Check that dev.sh documents hot reload feature.
         """
-        dev_script = self.scripts_dir / 'dev.sh'
+        dev_script = self.scripts_dir / "dev.sh"
         content = dev_script.read_text()
 
         # Documentation mentions hot reload
-        assert any(keyword in content.lower() for keyword in [
-            'hot reload',
-            'auto reload',
-            'automatically restart',
-            'code changes'
-        ]), "dev.sh does not document hot reload feature"
+        assert any(
+            keyword in content.lower()
+            for keyword in ["hot reload", "auto reload", "automatically restart", "code changes"]
+        ), "dev.sh does not document hot reload feature"
 
         # Should inform user about hot reload being enabled
-        assert 'ENABLED' in content or 'enabled' in content.lower()
+        assert "ENABLED" in content or "enabled" in content.lower()
 
     def test_prod_script_exists_and_executable(self):
         """
@@ -84,7 +82,7 @@ class TestStory13StartupScripts:
 
         Verification: Check prod.sh exists, is executable, and uses Gunicorn.
         """
-        prod_script = self.scripts_dir / 'prod.sh'
+        prod_script = self.scripts_dir / "prod.sh"
 
         # Script exists
         assert prod_script.exists(), "prod.sh script does not exist"
@@ -94,16 +92,12 @@ class TestStory13StartupScripts:
 
         # Script uses Gunicorn (production WSGI server)
         content = prod_script.read_text()
-        assert 'gunicorn' in content.lower(), \
-            "prod.sh should use Gunicorn for production"
+        assert "gunicorn" in content.lower(), "prod.sh should use Gunicorn for production"
 
         # Script has production checks
-        assert any(check in content.lower() for check in [
-            'production',
-            'readiness',
-            'check',
-            'deploy'
-        ]), "prod.sh should have production readiness checks"
+        assert any(
+            check in content.lower() for check in ["production", "readiness", "check", "deploy"]
+        ), "prod.sh should have production readiness checks"
 
     def test_prod_script_has_production_optimizations(self):
         """
@@ -111,27 +105,24 @@ class TestStory13StartupScripts:
 
         Verification: Check prod.sh has production configurations.
         """
-        prod_script = self.scripts_dir / 'prod.sh'
+        prod_script = self.scripts_dir / "prod.sh"
         content = prod_script.read_text()
 
         # Uses production settings module
-        assert 'production' in content.lower(), \
-            "prod.sh should use production settings"
+        assert "production" in content.lower(), "prod.sh should use production settings"
 
         # Has worker configuration
-        assert 'workers' in content.lower() or 'worker' in content.lower(), \
-            "prod.sh should configure workers"
+        assert (
+            "workers" in content.lower() or "worker" in content.lower()
+        ), "prod.sh should configure workers"
 
         # Has timeout configuration
-        assert 'timeout' in content.lower(), \
-            "prod.sh should configure timeout"
+        assert "timeout" in content.lower(), "prod.sh should configure timeout"
 
         # Has security checks
-        assert any(check in content.lower() for check in [
-            'secret_key',
-            'debug',
-            'allowed_hosts'
-        ]), "prod.sh should verify security settings"
+        assert any(
+            check in content.lower() for check in ["secret_key", "debug", "allowed_hosts"]
+        ), "prod.sh should verify security settings"
 
     def test_prod_script_disables_hot_reload(self):
         """
@@ -139,19 +130,18 @@ class TestStory13StartupScripts:
 
         Verification: Check prod.sh does not use runserver (dev server).
         """
-        prod_script = self.scripts_dir / 'prod.sh'
+        prod_script = self.scripts_dir / "prod.sh"
         content = prod_script.read_text()
 
         # Should NOT use Django dev server
-        assert 'python manage.py runserver' not in content, \
-            "prod.sh should not use development server"
+        assert (
+            "python manage.py runserver" not in content
+        ), "prod.sh should not use development server"
 
         # Should document that hot reload is disabled
-        assert any(keyword in content.lower() for keyword in [
-            'disabled',
-            'no hot reload',
-            'restart'
-        ]), "prod.sh should document hot reload being disabled"
+        assert any(
+            keyword in content.lower() for keyword in ["disabled", "no hot reload", "restart"]
+        ), "prod.sh should document hot reload being disabled"
 
     def test_test_script_exists_and_executable(self):
         """
@@ -159,7 +149,7 @@ class TestStory13StartupScripts:
 
         Verification: Check test.sh exists and is executable.
         """
-        test_script = self.scripts_dir / 'test.sh'
+        test_script = self.scripts_dir / "test.sh"
 
         # Script exists
         assert test_script.exists(), "test.sh script does not exist"
@@ -169,8 +159,7 @@ class TestStory13StartupScripts:
 
         # Script runs pytest
         content = test_script.read_text()
-        assert 'pytest' in content.lower(), \
-            "test.sh should use pytest"
+        assert "pytest" in content.lower(), "test.sh should use pytest"
 
     def test_test_script_has_coverage_option(self):
         """
@@ -178,16 +167,14 @@ class TestStory13StartupScripts:
 
         Verification: Check test.sh has coverage option.
         """
-        test_script = self.scripts_dir / 'test.sh'
+        test_script = self.scripts_dir / "test.sh"
         content = test_script.read_text()
 
         # Has coverage option
-        assert '--coverage' in content or '-c' in content, \
-            "test.sh should support coverage option"
+        assert "--coverage" in content or "-c" in content, "test.sh should support coverage option"
 
         # Uses pytest-cov
-        assert '--cov' in content, \
-            "test.sh should use pytest-cov for coverage"
+        assert "--cov" in content, "test.sh should use pytest-cov for coverage"
 
     def test_seed_script_exists_and_executable(self):
         """
@@ -195,7 +182,7 @@ class TestStory13StartupScripts:
 
         Verification: Check seed.sh exists and is executable.
         """
-        seed_script = self.scripts_dir / 'seed.sh'
+        seed_script = self.scripts_dir / "seed.sh"
 
         # Script exists
         assert seed_script.exists(), "seed.sh script does not exist"
@@ -205,8 +192,7 @@ class TestStory13StartupScripts:
 
         # Script calls seed_data command
         content = seed_script.read_text()
-        assert 'seed_data' in content, \
-            "seed.sh should call seed_data management command"
+        assert "seed_data" in content, "seed.sh should call seed_data management command"
 
     def test_seed_script_has_safety_checks(self):
         """
@@ -214,16 +200,16 @@ class TestStory13StartupScripts:
 
         Verification: Check seed.sh has production protection.
         """
-        seed_script = self.scripts_dir / 'seed.sh'
+        seed_script = self.scripts_dir / "seed.sh"
         content = seed_script.read_text()
 
         # Has DEBUG check
-        assert 'DEBUG' in content, \
-            "seed.sh should check DEBUG setting"
+        assert "DEBUG" in content, "seed.sh should check DEBUG setting"
 
         # Warns about production
-        assert 'production' in content.lower() or 'warning' in content.lower(), \
-            "seed.sh should warn about production usage"
+        assert (
+            "production" in content.lower() or "warning" in content.lower()
+        ), "seed.sh should warn about production usage"
 
     def test_scripts_documentation_exists(self):
         """
@@ -232,20 +218,18 @@ class TestStory13StartupScripts:
 
         Verification: Check SCRIPTS.md exists and documents all scripts.
         """
-        docs_dir = self.backend_root / 'docs'
-        scripts_doc = docs_dir / 'SCRIPTS.md'
+        docs_dir = self.backend_root / "docs"
+        scripts_doc = docs_dir / "SCRIPTS.md"
 
         # Documentation exists
-        assert scripts_doc.exists(), \
-            "SCRIPTS.md documentation does not exist"
+        assert scripts_doc.exists(), "SCRIPTS.md documentation does not exist"
 
         content = scripts_doc.read_text()
 
         # Documents all main scripts
-        required_scripts = ['dev.sh', 'prod.sh', 'test.sh', 'seed.sh']
+        required_scripts = ["dev.sh", "prod.sh", "test.sh", "seed.sh"]
         for script in required_scripts:
-            assert script in content, \
-                f"SCRIPTS.md does not document {script}"
+            assert script in content, f"SCRIPTS.md does not document {script}"
 
     def test_scripts_documentation_has_usage_examples(self):
         """
@@ -253,21 +237,20 @@ class TestStory13StartupScripts:
 
         Verification: Check SCRIPTS.md has examples for each script.
         """
-        docs_dir = self.backend_root / 'docs'
-        scripts_doc = docs_dir / 'SCRIPTS.md'
+        docs_dir = self.backend_root / "docs"
+        scripts_doc = docs_dir / "SCRIPTS.md"
         content = scripts_doc.read_text()
 
         # Has usage examples
-        assert 'Usage:' in content or 'usage:' in content, \
-            "SCRIPTS.md should have usage sections"
+        assert "Usage:" in content or "usage:" in content, "SCRIPTS.md should have usage sections"
 
         # Has example commands
-        assert './scripts/' in content, \
-            "SCRIPTS.md should have example commands"
+        assert "./scripts/" in content, "SCRIPTS.md should have example commands"
 
         # Documents features
-        assert 'Features:' in content or 'features:' in content, \
-            "SCRIPTS.md should document script features"
+        assert (
+            "Features:" in content or "features:" in content
+        ), "SCRIPTS.md should document script features"
 
     def test_scripts_documentation_explains_hot_reload(self):
         """
@@ -275,20 +258,20 @@ class TestStory13StartupScripts:
 
         Verification: Check SCRIPTS.md explains hot reload.
         """
-        docs_dir = self.backend_root / 'docs'
-        scripts_doc = docs_dir / 'SCRIPTS.md'
+        docs_dir = self.backend_root / "docs"
+        scripts_doc = docs_dir / "SCRIPTS.md"
         content = scripts_doc.read_text()
 
         # Explains hot reload
-        assert any(keyword in content.lower() for keyword in [
-            'hot reload',
-            'auto reload',
-            'automatic restart'
-        ]), "SCRIPTS.md should explain hot reload"
+        assert any(
+            keyword in content.lower()
+            for keyword in ["hot reload", "auto reload", "automatic restart"]
+        ), "SCRIPTS.md should explain hot reload"
 
         # Differentiates development vs production
-        assert 'development' in content.lower() and 'production' in content.lower(), \
-            "SCRIPTS.md should explain development vs production modes"
+        assert (
+            "development" in content.lower() and "production" in content.lower()
+        ), "SCRIPTS.md should explain development vs production modes"
 
     def test_scripts_have_help_options(self):
         """
@@ -296,19 +279,21 @@ class TestStory13StartupScripts:
 
         Verification: Check scripts have help functionality.
         """
-        scripts_with_options = ['test.sh', 'seed.sh']
+        scripts_with_options = ["test.sh", "seed.sh"]
 
         for script_name in scripts_with_options:
             script_path = self.scripts_dir / script_name
             content = script_path.read_text()
 
             # Has help option
-            assert '--help' in content or '-h' in content, \
-                f"{script_name} should have --help option"
+            assert (
+                "--help" in content or "-h" in content
+            ), f"{script_name} should have --help option"
 
             # Has show_help function
-            assert 'show_help' in content or 'help()' in content, \
-                f"{script_name} should have help function"
+            assert (
+                "show_help" in content or "help()" in content
+            ), f"{script_name} should have help function"
 
     def test_all_scripts_have_error_handling(self):
         """
@@ -316,19 +301,19 @@ class TestStory13StartupScripts:
 
         Verification: Check scripts have error handling.
         """
-        scripts = ['dev.sh', 'prod.sh', 'test.sh', 'seed.sh']
+        scripts = ["dev.sh", "prod.sh", "test.sh", "seed.sh"]
 
         for script_name in scripts:
             script_path = self.scripts_dir / script_name
             content = script_path.read_text()
 
             # Uses set -e (exit on error)
-            assert 'set -e' in content, \
-                f"{script_name} should use 'set -e' for error handling"
+            assert "set -e" in content, f"{script_name} should use 'set -e' for error handling"
 
             # Has error messages
-            assert 'Error:' in content or 'error' in content.lower(), \
-                f"{script_name} should have error messages"
+            assert (
+                "Error:" in content or "error" in content.lower()
+            ), f"{script_name} should have error messages"
 
     def test_scripts_check_virtual_environment(self):
         """
@@ -336,15 +321,16 @@ class TestStory13StartupScripts:
 
         Verification: Check scripts verify venv is activated.
         """
-        scripts = ['dev.sh', 'prod.sh', 'test.sh', 'seed.sh']
+        scripts = ["dev.sh", "prod.sh", "test.sh", "seed.sh"]
 
         for script_name in scripts:
             script_path = self.scripts_dir / script_name
             content = script_path.read_text()
 
             # Checks for virtual environment
-            assert 'VIRTUAL_ENV' in content or 'venv' in content.lower(), \
-                f"{script_name} should check for virtual environment"
+            assert (
+                "VIRTUAL_ENV" in content or "venv" in content.lower()
+            ), f"{script_name} should check for virtual environment"
 
     def test_scripts_use_absolute_paths(self):
         """
@@ -352,19 +338,16 @@ class TestStory13StartupScripts:
 
         Verification: Check scripts use absolute paths.
         """
-        scripts = ['dev.sh', 'prod.sh', 'test.sh', 'seed.sh']
+        scripts = ["dev.sh", "prod.sh", "test.sh", "seed.sh"]
 
         for script_name in scripts:
             script_path = self.scripts_dir / script_name
             content = script_path.read_text()
 
             # Uses SCRIPT_DIR or similar for absolute paths
-            assert any(var in content for var in [
-                'SCRIPT_DIR',
-                'PROJECT_ROOT',
-                'dirname',
-                'cd "'
-            ]), f"{script_name} should use absolute paths"
+            assert any(
+                var in content for var in ["SCRIPT_DIR", "PROJECT_ROOT", "dirname", 'cd "']
+            ), f"{script_name} should use absolute paths"
 
     def test_scripts_have_colored_output(self):
         """
@@ -372,19 +355,16 @@ class TestStory13StartupScripts:
 
         Verification: Check scripts define color variables.
         """
-        scripts = ['dev.sh', 'prod.sh', 'test.sh', 'seed.sh']
+        scripts = ["dev.sh", "prod.sh", "test.sh", "seed.sh"]
 
         for script_name in scripts:
             script_path = self.scripts_dir / script_name
             content = script_path.read_text()
 
             # Has color definitions
-            assert any(color in content for color in [
-                'GREEN=',
-                'RED=',
-                'YELLOW=',
-                'BLUE='
-            ]), f"{script_name} should have colored output"
+            assert any(
+                color in content for color in ["GREEN=", "RED=", "YELLOW=", "BLUE="]
+            ), f"{script_name} should have colored output"
 
     def test_dev_script_shows_useful_urls(self):
         """
@@ -392,14 +372,13 @@ class TestStory13StartupScripts:
 
         Verification: Check dev.sh displays admin, API docs, health URLs.
         """
-        dev_script = self.scripts_dir / 'dev.sh'
+        dev_script = self.scripts_dir / "dev.sh"
         content = dev_script.read_text()
 
         # Shows important URLs
-        urls_to_check = ['admin', 'api', 'docs', 'health']
+        urls_to_check = ["admin", "api", "docs", "health"]
         for url in urls_to_check:
-            assert url.lower() in content.lower(), \
-                f"dev.sh should display {url} URL"
+            assert url.lower() in content.lower(), f"dev.sh should display {url} URL"
 
     def test_prod_script_runs_security_checks(self):
         """
@@ -407,18 +386,16 @@ class TestStory13StartupScripts:
 
         Verification: Check prod.sh validates security configuration.
         """
-        prod_script = self.scripts_dir / 'prod.sh'
+        prod_script = self.scripts_dir / "prod.sh"
         content = prod_script.read_text()
 
         # Checks security settings
-        security_checks = ['SECRET_KEY', 'DEBUG', 'ALLOWED_HOSTS']
+        security_checks = ["SECRET_KEY", "DEBUG", "ALLOWED_HOSTS"]
         for check in security_checks:
-            assert check in content, \
-                f"prod.sh should check {check}"
+            assert check in content, f"prod.sh should check {check}"
 
         # Runs Django deployment checks
-        assert '--deploy' in content, \
-            "prod.sh should run Django deployment checks"
+        assert "--deploy" in content, "prod.sh should run Django deployment checks"
 
     def test_seed_data_management_command_exists(self):
         """
@@ -426,22 +403,19 @@ class TestStory13StartupScripts:
 
         Verification: Check seed_data.py exists in management commands.
         """
-        commands_dir = self.backend_root / 'apps' / 'core' / 'management' / 'commands'
-        seed_command = commands_dir / 'seed_data.py'
+        commands_dir = self.backend_root / "apps" / "core" / "management" / "commands"
+        seed_command = commands_dir / "seed_data.py"
 
         # Command exists
-        assert seed_command.exists(), \
-            "seed_data.py management command does not exist"
+        assert seed_command.exists(), "seed_data.py management command does not exist"
 
         content = seed_command.read_text()
 
         # Is a proper Django command
-        assert 'BaseCommand' in content, \
-            "seed_data.py should extend BaseCommand"
+        assert "BaseCommand" in content, "seed_data.py should extend BaseCommand"
 
         # Has handle method
-        assert 'def handle' in content, \
-            "seed_data.py should have handle method"
+        assert "def handle" in content, "seed_data.py should have handle method"
 
     def test_acceptance_criteria_summary(self):
         """

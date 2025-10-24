@@ -69,10 +69,14 @@ Never specify:
 - Implementation stories depend on design stories
 
 ### Documentation Standards
-- Create docs/features/{id}/user-stories.md for each feature (use template: docs/user-story-template.md)
-- Maintain docs/features/feature-log.json for tracking (schema: docs/feature-log-schema.json)
+- Create docs/features/{id}/user-stories.md for each feature
+  - **Template**: Read docs/user-story-template.md ONLY when you need to see the structure (lazy loading)
+  - Don't read template preemptively - use it as reference when needed
+- Maintain docs/features/feature-log.json for tracking
+  - **Schema**: Read docs/feature-log-schema.json ONLY if you need clarification on structure (lazy loading)
 - Document execution order with parallel and sequential phases
 - Always initialize isSummarised: false for new features
+- **Token Optimization**: Only load reference documentation when you actually need it
 
 ## Workflow
 
