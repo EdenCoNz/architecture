@@ -343,26 +343,6 @@ After verifying implementation completion in Step 7:
    - If /push succeeded: CONTINUE to Step 9
    - If /push failed: SKIP Step 9 and jump to Report (cannot close issue without confirming remote has changes)
 
-### Step 9: Close GitHub Issue
-
-After successfully pushing changes in Step 8 (SKIP this step if push failed):
-
-1. **Close the issue with comment**:
-   - Use `gh issue close {issue_number} --comment "Fixed in commit {commit_hash}. All CI/CD failures have been resolved."`
-   - Verify the issue was closed by checking the command exit code
-
-2. **Handle close failures**:
-   - If closing fails:
-     - Capture the error message
-     - Display warning: "Failed to close issue automatically: {error_message}"
-     - Provide manual instructions: "Please close issue #{issue_number} manually at GitHub"
-     - Mark as PARTIAL SUCCESS (fix complete but issue remains open)
-     - Continue to Report
-
-3. **Report issue closure**:
-   - Display: "Issue #{issue_number} closed successfully"
-   - Display the closing comment
-
 ## Report
 
 Provide a comprehensive summary with the following sections:
