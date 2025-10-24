@@ -359,174 +359,11 @@ jobs:
           fi
 
   # Job 5: Build Verification
-  build:
-    name: Build Verification
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-    needs: [lint, typecheck, test, security]  # Only build if all checks pass
-    # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
-
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-          cache-dependency-path: backend/requirements/prod.txt
-
-      - name: Install production dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements/prod.txt
-
-      - name: Collect static files
-        env:
-          SECRET_KEY: build-verification-secret-key
-          DB_NAME: sqlite
-          DEBUG: 'False'
-        run: |
-          python manage.py collectstatic --noinput --verbosity 2
-
-      - name: Check Django configuration
-        env:
-          SECRET_KEY: build-verification-secret-key
-          DB_NAME: sqlite
-          DEBUG: 'False'
-        run: |
-          python manage.py check --deploy
-
-      - name: Verify migrations
-        env:
-          SECRET_KEY: build-verification-secret-key
-          DB_NAME: sqlite
-          DEBUG: 'False'
-        run: |
-          python manage.py makemigrations --check --dry-run
-
-      - name: Build summary
-        run: |
-          echo "## Build Verification Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Production dependencies installed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Static files collected successfully" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Django deployment checks passed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Migration state verified" >> $GITHUB_STEP_SUMMARY
-
-  # Job 6: Build Backend Development Container
-  build-backend-dev-container:
-    name: Build Backend Development Container
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    needs: [lint, typecheck, test, security]  # Only build if all checks pass
-    # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build development container
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          target: development
-          push: false
-          tags: backend-dev:${{ github.sha }}
-          cache-from: type=gha,scope=backend-dev
-          cache-to: type=gha,mode=max,scope=backend-dev
-          outputs: type=docker,dest=/tmp/backend-dev.tar
-
-      - name: Load and inspect image
-        run: |
-          docker load --input /tmp/backend-dev.tar
-          echo "## Backend Development Container Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Image Details" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          docker images backend-dev:${{ github.sha }} --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Get detailed size information
-          IMAGE_SIZE=$(docker images backend-dev:${{ github.sha }} --format "{{.Size}}")
-          echo "**Image Size**: $IMAGE_SIZE" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-      - name: Test container starts
-        run: |
-          echo "### Container Startup Test" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Start container in background
-          docker run -d \
-            --name backend-dev-test \
-            -e SECRET_KEY=test-key-for-ci \
-            -e DB_NAME=sqlite \
-            -e DEBUG=True \
-            backend-dev:${{ github.sha }} \
-            tail -f /dev/null
-
-          # Wait for container to be ready
-          sleep 5
-
-          # Check container is running
-          if docker ps | grep -q backend-dev-test; then
-            echo "✅ Container started successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Container failed to start" >> $GITHUB_STEP_SUMMARY
-            docker logs backend-dev-test
-            exit 1
-          fi
-
-          # Verify non-root user
-          USER_ID=$(docker exec backend-dev-test id -u)
-          if [ "$USER_ID" != "0" ]; then
-            echo "✅ Container running as non-root user (UID: $USER_ID)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Container running as root user" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Clean up
-          docker stop backend-dev-test
-          docker rm backend-dev-test
-
-      - name: Upload container artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-dev-container-${{ github.sha }}
-          path: /tmp/backend-dev.tar
-          retention-days: 7
-          if-no-files-found: error
-
-      - name: Build completion summary
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Backend development container built successfully**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-
-  # Job 7: Build Backend Production Container
   build-backend-prod-container:
     name: Build Backend Production Container
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    needs: [lint, typecheck, test, security]  # Only build if all checks pass
+    needs: [lint, typecheck, test, security]
     # Only run on feature branches for PRs, or always for pushes/manual triggers
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
@@ -706,12 +543,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Next Steps**: This container is ready for functional testing and security scanning" >> $GITHUB_STEP_SUMMARY
 
-  # Job 8: Backend Production Container Functional Testing
+  # Job 6: Backend Production Container Functional Testing
   test-backend-prod-container:
     name: Backend Production Container Functional Testing
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-    needs: [build-backend-prod-container]  # Only run after production container is built
+    needs: [build-backend-prod-container]
     # Only run on feature branches for PRs, or always for pushes/manual triggers
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
@@ -1083,7 +920,7 @@ jobs:
           echo "- Redis 7 (Alpine)" >> $GITHUB_STEP_SUMMARY
           echo "- Production container variant" >> $GITHUB_STEP_SUMMARY
 
-  # Job 9: Auto-Close Issue from Commit Message
+  # Job 7: Auto-Close Issue from Commit Message
   auto-close-issue-from-commit:
     name: Auto-Close Issue from Commit Message
     runs-on: ubuntu-22.04
@@ -1246,7 +1083,7 @@ jobs:
             echo "⚠️ No issues were closed" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Job 9: Detect Workflow Failures
+  # Job 8: Detect Workflow Failures
   detect-workflow-failures:
     name: Detect Workflow Failures
     runs-on: ubuntu-22.04
