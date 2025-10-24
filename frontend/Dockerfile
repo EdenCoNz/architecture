@@ -63,44 +63,28 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 # ============================================================================
 FROM base AS builder
 
-# Build arguments for environment configuration
-# These can be passed at build time: docker build --build-arg VITE_API_URL=https://api.example.com
-ARG VITE_NODE_ENV=production
-ARG VITE_API_URL
-ARG VITE_API_TIMEOUT=30000
-ARG VITE_API_ENABLE_LOGGING=false
+# Runtime Configuration Strategy:
+# Configuration is now loaded at runtime from the backend API endpoint.
+# Build-time args are no longer required, making the image portable across environments.
+#
+# The frontend will:
+# 1. Fetch configuration from /api/v1/config/frontend/ on startup
+# 2. Fall back to these minimal defaults if the API is unavailable
+#
+# This allows the same image to be deployed to dev/staging/production
+# without rebuilding.
+
+# Minimal fallback configuration for local development
+# These are only used if the backend API is not available
+ARG VITE_API_URL=http://localhost:8000
 ARG VITE_APP_NAME="Frontend Application"
 ARG VITE_APP_VERSION=1.0.0
-ARG VITE_APP_TITLE="Frontend Application"
-ARG VITE_DEBUG=false
-ARG VITE_ENABLE_ANALYTICS=true
-ARG VITE_ENABLE_ERROR_REPORTING=true
-ARG VITE_ENABLE_SERVICE_WORKER=false
-ARG VITE_SECURITY_ENABLE_CSP=true
-ARG VITE_SECURITY_MAX_LOGIN_ATTEMPTS=5
 
-# Set environment variables for build
-# Vite embeds these into the JavaScript bundle during build
-ENV VITE_NODE_ENV=$VITE_NODE_ENV \
-    VITE_API_URL=$VITE_API_URL \
-    VITE_API_TIMEOUT=$VITE_API_TIMEOUT \
-    VITE_API_ENABLE_LOGGING=$VITE_API_ENABLE_LOGGING \
+# Set minimal environment variables for build
+# These provide fallback values only - runtime config takes precedence
+ENV VITE_API_URL=$VITE_API_URL \
     VITE_APP_NAME=$VITE_APP_NAME \
-    VITE_APP_VERSION=$VITE_APP_VERSION \
-    VITE_APP_TITLE=$VITE_APP_TITLE \
-    VITE_DEBUG=$VITE_DEBUG \
-    VITE_ENABLE_ANALYTICS=$VITE_ENABLE_ANALYTICS \
-    VITE_ENABLE_ERROR_REPORTING=$VITE_ENABLE_ERROR_REPORTING \
-    VITE_ENABLE_SERVICE_WORKER=$VITE_ENABLE_SERVICE_WORKER \
-    VITE_SECURITY_ENABLE_CSP=$VITE_SECURITY_ENABLE_CSP \
-    VITE_SECURITY_MAX_LOGIN_ATTEMPTS=$VITE_SECURITY_MAX_LOGIN_ATTEMPTS
-
-# Validate required configuration
-RUN if [ -z "$VITE_API_URL" ]; then \
-        echo "ERROR: VITE_API_URL is required but not set"; \
-        echo "Please provide --build-arg VITE_API_URL=<your-api-url>"; \
-        exit 1; \
-    fi
+    VITE_APP_VERSION=$VITE_APP_VERSION
 
 # Install all dependencies (including devDependencies needed for build)
 RUN --mount=type=cache,target=/root/.npm \

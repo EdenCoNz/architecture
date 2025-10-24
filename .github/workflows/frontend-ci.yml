@@ -300,11 +300,10 @@ jobs:
           # Build for amd64 only in build job for testing
           # Multi-architecture builds happen in publishing job after validation
           platforms: linux/amd64
-          # Build arguments required for production build
-          build-args: |
-            VITE_API_URL=https://api.example.com
-            VITE_APP_NAME=Frontend Application
-            VITE_APP_VERSION=${{ steps.meta.outputs.version }}
+          # Runtime Configuration Strategy:
+          # Build args are no longer needed - configuration is loaded at runtime
+          # from the backend API. This makes the image portable across environments.
+          # Only minimal fallback values are embedded in the Dockerfile defaults.
           # Multi-source cache strategy for maximum cache hits
           # - Primary cache: branch-specific for current feature work
           # - Fallback cache 1: base branch (main) for shared layers
@@ -532,10 +531,7 @@ jobs:
           target: production
           load: true  # Load image into Docker daemon for scanning
           tags: frontend:prod-${{ steps.meta.outputs.short_sha }}
-          build-args: |
-            VITE_API_URL=https://api.example.com
-            VITE_APP_NAME=Frontend Application
-            VITE_APP_VERSION=1.0.0
+          # Runtime config: no build-args needed
           cache-from: |
             type=gha,scope=frontend-prod-${{ github.ref_name }}
             type=gha,scope=frontend-prod-main
@@ -812,10 +808,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           # Build for configured platforms (multi-arch on main, single-arch on features)
           platforms: ${{ steps.platforms.outputs.platforms }}
-          build-args: |
-            VITE_API_URL=https://api.example.com
-            VITE_APP_NAME=Frontend Application
-            VITE_APP_VERSION=${{ steps.meta.outputs.version }}
+          # Runtime config: no build-args needed
           # Use existing caches for faster rebuild
           cache-from: |
             type=gha,scope=frontend-prod-${{ github.ref_name }}

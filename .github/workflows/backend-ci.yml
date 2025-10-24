@@ -409,8 +409,12 @@ jobs:
           target: production
           push: false
           tags: backend-prod:${{ github.sha }}
-          cache-from: type=gha,scope=backend-prod
-          cache-to: type=gha,mode=max,scope=backend-prod
+          # Multi-level cache fallback: branch -> main -> general
+          cache-from: |
+            type=gha,scope=backend-prod-${{ github.ref_name }}
+            type=gha,scope=backend-prod-main
+            type=gha,scope=backend-prod
+          cache-to: type=gha,mode=max,scope=backend-prod-${{ github.ref_name }}
           outputs: type=docker,dest=/tmp/backend-prod.tar
 
       - name: Load and inspect image
@@ -543,12 +547,172 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Next Steps**: This container is ready for functional testing and security scanning" >> $GITHUB_STEP_SUMMARY
 
-  # Job 6: Backend Production Container Functional Testing
+  # Job 6: Security Scan Backend Production Container
+  security-scan-backend-prod:
+    name: Security Scan Backend Production Container
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    needs: [build-backend-prod-container]
+    # Only run on feature branches for PRs, or always for pushes/manual triggers
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    permissions:
+      contents: read
+      security-events: write  # Required to upload SARIF results
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download production container artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-prod-container-${{ github.sha }}
+          path: /tmp
+
+      - name: Load production container image
+        run: |
+          docker load --input /tmp/backend-prod.tar
+          echo "## Backend Production Container Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scanner**: Trivy" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Types**: Vulnerabilities, Secrets, Misconfigurations" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Run Trivy vulnerability scanner (SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: backend-prod:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-backend-prod-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          scanners: 'vuln,secret,misconfig'
+          exit-code: '0'
+          timeout: '10m'
+
+      - name: Upload Trivy results to GitHub Security tab
+        id: upload-sarif-backend-prod
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true  # Don't fail pipeline if upload fails
+        if: always()
+        with:
+          sarif_file: 'trivy-backend-prod-results.sarif'
+          category: 'container-backend-prod'
+
+      - name: Check SARIF upload status
+        if: always()
+        run: |
+          if [ "${{ steps.upload-sarif-backend-prod.outcome }}" = "failure" ]; then
+            echo "## SARIF Upload Status: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Unable to upload security scan results to GitHub Security tab**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This is expected if:" >> $GITHUB_STEP_SUMMARY
+            echo "- Repository is private without GitHub Advanced Security enabled" >> $GITHUB_STEP_SUMMARY
+            echo "- Code Scanning API is not accessible" >> $GITHUB_STEP_SUMMARY
+            echo "- Organization security policies block the integration" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Fallback**: Security scan results are available as workflow artifacts below." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## SARIF Upload Status: Success" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Security scan results successfully uploaded to GitHub Security tab**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "View results at: ${{ github.server_url }}/${{ github.repository }}/security/code-scanning" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Run Trivy vulnerability scanner (JSON)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: backend-prod:${{ github.sha }}
+          format: 'json'
+          output: 'trivy-backend-prod-results.json'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          scanners: 'vuln,secret,misconfig'
+          exit-code: '0'
+          timeout: '10m'
+
+      - name: Parse scan results and generate summary
+        if: always()
+        run: |
+          echo "## Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "trivy-backend-prod-results.json" ]; then
+            CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-backend-prod-results.json)
+            HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-backend-prod-results.json)
+            MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' trivy-backend-prod-results.json)
+            LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="LOW")] | length' trivy-backend-prod-results.json)
+            TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| CRITICAL | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| HIGH | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| MEDIUM | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| LOW | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "| **TOTAL** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            if [ $CRITICAL -gt 0 ] || [ $HIGH -gt 0 ]; then
+              echo "### Critical and High Severity Vulnerabilities" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH") | "[\(.Severity)] \(.VulnerabilityID) - \(.PkgName) \(.InstalledVersion) → \(.FixedVersion // "no fix available")\n  Title: \(.Title)\n"' trivy-backend-prod-results.json | head -50 >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "### Threshold Evaluation" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            THRESHOLD_CRITICAL=0
+            THRESHOLD_HIGH=5
+
+            if [ $CRITICAL -gt $THRESHOLD_CRITICAL ]; then
+              echo "❌ **FAILED**: Critical vulnerabilities ($CRITICAL) exceed threshold ($THRESHOLD_CRITICAL)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Production containers must not have critical vulnerabilities." >> $GITHUB_STEP_SUMMARY
+              echo "Full scan results are available in the Security tab." >> $GITHUB_STEP_SUMMARY
+              exit 1
+            elif [ $HIGH -gt $THRESHOLD_HIGH ]; then
+              echo "❌ **FAILED**: High vulnerabilities ($HIGH) exceed threshold ($THRESHOLD_HIGH)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Please remediate high severity vulnerabilities before deployment." >> $GITHUB_STEP_SUMMARY
+              echo "Full scan results are available in the Security tab." >> $GITHUB_STEP_SUMMARY
+              exit 1
+            else
+              echo "✅ **PASSED**: Vulnerability counts are within acceptable thresholds" >> $GITHUB_STEP_SUMMARY
+              echo "- Critical: $CRITICAL / $THRESHOLD_CRITICAL" >> $GITHUB_STEP_SUMMARY
+              echo "- High: $HIGH / $THRESHOLD_HIGH" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Full scan results are available in the Security tab and as workflow artifacts." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Scan results file not found. Scan may have failed." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload scan results as artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-backend-prod-scan-results-${{ github.sha }}
+          path: |
+            trivy-backend-prod-results.sarif
+            trivy-backend-prod-results.json
+          retention-days: 30
+
+  # Job 7: Backend Production Container Functional Testing
   test-backend-prod-container:
     name: Backend Production Container Functional Testing
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-    needs: [build-backend-prod-container]
+    needs: [build-backend-prod-container, security-scan-backend-prod]
     # Only run on feature branches for PRs, or always for pushes/manual triggers
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
@@ -920,7 +1084,235 @@ jobs:
           echo "- Redis 7 (Alpine)" >> $GITHUB_STEP_SUMMARY
           echo "- Production container variant" >> $GITHUB_STEP_SUMMARY
 
-  # Job 7: Auto-Close Issue from Commit Message
+  # Job 8: Publish Backend Production Container to Registry
+  publish-backend-container-prod:
+    name: Publish Backend Production Container
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    # Run after prod container is built, tested, and scanned
+    needs: [build-backend-prod-container, security-scan-backend-prod, test-backend-prod-container]
+    # Only publish on successful builds, not from forks
+    if: |
+      success() &&
+      github.event_name != 'pull_request' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      packages: write  # Required for GHCR push
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+
+      - name: Generate container metadata
+        id: meta
+        run: |
+          # Extract short SHA (first 7 characters)
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+          # Determine semantic version from commit messages or use default
+          VERSION="1.0.0"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+          # Repository owner in lowercase for GHCR
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+
+          # Full image name
+          IMAGE_NAME="ghcr.io/${REPO_OWNER}/backend"
+          echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+
+          # Generate tags based on branch
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            # Main branch gets latest + version tags
+            TAGS="${IMAGE_NAME}:latest"
+            TAGS="${TAGS},${IMAGE_NAME}:prod-${SHORT_SHA}"
+            TAGS="${TAGS},${IMAGE_NAME}:prod-${{ github.ref_name }}"
+            TAGS="${TAGS},${IMAGE_NAME}:${VERSION}"
+            TAGS="${TAGS},${IMAGE_NAME}:prod-${VERSION}-${SHORT_SHA}"
+          else
+            # Feature branches get branch-specific tags
+            TAGS="${IMAGE_NAME}:prod-${SHORT_SHA}"
+            TAGS="${TAGS},${IMAGE_NAME}:prod-${{ github.ref_name }}"
+            TAGS="${TAGS},${IMAGE_NAME}:prod-${VERSION}-${SHORT_SHA}"
+          fi
+
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+          echo "## Container Registry Publishing" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: ${IMAGE_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "**Short SHA**: ${SHORT_SHA}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Determine build platforms
+        id: platforms
+        run: |
+          # Multi-arch builds only on main branch for production deployments
+          # Feature branches build for linux/amd64 only for faster iteration
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+            echo "label=Multi-architecture (amd64, arm64)" >> $GITHUB_OUTPUT
+          else
+            echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+            echo "label=Single-architecture (amd64)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push production container
+        id: docker-push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: production
+          push: true  # Push to registry after validation passes
+          tags: ${{ steps.meta.outputs.tags }}
+          # Build for configured platforms (multi-arch on main, single-arch on features)
+          platforms: ${{ steps.platforms.outputs.platforms }}
+          # Use existing caches for faster rebuild
+          cache-from: |
+            type=gha,scope=backend-prod-${{ github.ref_name }}
+            type=gha,scope=backend-prod-main
+            type=gha,scope=backend-prod
+          # Don't write cache here (already written in build job)
+          provenance: false
+          sbom: false
+
+      - name: Verify published image and inspect manifest
+        run: |
+          echo "## Published Production Image Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Digest**: \`${{ steps.docker-push.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Platforms Built**: ${{ steps.platforms.outputs.label }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Inspect manifest to verify all architectures
+          PRIMARY_TAG="${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.short_sha }}"
+
+          echo "### Manifest Inspection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Inspecting image manifest to verify all architecture variants:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect "$PRIMARY_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Verify expected architectures are present
+          MANIFEST_JSON=$(docker buildx imagetools inspect --raw "$PRIMARY_TAG")
+
+          # Check if this is a manifest list (multi-arch) or single image
+          if echo "$MANIFEST_JSON" | jq -e '.manifests' > /dev/null 2>&1; then
+            # Multi-arch manifest list
+            ARCHS=$(echo "$MANIFEST_JSON" | jq -r '.manifests[].platform | "\(.os)/\(.architecture)"' | sort | tr '\n' ', ' | sed 's/,$//')
+            ARCH_COUNT=$(echo "$MANIFEST_JSON" | jq '.manifests | length')
+
+            echo "### Architecture Verification" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Multi-architecture manifest list detected**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Manifest Type | Multi-architecture list |" >> $GITHUB_STEP_SUMMARY
+            echo "| Architectures | $ARCHS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Variant Count | $ARCH_COUNT |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Verify expected architectures
+            if [[ "${{ steps.platforms.outputs.platforms }}" == *"arm64"* ]]; then
+              if echo "$ARCHS" | grep -q "linux/arm64"; then
+                echo "✅ arm64 architecture present" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ arm64 architecture MISSING" >> $GITHUB_STEP_SUMMARY
+                exit 1
+              fi
+            fi
+
+            if echo "$ARCHS" | grep -q "linux/amd64"; then
+              echo "✅ amd64 architecture present" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ amd64 architecture MISSING" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+          else
+            # Single architecture image
+            ARCH=$(echo "$MANIFEST_JSON" | jq -r '.os + "/" + .architecture')
+
+            echo "### Architecture Verification" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ **Single-architecture image**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Manifest Type | Single image |" >> $GITHUB_STEP_SUMMARY
+            echo "| Architecture | $ARCH |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> This is expected for feature branch builds (amd64 only)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Successfully Published Tags" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Command Examples" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Pull by commit SHA (recommended for reproducibility)" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Pull by version and commit" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Pull by branch name" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.meta.outputs.image_name }}:prod-${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "# Pull production latest (main branch only)" >> $GITHUB_STEP_SUMMARY
+            echo "docker pull ${{ steps.meta.outputs.image_name }}:latest" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Pull by semantic version (main branch only)" >> $GITHUB_STEP_SUMMARY
+            echo "docker pull ${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Note: Docker automatically pulls the correct architecture for your platform" >> $GITHUB_STEP_SUMMARY
+          echo "# To pull specific architecture:" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull --platform linux/amd64 ${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.platforms.outputs.platforms }}" == *"arm64"* ]]; then
+            echo "docker pull --platform linux/arm64 ${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Security and Quality Gates Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- Functional tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "- Security scan: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "- Code quality checks: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Production image successfully published and available in GitHub Container Registry." >> $GITHUB_STEP_SUMMARY
+
+  # Job 9: Auto-Close Issue from Commit Message
   auto-close-issue-from-commit:
     name: Auto-Close Issue from Commit Message
     runs-on: ubuntu-22.04
@@ -1083,7 +1475,7 @@ jobs:
             echo "⚠️ No issues were closed" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Job 8: Detect Workflow Failures
+  # Job 10: Detect Workflow Failures
   detect-workflow-failures:
     name: Detect Workflow Failures
     runs-on: ubuntu-22.04

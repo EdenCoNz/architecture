@@ -12,6 +12,7 @@ from drf_spectacular.renderers import (
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
+from apps.api.config_views import frontend_config
 from apps.api.health_views import HealthCheckView, LivenessView, ReadinessView, StatusView
 
 # Create a router for viewsets
@@ -49,6 +50,8 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="api:schema"),
         name="redoc",
     ),
+    # Frontend configuration endpoint (runtime config)
+    path("config/frontend/", frontend_config, name="frontend-config"),
     # Health check endpoints (Story #5)
     path("health/", HealthCheckView.as_view(), name="health"),
     path("status/", StatusView.as_view(), name="status"),
