@@ -28,10 +28,7 @@ root.innerHTML = `
 
 // Load runtime configuration and then render app
 loadRuntimeConfig()
-  .then((config) => {
-    console.log('[App] Configuration loaded, rendering application');
-    console.log('[App] Environment:', config.environment);
-
+  .then(() => {
     // Render the application
     createRoot(root).render(
       <StrictMode>

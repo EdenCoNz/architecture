@@ -48,7 +48,10 @@ let configPromise: Promise<AppConfig> | null = null;
  * @returns Backend configuration response
  * @throws Error if fetch fails
  */
-async function fetchConfigFromBackend(apiUrl: string, timeout = 5000): Promise<BackendConfigResponse> {
+async function fetchConfigFromBackend(
+  apiUrl: string,
+  timeout = 5000
+): Promise<BackendConfigResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -84,7 +87,8 @@ async function fetchConfigFromBackend(apiUrl: string, timeout = 5000): Promise<B
 function getFallbackConfig(): AppConfig {
   // Get environment
   const mode = import.meta.env.MODE;
-  const environment: Environment = mode === 'production' ? 'production' : mode === 'test' ? 'test' : 'development';
+  const environment: Environment =
+    mode === 'production' ? 'production' : mode === 'test' ? 'test' : 'development';
   const isProduction = environment === 'production';
   const isDevelopment = environment === 'development';
   const isTest = environment === 'test';
@@ -98,7 +102,8 @@ function getFallbackConfig(): AppConfig {
     api: {
       baseUrl: (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000',
       timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 30000,
-      enableLogging: (import.meta.env.VITE_API_ENABLE_LOGGING as string) === 'true' || !isProduction,
+      enableLogging:
+        (import.meta.env.VITE_API_ENABLE_LOGGING as string) === 'true' || !isProduction,
     },
 
     app: {
@@ -110,8 +115,10 @@ function getFallbackConfig(): AppConfig {
 
     features: {
       enableAnalytics: (import.meta.env.VITE_ENABLE_ANALYTICS as string) === 'true' || isProduction,
-      enableErrorReporting: (import.meta.env.VITE_ENABLE_ERROR_REPORTING as string) === 'true' || isProduction,
-      enableServiceWorker: (import.meta.env.VITE_ENABLE_SERVICE_WORKER as string) === 'true' || false,
+      enableErrorReporting:
+        (import.meta.env.VITE_ENABLE_ERROR_REPORTING as string) === 'true' || isProduction,
+      enableServiceWorker:
+        (import.meta.env.VITE_ENABLE_SERVICE_WORKER as string) === 'true' || false,
     },
 
     security: {
@@ -201,30 +208,18 @@ export async function loadRuntimeConfig(): Promise<AppConfig> {
       // First, get fallback config to know the API URL
       const fallback = getFallbackConfig();
 
-      console.log('[Config] Loading runtime configuration from backend...');
-      console.log('[Config] API URL:', fallback.api.baseUrl);
-
       // Try to fetch from backend
       const backendConfig = await fetchConfigFromBackend(fallback.api.baseUrl);
 
       // Transform and cache the configuration
       runtimeConfig = transformBackendConfig(backendConfig);
 
-      console.log('[Config] Successfully loaded runtime configuration from backend');
-      console.log('[Config] Environment:', runtimeConfig.environment);
-      console.log('[Config] API URL:', runtimeConfig.api.baseUrl);
-
       return runtimeConfig;
     } catch (error) {
       console.warn('[Config] Failed to load runtime configuration from backend:', error);
-      console.log('[Config] Using fallback configuration from build-time environment variables');
 
       // Use fallback configuration
       runtimeConfig = getFallbackConfig();
-
-      console.log('[Config] Fallback configuration loaded');
-      console.log('[Config] Environment:', runtimeConfig.environment);
-      console.log('[Config] API URL:', runtimeConfig.api.baseUrl);
 
       return runtimeConfig;
     }
