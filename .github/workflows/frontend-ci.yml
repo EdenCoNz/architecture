@@ -15,6 +15,7 @@ permissions:
   pull-requests: write
   checks: write
   issues: write
+  security-events: write  # For uploading security scan results
   packages: write  # Required for publishing to GitHub Container Registry
 
 # Prevent concurrent runs for same branch/PR
