@@ -23,13 +23,14 @@ export interface ApiTestResponse {
  * API Error with user-friendly message
  */
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-    public statusText?: string
-  ) {
+  status?: number;
+  statusText?: string;
+
+  constructor(message: string, status?: number, statusText?: string) {
     super(message);
     this.name = 'ApiError';
+    this.status = status;
+    this.statusText = statusText;
   }
 }
 
