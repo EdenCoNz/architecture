@@ -24,8 +24,11 @@ class TestRateLimiting:
     """Test rate limiting functionality."""
 
     @pytest.fixture(autouse=True)
-    def setup(self):
+    def setup(self, settings):
         """Set up test fixtures."""
+        # Enable rate limiting for these tests
+        settings.RATELIMIT_ENABLE = True
+
         self.client = APIClient()
         self.factory = RequestFactory()
         # Clear cache before each test
@@ -177,9 +180,10 @@ class TestRateLimiting:
 
         if response and response.status_code == 429:
             # Check response has helpful message
-            assert response.data is not None
+            response_data = response.json() if hasattr(response, "json") else {}
+            assert response_data is not None
             # Should contain information about rate limiting
-            response_str = str(response.data).lower()
+            response_str = str(response_data).lower()
             assert "rate" in response_str or "limit" in response_str or "too many" in response_str
 
 

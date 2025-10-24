@@ -159,6 +159,7 @@ jobs:
 
       - name: Run tests with coverage
         env:
+          USE_POSTGRES_FOR_TESTS: 'true'
           DB_NAME: test_backend_db
           DB_USER: test_user
           DB_PASSWORD: test_password

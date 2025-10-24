@@ -8,7 +8,7 @@ import uuid
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from django.conf import settings
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger("apps.middleware")
@@ -311,3 +311,26 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
         response["Permissions-Policy"] = ", ".join(permissions_policies)
 
         return response
+
+
+def ratelimit_view(request: HttpRequest, exception: Exception) -> JsonResponse:
+    """
+    Custom view to handle rate limit exceptions.
+
+    Returns a JSON response with HTTP 429 status code when rate limiting is triggered.
+    This view is called by RatelimitMiddleware when a Ratelimited exception is raised.
+
+    Args:
+        request: The HTTP request that was rate limited
+        exception: The Ratelimited exception that was raised
+
+    Returns:
+        JsonResponse with 429 status code and error message
+    """
+    return JsonResponse(
+        {
+            "error": "Too many requests. Please try again later.",
+            "detail": "You have exceeded the rate limit for this endpoint.",
+        },
+        status=429,
+    )

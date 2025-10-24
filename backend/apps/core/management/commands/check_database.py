@@ -39,14 +39,21 @@ class Command(BaseCommand):
             default=2,
             help="Seconds between retry attempts (default: 2)",
         )
+        parser.add_argument(
+            "--quiet",
+            action="store_true",
+            help="Suppress non-essential output",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         """Execute the command."""
         wait_seconds = options["wait"]
         retry_interval = options["retry_interval"]
+        self.quiet = options.get("quiet", False)
 
-        self.stdout.write("\nChecking database connectivity...")
-        self.stdout.write("=" * 60)
+        if not self.quiet:
+            self.stdout.write("\nChecking database connectivity...")
+            self.stdout.write("=" * 60)
 
         if wait_seconds > 0:
             # Wait mode - retry until timeout
@@ -115,6 +122,10 @@ class Command(BaseCommand):
 
     def _print_success(self, status: Dict[str, Any]) -> None:
         """Print success information."""
+        if self.quiet:
+            self.stdout.write("Database connection successful")
+            return
+
         self.stdout.write(self.style.SUCCESS("\n✓ Database connection successful!\n"))
 
         self.stdout.write(self.style.HTTP_INFO("Connection Details:"))
@@ -139,10 +150,15 @@ class Command(BaseCommand):
 
     def _print_failure(self, status: Dict[str, Any]) -> None:
         """Print failure information."""
+        error = status.get("error", "Unknown error")
+
+        if self.quiet:
+            self.stdout.write(f"Database connection failed: {error}")
+            return
+
         self.stdout.write(self.style.ERROR("\n✗ Database connection failed!\n"))
 
         self.stdout.write(self.style.HTTP_INFO("Error Details:"))
-        error = status.get("error", "Unknown error")
         self.stdout.write(self.style.ERROR(f"  {error}"))
 
         self.stdout.write(self.style.HTTP_INFO("\nConnection Configuration:"))

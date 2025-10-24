@@ -96,7 +96,7 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
         "example": "5432",
         "validation": lambda v, env: (
             v.isdigit() and 1 <= int(v) <= 65535,
-            ("DB_PORT must be a valid port number (1-65535)"),
+            ("DB_PORT must be a valid integer port number (1-65535)"),
         ),
     },
     # Redis Settings
@@ -141,7 +141,7 @@ CONFIG_VARIABLES: Dict[str, Dict[str, Any]] = {
         "example": "587",
         "validation": lambda v, env: (
             v.isdigit() and 1 <= int(v) <= 65535,
-            ("EMAIL_PORT must be a valid port number (1-65535)"),
+            ("EMAIL_PORT must be a valid integer port number (1-65535)"),
         ),
     },
     "EMAIL_HOST_USER": {

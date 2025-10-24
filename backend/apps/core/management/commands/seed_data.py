@@ -105,7 +105,6 @@ class Command(BaseCommand):
 
         User.objects.create_superuser(  # type: ignore[attr-defined]
             email=email,
-            username="admin",
             password=password,
             first_name="Admin",
             last_name="User",
@@ -120,7 +119,6 @@ class Command(BaseCommand):
 
         created_count = 0
         for i in range(1, count + 1):
-            username = f"testuser{i}"
             email = f"testuser{i}@example.com"
 
             if User.objects.filter(email=email).exists():
@@ -128,7 +126,6 @@ class Command(BaseCommand):
 
             User.objects.create_user(  # type: ignore[attr-defined]
                 email=email,
-                username=username,
                 password="password123",
                 first_name=f"Test{i}",
                 last_name="User",

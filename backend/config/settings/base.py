@@ -59,6 +59,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_ratelimit.middleware.RatelimitMiddleware",  # Rate limiting (Story #3)
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -464,6 +465,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
 # Rate Limiting Configuration
 RATELIMIT_ENABLE = get_config("RATELIMIT_ENABLE", default=True, cast=bool)
 RATELIMIT_USE_CACHE = "default"
+RATELIMIT_VIEW = "apps.core.middleware.ratelimit_view"
 
 # Content Security Policy (CSP) is now handled by SecurityHeadersMiddleware
 # Additional security headers are also handled by the middleware

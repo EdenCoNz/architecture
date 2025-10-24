@@ -96,9 +96,7 @@ class TestSeedDataCommand:
     def test_seed_data_clear_option(self, db):
         """Test seeding with clear option removes existing data."""
         # Create initial user
-        User.objects.create_user(
-            username="initial", email="initial@example.com", password="password"
-        )
+        User.objects.create_user(email="initial@example.com", password="password")
 
         out = StringIO()
         # Simulate 'yes' input for confirmation

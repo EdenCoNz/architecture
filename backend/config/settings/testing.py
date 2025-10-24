@@ -9,29 +9,38 @@ from .base import *
 # Allow all hosts in testing (required for test client)
 ALLOWED_HOSTS = ["*"]
 
-# Use PostgreSQL for acceptance tests, SQLite for unit tests (based on environment variable)
-# This allows fast unit tests while still testing PostgreSQL functionality in acceptance tests
+# Use PostgreSQL for CI/integration tests, SQLite for local unit tests
+# CI sets USE_POSTGRES_FOR_TESTS=true to test with real PostgreSQL
+# Local development can use fast SQLite tests by default
 USE_POSTGRES_FOR_TESTS = os.environ.get("USE_POSTGRES_FOR_TESTS", "false").lower() == "true"
 
 if USE_POSTGRES_FOR_TESTS:
-    # Use PostgreSQL for acceptance tests that verify database-specific functionality
+    # Use PostgreSQL for CI and integration tests
+    # Reads credentials from environment variables set by CI:
+    # - DB_NAME: Database name (e.g., test_backend_db)
+    # - DB_USER: Database user (e.g., test_user in CI, not root)
+    # - DB_PASSWORD: Database password (e.g., test_password)
+    # - DB_HOST: Database host (defaults to localhost)
+    # - DB_PORT: Database port (defaults to 5432)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": get_config("DB_NAME", default="backend_test_db"),
-            "USER": get_config("DB_USER", default="postgres"),
-            "PASSWORD": get_config("DB_PASSWORD", default="postgres"),
+            "NAME": get_config("DB_NAME", default="test_backend_db"),
+            "USER": get_config("DB_USER", default="test_user"),
+            "PASSWORD": get_config("DB_PASSWORD", default="test_password"),
             "HOST": get_config("DB_HOST", default="localhost"),
             "PORT": get_config("DB_PORT", default="5432"),
             "ATOMIC_REQUESTS": True,
             "CONN_MAX_AGE": 600,  # Connection pooling
             "TEST": {  # type: ignore[dict-item]
-                "NAME": "test_backend_db",  # Use a separate test database
+                # Django will create test_<DB_NAME> automatically
+                # But we can specify custom name if needed
+                "NAME": None,  # Let Django auto-generate test database name
             },
         }
     }
 else:
-    # Use in-memory SQLite for faster unit tests
+    # Use in-memory SQLite for faster local unit tests
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
