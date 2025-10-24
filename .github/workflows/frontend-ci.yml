@@ -895,11 +895,37 @@ jobs:
           timeout: '10m'
 
       - name: Upload Trivy results to GitHub Security tab
+        id: upload-sarif-dev
         uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true  # Don't fail pipeline if upload fails
         if: always()
         with:
           sarif_file: 'trivy-dev-results.sarif'
           category: 'container-dev'
+
+      - name: Check SARIF upload status
+        if: always()
+        run: |
+          if [ "${{ steps.upload-sarif-dev.outcome }}" = "failure" ]; then
+            echo "## SARIF Upload Status: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Unable to upload security scan results to GitHub Security tab**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This is expected if:" >> $GITHUB_STEP_SUMMARY
+            echo "- Repository is private without GitHub Advanced Security enabled" >> $GITHUB_STEP_SUMMARY
+            echo "- Code Scanning API is not accessible" >> $GITHUB_STEP_SUMMARY
+            echo "- Organization security policies block the integration" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Fallback**: Security scan results are available as workflow artifacts below." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## SARIF Upload Status: Success" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Security scan results successfully uploaded to GitHub Security tab**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "View results at: ${{ github.server_url }}/${{ github.repository }}/security/code-scanning" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@0.28.0
@@ -1268,11 +1294,37 @@ jobs:
           timeout: '10m'
 
       - name: Upload Trivy results to GitHub Security tab
+        id: upload-sarif-prod
         uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true  # Don't fail pipeline if upload fails
         if: always()
         with:
           sarif_file: 'trivy-prod-results.sarif'
           category: 'container-prod'
+
+      - name: Check SARIF upload status
+        if: always()
+        run: |
+          if [ "${{ steps.upload-sarif-prod.outcome }}" = "failure" ]; then
+            echo "## SARIF Upload Status: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Unable to upload security scan results to GitHub Security tab**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This is expected if:" >> $GITHUB_STEP_SUMMARY
+            echo "- Repository is private without GitHub Advanced Security enabled" >> $GITHUB_STEP_SUMMARY
+            echo "- Code Scanning API is not accessible" >> $GITHUB_STEP_SUMMARY
+            echo "- Organization security policies block the integration" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Fallback**: Security scan results are available as workflow artifacts below." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## SARIF Upload Status: Success" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Security scan results successfully uploaded to GitHub Security tab**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "View results at: ${{ github.server_url }}/${{ github.repository }}/security/code-scanning" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@0.28.0
