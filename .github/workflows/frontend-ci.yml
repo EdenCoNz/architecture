@@ -821,14 +821,14 @@ jobs:
 
       - name: Verify published image and inspect manifest
         run: |
-          echo "## Published Production Image Verification" >> $GITHUB_STEP_SUMMARY
+          echo "## Published ${{ steps.meta.outputs.environment }} Image Verification" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image Digest**: \`${{ steps.docker-push.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Platforms Built**: ${{ steps.platforms.outputs.label }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Inspect manifest to verify all architectures
-          PRIMARY_TAG="${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.short_sha }}"
+          PRIMARY_TAG="${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.env_prefix }}-${{ steps.meta.outputs.short_sha }}"
 
           echo "### Manifest Inspection" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
