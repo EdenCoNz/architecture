@@ -1,0 +1,596 @@
+name: Deploy to Ubuntu Server (Reusable)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Reusable Deployment Workflow for Ubuntu Server via Tailscale
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Purpose:
+#   This reusable workflow deploys Docker containers to an Ubuntu server
+#   using Tailscale VPN for secure connectivity. It handles:
+#   - Secure SSH connection setup over Tailscale
+#   - Docker image and compose file transfer
+#   - Container deployment with cleanup
+#   - Health check verification
+#
+# Usage:
+#   Call this workflow from frontend-ci.yml or backend-ci.yml:
+#
+#   deploy:
+#     uses: ./.github/workflows/deploy-to-ubuntu.yml
+#     needs: [build-container]
+#     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+#     with:
+#       service_name: backend
+#       docker_image_artifact: backend-prod-container-${{ github.sha }}
+#       docker_image_file: backend-prod.tar
+#       docker_compose_file: backend/docker-compose.production.yml
+#       container_name: backend-app
+#       image_name: backend-prod
+#     secrets: inherit
+#
+# Required Secrets (must be configured in repository settings):
+#   - TS_OAUTH_CLIENT_ID: Tailscale OAuth client ID
+#   - TS_OAUTH_SECRET: Tailscale OAuth secret
+#   - SSH_PRIVATE_KEY: SSH private key for server access (ed25519 format)
+#   - SERVER_HOST: Tailscale IP address of Ubuntu server (e.g., 100.x.x.x)
+#   - SERVER_USER: SSH username on Ubuntu server
+#
+# Features:
+#   - Secure Tailscale VPN connection
+#   - SSH key-based authentication with retry logic
+#   - Atomic deployment with cleanup
+#   - Container health verification
+#   - Comprehensive error handling
+#   - Detailed deployment status reporting
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+on:
+  workflow_call:
+    inputs:
+      # Service identification
+      service_name:
+        description: 'Service name (frontend/backend) for logging and identification'
+        required: true
+        type: string
+
+      # Docker image artifact configuration
+      docker_image_artifact:
+        description: 'Name of the Docker image artifact to download (from upload-artifact action)'
+        required: true
+        type: string
+
+      docker_image_file:
+        description: 'Name of the Docker image tar file within the artifact'
+        required: true
+        type: string
+
+      image_name:
+        description: 'Docker image name/tag used in docker-compose.yml (e.g., backend-prod, frontend-prod)'
+        required: true
+        type: string
+
+      # Docker Compose configuration
+      docker_compose_file:
+        description: 'Path to docker-compose file in repository (e.g., backend/docker-compose.production.yml)'
+        required: true
+        type: string
+
+      # Container configuration
+      container_name:
+        description: 'Container name as defined in docker-compose.yml (used for health checks)'
+        required: true
+        type: string
+
+      # Deployment options
+      remote_deploy_path:
+        description: 'Deployment directory on remote server (default: ~)'
+        required: false
+        type: string
+        default: '~'
+
+      health_check_enabled:
+        description: 'Enable container health check after deployment'
+        required: false
+        type: boolean
+        default: true
+
+      health_check_retries:
+        description: 'Number of health check retries'
+        required: false
+        type: number
+        default: 10
+
+      health_check_interval:
+        description: 'Seconds between health check attempts'
+        required: false
+        type: number
+        default: 3
+
+      # Additional docker-compose options
+      compose_profiles:
+        description: 'Docker Compose profiles to activate (comma-separated, e.g., "with-celery")'
+        required: false
+        type: string
+        default: ''
+
+      # Environment-specific settings
+      env_file:
+        description: 'Optional .env file to transfer to server (relative path in repo)'
+        required: false
+        type: string
+        default: ''
+
+    secrets:
+      # Tailscale VPN connection
+      TS_OAUTH_CLIENT_ID:
+        description: 'Tailscale OAuth client ID for VPN connection'
+        required: true
+      TS_OAUTH_SECRET:
+        description: 'Tailscale OAuth secret for VPN connection'
+        required: true
+
+      # SSH connection
+      SSH_PRIVATE_KEY:
+        description: 'SSH private key for server authentication (ed25519 format)'
+        required: true
+      SERVER_HOST:
+        description: 'Tailscale IP address of Ubuntu server (100.x.x.x)'
+        required: true
+      SERVER_USER:
+        description: 'SSH username on Ubuntu server'
+        required: true
+
+      # Optional: Additional secrets
+      DEPLOYMENT_TOKEN:
+        description: 'Optional deployment authentication token'
+        required: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.service_name }} to Ubuntu Server
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+
+    steps:
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 1: Checkout Repository
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Checkout code for docker-compose
+        uses: actions/checkout@v4
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 2: Download Docker Image Artifact
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.docker_image_artifact }}
+          path: ./deploy-artifacts
+
+      - name: Verify artifact contents
+        run: |
+          echo "## Deployment Artifact Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service**: ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact**: ${{ inputs.docker_image_artifact }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image File**: ${{ inputs.docker_image_file }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "./deploy-artifacts/${{ inputs.docker_image_file }}" ]; then
+            IMAGE_SIZE=$(du -h "./deploy-artifacts/${{ inputs.docker_image_file }}" | cut -f1)
+            echo "✅ Docker image found (Size: $IMAGE_SIZE)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Docker image not found at expected path" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Available files:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            ls -lah ./deploy-artifacts/ >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          if [ -f "${{ inputs.docker_compose_file }}" ]; then
+            echo "✅ Docker Compose file found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Docker Compose file not found: ${{ inputs.docker_compose_file }}" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 3: Connect to Tailscale VPN
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Verify Tailscale connection
+        run: |
+          echo "## Tailscale VPN Connection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Server**: ${{ secrets.SERVER_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "Tailscale status:"
+          tailscale status
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Network Connectivity Test" >> $GITHUB_STEP_SUMMARY
+          echo "Attempting to ping server at ${{ secrets.SERVER_HOST }}..."
+
+          if ping -c 3 -W 5 ${{ secrets.SERVER_HOST }}; then
+            echo "✅ Server is reachable via Tailscale" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Ping failed, but continuing (ICMP may be disabled)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Note: SSH connectivity will be verified in the next step" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 4: Set Up SSH Connection
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Set up SSH key and known hosts
+        run: |
+          echo "## SSH Connection Setup" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Create .ssh directory with correct permissions
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Install SSH private key
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          echo "✅ SSH private key installed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for SSH to be accessible and scan host keys (retry up to 30 times)
+          echo "### SSH Host Key Scanning" >> $GITHUB_STEP_SUMMARY
+          echo "Waiting for SSH to be accessible on ${{ secrets.SERVER_HOST }}..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          KEYS_ADDED=false
+          MAX_RETRIES=30
+          RETRY_INTERVAL=2
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES: Scanning SSH host keys..."
+
+            # Capture the output and check if we got any keys
+            KEYS=$(ssh-keyscan -H ${{ secrets.SERVER_HOST }} 2>/dev/null)
+
+            if [ -n "$KEYS" ]; then
+              echo "$KEYS" >> ~/.ssh/known_hosts
+              echo "✅ Successfully scanned and added SSH host keys" >> $GITHUB_STEP_SUMMARY
+              echo "**Attempts**: $i/$MAX_RETRIES" >> $GITHUB_STEP_SUMMARY
+              KEYS_ADDED=true
+              break
+            fi
+
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "Waiting ${RETRY_INTERVAL} seconds before retry..."
+              sleep $RETRY_INTERVAL
+            fi
+          done
+
+          # Verify we got the host keys
+          if [ "$KEYS_ADDED" = false ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **SSH Connection Failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Could not scan SSH host keys from ${{ secrets.SERVER_HOST }} after $MAX_RETRIES attempts" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Troubleshooting Steps**:" >> $GITHUB_STEP_SUMMARY
+            echo "1. Verify SERVER_HOST secret is set to the correct Tailscale IP (100.x.x.x)" >> $GITHUB_STEP_SUMMARY
+            echo "2. Ensure SSH is running on your Ubuntu server:" >> $GITHUB_STEP_SUMMARY
+            echo "   \`sudo systemctl status sshd\`" >> $GITHUB_STEP_SUMMARY
+            echo "3. Verify Tailscale is running on your Ubuntu server:" >> $GITHUB_STEP_SUMMARY
+            echo "   \`tailscale status\`" >> $GITHUB_STEP_SUMMARY
+            echo "4. Check SSH is listening on port 22:" >> $GITHUB_STEP_SUMMARY
+            echo "   \`sudo ss -tlnp | grep :22\`" >> $GITHUB_STEP_SUMMARY
+            echo "5. Verify firewall allows SSH connections" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SSH Configuration Complete**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 5: Test SSH Connection
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Test SSH connection
+        run: |
+          echo "### Testing SSH Connection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if ssh -i ~/.ssh/id_ed25519 -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo 'SSH connection successful' && uname -a"; then
+            echo "✅ SSH connection verified successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ SSH connection test failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please verify:" >> $GITHUB_STEP_SUMMARY
+            echo "- SERVER_USER secret is correct" >> $GITHUB_STEP_SUMMARY
+            echo "- SSH_PRIVATE_KEY matches the public key on the server" >> $GITHUB_STEP_SUMMARY
+            echo "- Public key is in ~/.ssh/authorized_keys on the server" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 6: Prepare Deployment Files
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Prepare deployment files
+        run: |
+          echo "## Preparing Deployment Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Copy files to a staging directory
+          mkdir -p ./deploy-staging
+
+          # Copy Docker image
+          cp "./deploy-artifacts/${{ inputs.docker_image_file }}" "./deploy-staging/"
+
+          # Copy Docker Compose file
+          cp "${{ inputs.docker_compose_file }}" "./deploy-staging/docker-compose.yml"
+
+          # Copy .env file if specified
+          if [ -n "${{ inputs.env_file }}" ] && [ -f "${{ inputs.env_file }}" ]; then
+            cp "${{ inputs.env_file }}" "./deploy-staging/.env"
+            echo "✅ Environment file prepared (.env)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "✅ Docker image prepared (${{ inputs.docker_image_file }})" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker Compose file prepared" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Show staging directory contents
+          echo "**Staging Directory Contents**:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh ./deploy-staging/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 7: Transfer Files to Server
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Transfer files to server
+        run: |
+          echo "## Transferring Files to Server" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          REMOTE_PATH="${{ inputs.remote_deploy_path }}"
+          DEPLOY_DIR="$REMOTE_PATH/${{ inputs.service_name }}-deploy"
+
+          echo "**Target Directory**: $DEPLOY_DIR" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Create remote deployment directory
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "mkdir -p $DEPLOY_DIR"
+
+          # Transfer Docker image
+          echo "Transferring Docker image..."
+          scp -i ~/.ssh/id_ed25519 \
+            "./deploy-staging/${{ inputs.docker_image_file }}" \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/"
+
+          echo "✅ Docker image transferred" >> $GITHUB_STEP_SUMMARY
+
+          # Transfer Docker Compose file
+          echo "Transferring Docker Compose file..."
+          scp -i ~/.ssh/id_ed25519 \
+            "./deploy-staging/docker-compose.yml" \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/"
+
+          echo "✅ Docker Compose file transferred" >> $GITHUB_STEP_SUMMARY
+
+          # Transfer .env file if it exists
+          if [ -f "./deploy-staging/.env" ]; then
+            echo "Transferring environment file..."
+            scp -i ~/.ssh/id_ed25519 \
+              "./deploy-staging/.env" \
+              "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/"
+            echo "✅ Environment file transferred" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Transfer Complete**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 8: Deploy on Server
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Deploy on server
+        run: |
+          echo "## Deployment Execution" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          REMOTE_PATH="${{ inputs.remote_deploy_path }}"
+          DEPLOY_DIR="$REMOTE_PATH/${{ inputs.service_name }}-deploy"
+          COMPOSE_PROFILES="${{ inputs.compose_profiles }}"
+
+          # Build Docker Compose command with optional profiles
+          if [ -n "$COMPOSE_PROFILES" ]; then
+            COMPOSE_CMD="COMPOSE_PROFILES=$COMPOSE_PROFILES docker compose"
+            echo "**Compose Profiles**: $COMPOSE_PROFILES" >> $GITHUB_STEP_SUMMARY
+          else
+            COMPOSE_CMD="docker compose"
+          fi
+
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            set -e
+
+            # Navigate to deployment directory
+            cd $DEPLOY_DIR
+
+            echo "=== Starting Deployment: ${{ inputs.service_name }} ==="
+            echo ""
+
+            # Stop and remove existing containers (preserves volumes)
+            echo "Stopping existing containers..."
+            $COMPOSE_CMD down --remove-orphans || true
+
+            # Also remove any standalone container with the same name
+            echo "Removing any existing ${{ inputs.container_name }} container..."
+            docker stop ${{ inputs.container_name }} 2>/dev/null || true
+            docker rm ${{ inputs.container_name }} 2>/dev/null || true
+
+            # Remove old images for this service (keep current volumes)
+            echo "Removing old ${{ inputs.image_name }} images..."
+            docker images '${{ inputs.image_name }}' --format '{{.ID}} {{.Tag}}' | grep -v '<none>' | awk '{print \$1}' | xargs -r docker rmi -f || true
+
+            # Load the new Docker image
+            echo "Loading new Docker image..."
+            docker load -i ${{ inputs.docker_image_file }}
+
+            # Verify image was loaded
+            echo "Verifying loaded image..."
+            if docker images '${{ inputs.image_name }}' | grep -q '${{ inputs.image_name }}'; then
+              echo "Image loaded successfully"
+            else
+              echo "ERROR: Failed to load Docker image"
+              exit 1
+            fi
+
+            # Start the application with new image
+            echo "Starting application..."
+            $COMPOSE_CMD up -d
+
+            # Clean up dangling images and stopped containers
+            echo "Cleaning up Docker resources..."
+            docker image prune -f
+            docker container prune -f
+
+            # Clean up the tar file
+            rm -f ${{ inputs.docker_image_file }}
+
+            # Show deployment status
+            echo ""
+            echo "=== Deployment Complete ==="
+            echo ""
+            echo "Container Status:"
+            $COMPOSE_CMD ps
+
+            echo ""
+            echo "Image Information:"
+            docker images '${{ inputs.image_name }}'
+
+            echo ""
+            echo "=== Docker Disk Usage ==="
+            docker system df
+          EOF
+
+          echo "✅ Deployment executed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 9: Verify Deployment
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Verify deployment
+        if: inputs.health_check_enabled
+        run: |
+          echo "## Deployment Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          REMOTE_PATH="${{ inputs.remote_deploy_path }}"
+          DEPLOY_DIR="$REMOTE_PATH/${{ inputs.service_name }}-deploy"
+          CONTAINER_NAME="${{ inputs.container_name }}"
+          MAX_RETRIES=${{ inputs.health_check_retries }}
+          RETRY_INTERVAL=${{ inputs.health_check_interval }}
+
+          echo "**Container**: $CONTAINER_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Max Retries**: $MAX_RETRIES" >> $GITHUB_STEP_SUMMARY
+          echo "**Retry Interval**: ${RETRY_INTERVAL}s" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for container to be healthy
+          echo "Waiting for container to be healthy..."
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Health check attempt $i/$MAX_RETRIES..."
+
+            CONTAINER_STATUS=$(ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+              "cd $DEPLOY_DIR && docker compose ps --format json '$CONTAINER_NAME' | jq -r '.[0].State' 2>/dev/null || echo 'not_found'")
+
+            echo "Container status: $CONTAINER_STATUS"
+
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✅ Container is running and healthy" >> $GITHUB_STEP_SUMMARY
+              break
+            elif [ "$CONTAINER_STATUS" = "not_found" ]; then
+              echo "⚠️ Container not found" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ $i -eq $MAX_RETRIES ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "❌ **Health Check Failed**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Container did not become healthy within the timeout period" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              # Fetch container logs for debugging
+              echo "### Container Logs (Last 50 lines)" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+                "cd $DEPLOY_DIR && docker compose logs --tail 50 '$CONTAINER_NAME'" >> $GITHUB_STEP_SUMMARY 2>&1 || true
+              echo '```' >> $GITHUB_STEP_SUMMARY
+
+              exit 1
+            fi
+
+            sleep $RETRY_INTERVAL
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Show final container logs
+          echo "### Container Logs (Last 20 lines)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "cd $DEPLOY_DIR && docker compose logs --tail 20 '$CONTAINER_NAME'" >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # Step 10: Deployment Summary
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Deployment Successful**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Deployment Failed**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service**: ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Container**: ${{ inputs.container_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: ${{ inputs.image_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed At**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. Verify application is responding as expected" >> $GITHUB_STEP_SUMMARY
+            echo "2. Monitor logs for any errors: \`docker compose logs -f ${{ inputs.container_name }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "3. Check resource usage: \`docker stats ${{ inputs.container_name }}\`" >> $GITHUB_STEP_SUMMARY
+          fi

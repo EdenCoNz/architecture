@@ -1359,7 +1359,32 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Production image successfully published and available in GitHub Container Registry." >> $GITHUB_STEP_SUMMARY
 
-  # Job 9: Auto-Close Issue from Commit Message
+  # Job 9: Deploy Backend to Ubuntu Server
+  deploy-backend-to-ubuntu:
+    name: Deploy Backend to Ubuntu Server
+    uses: ./.github/workflows/deploy-to-ubuntu.yml
+    needs: [build-backend-prod-container, security-scan-backend-prod, test-backend-prod-container]
+    # Only deploy on pushes to main branch (not on PRs)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    with:
+      service_name: backend
+      docker_image_artifact: backend-prod-container-${{ github.sha }}
+      docker_image_file: backend-prod.tar
+      docker_compose_file: backend/docker-compose.production.yml
+      container_name: backend-app-prod
+      image_name: backend-prod
+      remote_deploy_path: ~/deployments/backend
+      health_check_enabled: true
+      health_check_retries: 15
+      health_check_interval: 3
+
+    secrets: inherit
+
+    permissions:
+      contents: read
+
+  # Job 10: Auto-Close Issue from Commit Message
   auto-close-issue-from-commit:
     name: Auto-Close Issue from Commit Message
     runs-on: ubuntu-22.04
@@ -1522,7 +1547,7 @@ jobs:
             echo "⚠️ No issues were closed" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Job 10: Detect Workflow Failures
+  # Job 11: Detect Workflow Failures
   detect-workflow-failures:
     name: Detect Workflow Failures
     runs-on: ubuntu-22.04

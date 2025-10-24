@@ -935,8 +935,32 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Production image successfully published and available in GitHub Container Registry." >> $GITHUB_STEP_SUMMARY
 
+  # Job 7: Deploy Frontend to Ubuntu Server
+  deploy-frontend-to-ubuntu:
+    name: Deploy Frontend to Ubuntu Server
+    uses: ./.github/workflows/deploy-to-ubuntu.yml
+    needs: [build-container-prod, security-scan-prod]
+    # Only deploy on pushes to main branch (not on PRs)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-  # Job 7: Cleanup Old Build Caches
+    with:
+      service_name: frontend
+      docker_image_artifact: container-metadata-${{ github.sha }}
+      docker_image_file: frontend-prod.tar
+      docker_compose_file: frontend/docker-compose.prod.yml
+      container_name: frontend-production
+      image_name: frontend
+      remote_deploy_path: ~/deployments/frontend
+      health_check_enabled: true
+      health_check_retries: 10
+      health_check_interval: 3
+
+    secrets: inherit
+
+    permissions:
+      contents: read
+
+  # Job 8: Cleanup Old Build Caches
   cleanup-old-caches:
     name: Cleanup Old Build Caches
     runs-on: ubuntu-22.04
@@ -1000,7 +1024,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Cache cleanup is automatic and optimized for performance." >> $GITHUB_STEP_SUMMARY
 
-  # Job 8: Security Audit
+  # Job 9: Security Audit
   security:
     name: Security Audit
     runs-on: ubuntu-22.04
@@ -1039,7 +1063,7 @@ jobs:
           npm audit --audit-level=moderate || echo "Security vulnerabilities detected - review above" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 9: Container Build Status Report
+  # Job 10: Container Build Status Report
   build-status-report:
     name: Container Build Status Report
     runs-on: ubuntu-22.04
@@ -1494,7 +1518,7 @@ jobs:
           echo "- Fix issues and push commits with 'Fix issue #N' to auto-close issues" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-  # Job 10: Auto-Close Issue from Commit Message
+  # Job 11: Auto-Close Issue from Commit Message
   auto-close-issue-from-commit:
     name: Auto-Close Issue from Commit Message
     runs-on: ubuntu-22.04
@@ -1627,7 +1651,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Summary**: Processed ${{ steps.extract-issues.outputs.issue_count }} issue(s)" >> $GITHUB_STEP_SUMMARY
 
-  # Job 11: Detect Workflow Failures
+  # Job 12: Detect Workflow Failures
   detect-workflow-failures:
     name: Detect Workflow Failures
     runs-on: ubuntu-22.04
