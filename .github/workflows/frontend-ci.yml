@@ -905,7 +905,7 @@ jobs:
           echo "docker pull ${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Pull by branch name" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ steps.meta.outputs.image_name }}:prod-${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.meta.outputs.image_name }}:prod-${{ steps.meta.outputs.sanitized_branch }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "# Pull production latest (main branch only)" >> $GITHUB_STEP_SUMMARY

@@ -642,6 +642,19 @@
             "backend-developer"
           ],
           "description": "Fix Backend CI/CD health endpoint returning HTTP 301 redirect instead of HTTP 200 success"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 189,
+          "timestamp": "2025-10-25T06:15:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/9/issues/189/implementation-log.json",
+          "userStoriesPath": "docs/features/9/issues/189/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "devops-engineer"
+          ],
+          "description": "Fix Docker tag generation for feature branches - branch names with slashes create invalid Docker tags"
         }
       ]
     }
