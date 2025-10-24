@@ -73,7 +73,7 @@ class RequestLoggingMiddleware(MiddlewareMixin):
         user_id = None
         username = "anonymous"
         if hasattr(request, "user") and request.user.is_authenticated:
-            user_id = request.user.id
+            user_id = request.user.id  # type: ignore[attr-defined]
             username = str(getattr(request.user, "email", "authenticated"))
 
         # Get query parameters (sanitized)

@@ -75,10 +75,10 @@ class User(AbstractUser):
 
     # Set email as the USERNAME_FIELD
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS: list[str] = []  # Email is already the USERNAME_FIELD
+    REQUIRED_FIELDS: list[str] = []  # type: ignore[misc]  # Email is already the USERNAME_FIELD
 
     # Use the custom manager
-    objects: ClassVar["UserManager"] = UserManager()  # type: ignore
+    objects: ClassVar["UserManager"] = UserManager()  # type: ignore[assignment,misc]
 
     class Meta:
         verbose_name = _("user")

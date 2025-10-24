@@ -65,7 +65,7 @@ class RequestLoggingMiddlewareTestCase(TestCase):
         User = get_user_model()
 
         # Create a test user
-        user = User(username="testuser", id=123)
+        user = User(email="testuser@example.com", id=123)
 
         request = self.factory.get("/api/v1/test/")
         request.user = user

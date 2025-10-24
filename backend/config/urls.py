@@ -32,7 +32,9 @@ urlpatterns = [
 
 # Serve media files in development
 if settings.DEBUG:
+    # type: ignore[arg-type]
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # type: ignore[arg-type]
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
     # Django Debug Toolbar

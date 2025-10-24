@@ -3,6 +3,8 @@ Django settings for backend project - Production environment.
 Enhanced with Story #9 security best practices.
 """
 
+from typing import Any
+
 from config.env_config import get_config
 
 from .base import *
@@ -65,26 +67,29 @@ RATELIMIT_ENABLE = True  # Always enabled in production
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Production logging optimizations
-LOGGING["root"]["level"] = "WARNING"
+# Type ignore needed because LOGGING is imported via * and seen as object by mypy
+LOGGING["root"]["level"] = "WARNING"  # type: ignore[index]
 
 # Use JSON formatter for production logs (better for log aggregation)
-LOGGING["handlers"]["file_general"]["formatter"] = "json"
-LOGGING["handlers"]["file_errors"]["formatter"] = "json"
-LOGGING["handlers"]["file_middleware"]["formatter"] = "json"
-LOGGING["handlers"]["file_exceptions"]["formatter"] = "json"
+LOGGING["handlers"]["file_general"]["formatter"] = "json"  # type: ignore[index]
+LOGGING["handlers"]["file_errors"]["formatter"] = "json"  # type: ignore[index]
+LOGGING["handlers"]["file_middleware"]["formatter"] = "json"  # type: ignore[index]
+LOGGING["handlers"]["file_exceptions"]["formatter"] = "json"  # type: ignore[index]
 
 # Increase log file sizes and retention in production
-LOGGING["handlers"]["file_general"]["maxBytes"] = 1024 * 1024 * 50  # 50MB
-LOGGING["handlers"]["file_general"]["backupCount"] = 20
+LOGGING["handlers"]["file_general"]["maxBytes"] = 1024 * 1024 * 50  # type: ignore[index]  # 50MB
+LOGGING["handlers"]["file_general"]["backupCount"] = 20  # type: ignore[index]
 
-LOGGING["handlers"]["file_errors"]["maxBytes"] = 1024 * 1024 * 50  # 50MB
-LOGGING["handlers"]["file_errors"]["backupCount"] = 20
+LOGGING["handlers"]["file_errors"]["maxBytes"] = 1024 * 1024 * 50  # type: ignore[index]  # 50MB
+LOGGING["handlers"]["file_errors"]["backupCount"] = 20  # type: ignore[index]
 
-LOGGING["handlers"]["file_middleware"]["maxBytes"] = 1024 * 1024 * 100  # 100MB
+# type: ignore[index]  # 100MB
+LOGGING["handlers"]["file_middleware"]["maxBytes"] = 1024 * 1024 * 100
+# type: ignore[index]
 LOGGING["handlers"]["file_middleware"]["backupCount"] = 30
 
 # Only log errors and above to console in production
-LOGGING["handlers"]["console"]["level"] = "ERROR"
+LOGGING["handlers"]["console"]["level"] = "ERROR"  # type: ignore[index]
 
 # Higher threshold for slow requests in production
 SLOW_REQUEST_THRESHOLD_MS = 2000
@@ -99,8 +104,8 @@ EMAIL_HOST_PASSWORD = get_config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = get_config("DEFAULT_FROM_EMAIL", default="noreply@example.com")
 
 # Database connection pooling and optimization
-DATABASES["default"]["CONN_MAX_AGE"] = 600
-DATABASES["default"]["OPTIONS"] = {
+DATABASES["default"]["CONN_MAX_AGE"] = 600  # type: ignore[index]
+DATABASES["default"]["OPTIONS"] = {  # type: ignore[assignment,index]
     "connect_timeout": 10,
 }
 
@@ -108,4 +113,4 @@ DATABASES["default"]["OPTIONS"] = {
 CELERY_WORKER_CONCURRENCY = 4
 
 # Cache - longer timeouts in production
-CACHES["default"]["TIMEOUT"] = 900  # 15 minutes
+CACHES["default"]["TIMEOUT"] = 900  # 15 minutes  # type: ignore[index]

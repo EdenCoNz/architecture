@@ -22,7 +22,7 @@ if USE_POSTGRES_FOR_TESTS:
             "PORT": get_config("DB_PORT", default="5432"),
             "ATOMIC_REQUESTS": True,
             "CONN_MAX_AGE": 600,  # Connection pooling
-            "TEST": {
+            "TEST": {  # type: ignore[dict-item]
                 "NAME": "test_backend_db",  # Use a separate test database
             },
         }

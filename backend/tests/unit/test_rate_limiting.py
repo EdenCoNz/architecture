@@ -34,14 +34,12 @@ class TestRateLimiting:
     @pytest.fixture
     def test_user(self):
         """Create a test user."""
-        return User.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass123"
-        )
+        return User.objects.create_user(email="test@example.com", password="testpass123")
 
     def test_login_rate_limit_anonymous(self):
         """Test rate limiting on login endpoint for anonymous users."""
         # Make multiple login attempts
-        login_data = {"username": "testuser", "password": "wrongpass"}
+        login_data = {"email": "testuser@example.com", "password": "wrongpass"}
 
         # Should allow first few requests
         for i in range(5):
@@ -60,7 +58,9 @@ class TestRateLimiting:
 
     def test_rate_limit_headers_present(self):
         """Test that rate limit headers are present in responses."""
-        response = self.client.post("/api/v1/auth/login/", {"username": "test", "password": "test"})
+        response = self.client.post(
+            "/api/v1/auth/login/", {"email": "test@example.com", "password": "test"}
+        )
 
         # Check for common rate limit headers
         # X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
@@ -71,7 +71,6 @@ class TestRateLimiting:
     def test_registration_rate_limit(self):
         """Test rate limiting on registration endpoint."""
         registration_data = {
-            "username": "newuser",
             "email": "new@example.com",
             "password": "newpass123",
             "password2": "newpass123",
@@ -82,7 +81,6 @@ class TestRateLimiting:
         for i in range(15):
             # Change email to avoid unique constraint
             registration_data["email"] = f"user{i}@example.com"
-            registration_data["username"] = f"user{i}"
 
             response = self.client.post("/api/v1/auth/register/", registration_data)
             responses.append(response.status_code)
@@ -110,7 +108,7 @@ class TestRateLimiting:
         """Test rate limiting is applied per IP address."""
         # This test verifies IP-based rate limiting
         # Multiple requests from same IP should be rate limited
-        login_data = {"username": "test", "password": "test"}
+        login_data = {"email": "test@example.com", "password": "test"}
 
         responses = []
         for i in range(25):
@@ -126,7 +124,7 @@ class TestRateLimiting:
         """Test that rate limits reset after the time window."""
         # This test would need to manipulate time or wait
         # For now, verify the concept exists
-        login_data = {"username": "test", "password": "test"}
+        login_data = {"email": "test@example.com", "password": "test"}
 
         # Make requests until rate limited
         for i in range(30):
@@ -144,7 +142,7 @@ class TestRateLimiting:
         login_responses = []
         for i in range(20):
             response = self.client.post(
-                "/api/v1/auth/login/", {"username": "test", "password": "test"}
+                "/api/v1/auth/login/", {"email": "test@example.com", "password": "test"}
             )
             login_responses.append(response.status_code)
 
@@ -155,7 +153,6 @@ class TestRateLimiting:
             response = self.client.post(
                 "/api/v1/auth/register/",
                 {
-                    "username": f"user{i}",
                     "email": f"user{i}@example.com",
                     "password": "test123",
                     "password2": "test123",
@@ -169,7 +166,7 @@ class TestRateLimiting:
 
     def test_rate_limit_message_is_clear(self):
         """Test that rate limit error messages are clear and helpful."""
-        login_data = {"username": "test", "password": "test"}
+        login_data = {"email": "test@example.com", "password": "test"}
 
         # Make many requests to trigger rate limit
         response = None

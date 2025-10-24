@@ -103,7 +103,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"  ⚠ Admin user already exists: {email}"))
             return
 
-        User.objects.create_superuser(
+        User.objects.create_superuser(  # type: ignore[attr-defined]
             email=email,
             username="admin",
             password=password,
@@ -126,7 +126,7 @@ class Command(BaseCommand):
             if User.objects.filter(email=email).exists():
                 continue
 
-            User.objects.create_user(
+            User.objects.create_user(  # type: ignore[attr-defined]
                 email=email,
                 username=username,
                 password="password123",

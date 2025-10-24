@@ -220,7 +220,7 @@ class FixtureHelper:
             FixtureHelper.reset_sequences()
         """
         # Reset sequences for all factories
-        factory.random.reseed_random("test-seed")
+        factory.Faker._get_faker().seed_instance(0)
         # Note: Individual factory sequences are automatically reset by
         # pytest-django between tests, so explicit reset is typically not
         # needed
