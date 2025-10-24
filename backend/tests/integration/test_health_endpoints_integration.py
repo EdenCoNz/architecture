@@ -298,3 +298,121 @@ class TestHealthEndpointPerformance:
         assert response.status_code == status.HTTP_200_OK
         # Liveness should respond in less than 100ms (no database checks)
         assert duration < 100, f"Liveness check took {duration}ms, expected < 100ms"
+
+
+@pytest.mark.integration
+class TestHealthEndpointProductionMode:
+    """Integration tests for health endpoint in production mode (Story #188)."""
+
+    @pytest.fixture
+    def client(self):
+        """Provide API client for testing."""
+        return APIClient()
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True,
+        SECURE_REDIRECT_EXEMPT=[
+            r"^api/v1/health/$",
+            r"^api/v1/health/ready/$",
+            r"^api/v1/health/live/$",
+        ],
+    )
+    def test_health_endpoint_no_redirect_with_ssl_redirect_enabled(self, client, db):
+        """
+        Verify health endpoint returns HTTP 200 directly without redirects.
+
+        Story #188 - Acceptance Criteria:
+        - Given the backend container is running, when I send a GET request to
+          the health endpoint, then I receive HTTP 200 status code
+        - Given the health endpoint is called, when checking the response headers,
+          then there are no redirect location headers present
+        """
+        response = client.get("/api/v1/health/")
+
+        # Should return 200 OK, not 301 or 302 redirect
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "healthy"
+
+        # Verify no redirect headers present
+        assert "Location" not in response
+        assert response.status_code not in [301, 302, 303, 307, 308]
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True,
+        SECURE_REDIRECT_EXEMPT=[
+            r"^api/v1/health/$",
+            r"^api/v1/health/ready/$",
+            r"^api/v1/health/live/$",
+        ],
+    )
+    def test_health_endpoint_response_time_under_100ms(self, client, db):
+        """
+        Verify health endpoint responds within 100ms.
+
+        Story #188 - Acceptance Criteria:
+        - Given I access the health endpoint, when the response is received,
+          then the response time is under 100ms
+        """
+        import time
+
+        start = time.time()
+        response = client.get("/api/v1/health/")
+        duration = (time.time() - start) * 1000  # Convert to ms
+
+        assert response.status_code == status.HTTP_200_OK
+        assert duration < 100, f"Health check took {duration}ms, expected < 100ms"
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True,
+        SECURE_REDIRECT_EXEMPT=[
+            r"^api/v1/health/$",
+            r"^api/v1/health/ready/$",
+            r"^api/v1/health/live/$",
+        ],
+    )
+    def test_health_endpoint_consecutive_requests_all_return_200(self, client, db):
+        """
+        Verify 20 consecutive health endpoint requests all return HTTP 200.
+
+        Story #188 - Acceptance Criteria:
+        - Given the CI/CD pipeline tests the health endpoint, when making 20
+          consecutive requests, then all 20 requests return HTTP 200 status code
+        """
+        for i in range(20):
+            response = client.get("/api/v1/health/")
+            assert (
+                response.status_code == status.HTTP_200_OK
+            ), f"Request {i+1}/20 failed with status {response.status_code}"
+            assert response.data["status"] == "healthy"
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True,
+        SECURE_REDIRECT_EXEMPT=[
+            r"^api/v1/health/$",
+            r"^api/v1/health/ready/$",
+            r"^api/v1/health/live/$",
+        ],
+    )
+    def test_readiness_probe_no_redirect_in_production(self, client, db):
+        """Verify readiness probe endpoint is also exempt from SSL redirect."""
+        response = client.get("/api/v1/health/ready/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["ready"] is True
+        assert "Location" not in response
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True,
+        SECURE_REDIRECT_EXEMPT=[
+            r"^api/v1/health/$",
+            r"^api/v1/health/ready/$",
+            r"^api/v1/health/live/$",
+        ],
+    )
+    def test_liveness_probe_no_redirect_in_production(self, client):
+        """Verify liveness probe endpoint is also exempt from SSL redirect."""
+        response = client.get("/api/v1/health/live/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["alive"] is True
+        assert "Location" not in response

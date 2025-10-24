@@ -284,42 +284,30 @@ function loadConfig(): AppConfig {
 /**
  * Application Configuration Instance
  *
- * This is the singleton configuration object that should be used throughout
- * the application. It is loaded once at module initialization and provides
- * read-only access to all configuration values.
+ * DEPRECATED: Use getRuntimeConfig() from './runtimeConfig' instead.
+ *
+ * This build-time configuration is kept for backward compatibility and testing,
+ * but the runtime configuration system should be used in production.
  *
  * @example
  * ```typescript
- * import { config } from '@/config';
+ * import { getRuntimeConfig } from '@/config';
  *
- * // Access configuration values
+ * // Access configuration values (after loadRuntimeConfig() has been called)
+ * const config = getRuntimeConfig();
  * const apiUrl = config.api.baseUrl;
  * const isDebug = config.app.debug;
  * ```
  */
 export const config = loadConfig();
 
-/**
- * Print configuration summary to console
- *
- * This is useful for debugging and verifying configuration in different
- * environments. Sensitive values are not included in the output.
- */
-export function printConfigSummary(): void {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Application Configuration Summary');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`Environment:           ${config.environment}`);
-  console.log(`Application Name:      ${config.app.name}`);
-  console.log(`Application Version:   ${config.app.version}`);
-  console.log(`API Base URL:          ${config.api.baseUrl}`);
-  console.log(`API Timeout:           ${config.api.timeout}ms`);
-  console.log(`Debug Mode:            ${config.app.debug}`);
-  console.log(`Analytics:             ${config.features.enableAnalytics ? 'enabled' : 'disabled'}`);
-  console.log(`Error Reporting:       ${config.features.enableErrorReporting ? 'enabled' : 'disabled'}`);
-  console.log(`Service Worker:        ${config.features.enableServiceWorker ? 'enabled' : 'disabled'}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-}
-
 // Export everything for testing
 export { getEnv, getBooleanEnv, getNumberEnv, getEnvironment, validateApiUrl };
+
+// Re-export runtime configuration functions for convenient access
+export {
+  loadRuntimeConfig,
+  getRuntimeConfig,
+  isConfigLoaded,
+  resetRuntimeConfig,
+} from './runtimeConfig';
