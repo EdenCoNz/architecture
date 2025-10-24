@@ -103,6 +103,11 @@ RUN npm run build
 # ============================================================================
 FROM nginx:1.27-alpine AS production
 
+# Security: Upgrade vulnerable packages (CVE-2025-49794, CVE-2025-49796, etc.)
+# libxml2 2.13.4-r5 has 2 CRITICAL and 4 HIGH vulnerabilities
+# Upgrading to latest available version to fix security issues
+RUN apk upgrade --no-cache libxml2
+
 # Copy built static assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
