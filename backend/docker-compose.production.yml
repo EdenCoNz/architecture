@@ -1,0 +1,419 @@
+# =============================================================================
+# Docker Compose Configuration for Backend Production
+# =============================================================================
+# This compose file orchestrates the backend application and its dependencies
+# for production deployment. It includes:
+# - PostgreSQL database with persistent data and production settings
+# - Redis cache for session and cache storage with persistence
+# - Backend Django application with Gunicorn WSGI server
+#
+# IMPORTANT: This file is designed for production use. Ensure all
+# environment variables are properly configured before deployment.
+#
+# Usage:
+#   Start services:         docker compose -f docker-compose.production.yml up -d
+#   View logs:              docker compose -f docker-compose.production.yml logs -f
+#   Stop services:          docker compose -f docker-compose.production.yml down
+#   Rebuild:                docker compose -f docker-compose.production.yml up --build -d
+#
+# Security Notes:
+#   - Never commit .env.production file to version control
+#   - Use strong passwords for database and other services
+#   - Ensure ALLOWED_HOSTS and CORS settings are properly configured
+#   - Use HTTPS in production (handled by reverse proxy)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Service (Production)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: backend-db-prod
+    restart: always
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
+      # Production PostgreSQL tuning
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-256MB}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+
+    volumes:
+      # Persistent database storage
+      - postgres_data:/var/lib/postgresql/data
+      # Production PostgreSQL configuration (optional)
+      # - ./docker/postgres/postgresql.prod.conf:/etc/postgresql/postgresql.conf
+
+    # Do NOT expose database port in production
+    # Use internal networking only for security
+    # ports:
+    #   - "5432:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - backend-network
+
+    # Production resource limits (adjust based on server capacity)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+    # Production logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache Service (Production)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: backend-redis-prod
+    restart: always
+
+    # Production Redis configuration
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory ${REDIS_MAXMEMORY:-512mb}
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+
+    volumes:
+      # Persistent Redis data
+      - redis_data:/data
+
+    # Do NOT expose Redis port in production
+    # Use internal networking only for security
+    # ports:
+    #   - "6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - backend-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Backend Django Application Service (Production)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      # Use BuildKit cache for faster builds
+      cache_from:
+        - backend-prod:latest
+
+    image: backend-prod:latest
+    container_name: backend-app-prod
+    restart: always
+
+    # Load environment variables from production .env file
+    env_file:
+      - .env.production
+
+    # Production environment variables
+    environment:
+      # Django settings
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DEBUG: "False"
+
+      # Database connection (use service name as host)
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # Redis connection (use service name as host)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      # Production server settings
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+
+      # Gunicorn settings
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
+      GUNICORN_MAX_REQUESTS: ${GUNICORN_MAX_REQUESTS:-1000}
+      GUNICORN_MAX_REQUESTS_JITTER: ${GUNICORN_MAX_REQUESTS_JITTER:-100}
+
+    volumes:
+      # Persistent logs (read-only application code in production)
+      - ./logs:/app/logs
+      # Persistent media files
+      - media_data:/app/media
+      # Persistent static files
+      - static_data:/app/staticfiles
+
+    # Expose only to reverse proxy, not to host
+    # In production, use a reverse proxy (nginx, traefik, etc.)
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+    networks:
+      - backend-network
+
+    # Production resource limits (adjust based on server capacity)
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+
+    # Production logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+    # Override default command if needed (already set in Dockerfile)
+    # command: >
+    #   gunicorn config.wsgi:application
+    #   --bind 0.0.0.0:8000
+    #   --workers ${GUNICORN_WORKERS:-4}
+    #   --timeout ${GUNICORN_TIMEOUT:-30}
+    #   --max-requests ${GUNICORN_MAX_REQUESTS:-1000}
+    #   --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER:-100}
+    #   --access-logfile -
+    #   --error-logfile -
+    #   --log-level info
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker Service (Production - Optional)
+  # ---------------------------------------------------------------------------
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      cache_from:
+        - backend-prod:latest
+
+    image: backend-prod:latest
+    container_name: backend-celery-prod
+    restart: always
+
+    env_file:
+      - .env.production
+
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-4}
+
+    volumes:
+      - ./logs:/app/logs
+      - media_data:/app/media
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+    command: >
+      celery -A config worker
+      --loglevel=info
+      --concurrency=${CELERY_WORKER_CONCURRENCY:-4}
+      --max-tasks-per-child=1000
+      --task-events
+      --without-gossip
+      --without-mingle
+      --without-heartbeat
+
+    networks:
+      - backend-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+    # Only start if you need background task processing
+    # Enable with: docker compose --profile with-celery up
+    profiles:
+      - with-celery
+
+  # ---------------------------------------------------------------------------
+  # Celery Beat Scheduler (Production - Optional)
+  # ---------------------------------------------------------------------------
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      cache_from:
+        - backend-prod:latest
+
+    image: backend-prod:latest
+    container_name: backend-celery-beat-prod
+    restart: always
+
+    env_file:
+      - .env.production
+
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+
+    volumes:
+      - ./logs:/app/logs
+      - celerybeat_data:/app/celerybeat
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: >
+      celery -A config beat
+      --loglevel=info
+      --pidfile=/app/celerybeat/celerybeat.pid
+      --schedule=/app/celerybeat/celerybeat-schedule
+
+    networks:
+      - backend-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Only start if you need scheduled tasks
+    # Enable with: docker compose --profile with-celery up
+    profiles:
+      - with-celery
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  backend-network:
+    driver: bridge
+    name: backend-network-prod
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # PostgreSQL data persists between container restarts
+  postgres_data:
+    name: backend-postgres-data-prod
+    driver: local
+
+  # Redis data persists between container restarts
+  redis_data:
+    name: backend-redis-data-prod
+    driver: local
+
+  # Media files persist between container restarts
+  media_data:
+    name: backend-media-data-prod
+    driver: local
+
+  # Static files persist between container restarts
+  static_data:
+    name: backend-static-data-prod
+    driver: local
+
+  # Celery beat schedule data
+  celerybeat_data:
+    name: backend-celerybeat-data-prod
+    driver: local

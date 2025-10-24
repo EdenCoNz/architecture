@@ -43,11 +43,23 @@ export DJANGO_SETTINGS_MODULE=config.settings.development
 # Testing
 export DJANGO_SETTINGS_MODULE=config.settings.testing
 
+# Staging
+export DJANGO_SETTINGS_MODULE=config.settings.staging
+
 # Production
 export DJANGO_SETTINGS_MODULE=config.settings.production
 ```
 
 If `DJANGO_SETTINGS_MODULE` is not set, it defaults to **development**.
+
+### Supported Environments
+
+| Environment | Purpose | Security Level | Configuration File |
+|------------|---------|----------------|-------------------|
+| Development | Local development | Low | `.env` |
+| Testing | Automated tests | Minimal | Built-in |
+| Staging | Pre-production testing | Production-like | `.env.staging` |
+| Production | Live deployment | High | `.env.production` |
 
 ## Configuration Variables
 
@@ -64,10 +76,11 @@ These variables must be set in development and production:
 | `DB_USER` | Database username | `postgres` |
 | `DB_PASSWORD` | Database password | (secure password) |
 
-**Production Requirements**:
+**Production/Staging Requirements**:
 - `SECRET_KEY` must be at least 50 characters
 - `SECRET_KEY` cannot contain "django-insecure"
 - `ALLOWED_HOSTS` must be set
+- Strong database passwords required
 
 ### Optional Variables (With Defaults)
 
@@ -408,6 +421,40 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 LOG_LEVEL=DEBUG
 ```
 
+### Staging .env
+
+```bash
+SECRET_KEY=<50+ character secure key>
+DJANGO_SETTINGS_MODULE=config.settings.staging
+DEBUG=False
+ALLOWED_HOSTS=staging.example.com,staging-api.example.com
+
+DB_NAME=backend_staging
+DB_USER=backend_staging_user
+DB_PASSWORD=<secure password>
+DB_HOST=db.staging.example.com
+DB_PORT=5432
+
+REDIS_URL=redis://redis.staging.example.com:6379/1
+REDIS_PASSWORD=<secure password>
+CELERY_BROKER_URL=redis://:password@redis.staging.example.com:6379/0
+CELERY_RESULT_BACKEND=redis://:password@redis.staging.example.com:6379/0
+
+CORS_ALLOWED_ORIGINS=https://staging.example.com
+
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=<staging email>
+EMAIL_HOST_PASSWORD=<password>
+DEFAULT_FROM_EMAIL=noreply-staging@example.com
+
+LOG_LEVEL=INFO
+
+SECURE_SSL_REDIRECT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+```
+
 ### Production .env
 
 ```bash
@@ -423,8 +470,9 @@ DB_HOST=db.example.com
 DB_PORT=5432
 
 REDIS_URL=redis://redis.example.com:6379/1
-CELERY_BROKER_URL=redis://redis.example.com:6379/0
-CELERY_RESULT_BACKEND=redis://redis.example.com:6379/0
+REDIS_PASSWORD=<strong password from secrets manager>
+CELERY_BROKER_URL=redis://:password@redis.example.com:6379/0
+CELERY_RESULT_BACKEND=redis://:password@redis.example.com:6379/0
 
 CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com
 

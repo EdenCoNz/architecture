@@ -1,0 +1,273 @@
+# =============================================================================
+# Docker Compose Configuration for Backend Development
+# =============================================================================
+# This compose file orchestrates the backend application and its dependencies
+# for local development. It includes:
+# - PostgreSQL database with persistent data
+# - Redis cache for session and cache storage
+# - Backend Django application with hot reload
+#
+# Usage:
+#   Start all services:     docker compose up
+#   Start in background:    docker compose up -d
+#   View logs:              docker compose logs -f
+#   Stop services:          docker compose down
+#   Rebuild containers:     docker compose up --build
+#   Remove volumes:         docker compose down -v
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: backend-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${DB_NAME:-backend_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
+
+    volumes:
+      # Persistent database storage
+      - postgres_data:/var/lib/postgresql/data
+      # Optional: Custom PostgreSQL configuration
+      # - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+
+    ports:
+      # Expose PostgreSQL port for local database tools
+      - "${DB_PORT:-5432}:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-backend_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - backend-network
+
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache Service
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: backend-redis
+    restart: unless-stopped
+
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+    volumes:
+      # Persistent Redis data
+      - redis_data:/data
+
+    ports:
+      # Expose Redis port for local Redis clients
+      - "6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - backend-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # Backend Django Application Service
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      # Use BuildKit cache for faster builds
+      cache_from:
+        - backend-dev:latest
+
+    image: backend-dev:latest
+    container_name: backend-app
+    restart: unless-stopped
+
+    # Load environment variables from file
+    env_file:
+      - .env.docker
+
+    # Override specific environment variables
+    environment:
+      # Django settings
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DEBUG: "True"
+
+      # Database connection (use service name as host)
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-backend_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # Redis connection (use service name as host)
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+      # Development server settings
+      PYTHONUNBUFFERED: "1"
+
+    volumes:
+      # Mount source code for live reloading
+      - ./:/app
+      # Prevent node_modules and venv from being overridden
+      - /app/venv
+      # Persistent logs
+      - ./logs:/app/logs
+      # Persistent media files
+      - media_data:/app/media
+      # Persistent static files
+      - static_data:/app/staticfiles
+
+    ports:
+      # Expose Django development server
+      - "${DEV_PORT:-8000}:8000"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - backend-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Override default command for development (optional)
+    # command: python manage.py runserver 0.0.0.0:8000
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker Service (Optional - for background tasks)
+  # ---------------------------------------------------------------------------
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      cache_from:
+        - backend-dev:latest
+
+    image: backend-dev:latest
+    container_name: backend-celery
+    restart: unless-stopped
+
+    env_file:
+      - .env.docker
+
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-backend_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+    volumes:
+      - ./:/app
+      - /app/venv
+      - ./logs:/app/logs
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: celery -A config worker -l info
+
+    networks:
+      - backend-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Only start if you need background task processing
+    profiles:
+      - with-celery
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  backend-network:
+    driver: bridge
+    name: backend-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # PostgreSQL data persists between container restarts
+  postgres_data:
+    name: backend-postgres-data
+    driver: local
+
+  # Redis data persists between container restarts
+  redis_data:
+    name: backend-redis-data
+    driver: local
+
+  # Media files persist between container restarts
+  media_data:
+    name: backend-media-data
+    driver: local
+
+  # Static files persist between container restarts
+  static_data:
+    name: backend-static-data
+    driver: local

@@ -1,0 +1,363 @@
+# =============================================================================
+# Multi-Container Orchestration for Local Development
+# =============================================================================
+# This Docker Compose file orchestrates the complete application stack:
+#   - Frontend (React/Vite) on port 5173
+#   - Backend (Django/DRF) on port 8000
+#   - PostgreSQL database on port 5432
+#   - Redis cache on port 6379
+#
+# Quick Start:
+#   docker compose up                    # Start all services
+#   docker compose up -d                 # Start in background
+#   docker compose down                  # Stop all services
+#   docker compose build                 # Rebuild all containers
+#   docker compose logs -f               # View logs
+#   docker compose ps                    # View service status
+#
+# Helper Script (recommended):
+#   ./docker-dev.sh start                # Start all services
+#   ./docker-dev.sh stop                 # Stop all services
+#   ./docker-dev.sh restart              # Restart all services
+#   ./docker-dev.sh logs                 # View logs
+#   ./docker-dev.sh rebuild              # Rebuild and restart
+#
+# Service-Specific Commands:
+#   docker compose up frontend           # Start only frontend (and dependencies)
+#   docker compose up backend            # Start only backend (and dependencies)
+#   docker compose exec backend shell    # Access backend shell
+#   docker compose exec db psql          # Access database
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: app-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${DB_NAME:-backend_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
+
+    volumes:
+      # Persistent database storage
+      - postgres_data:/var/lib/postgresql/data
+
+    ports:
+      # Expose PostgreSQL port for local database tools
+      - "${DB_PORT:-5432}:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-backend_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - app-network
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache Service
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: app-redis
+    restart: unless-stopped
+
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+    volumes:
+      # Persistent Redis data
+      - redis_data:/data
+
+    ports:
+      # Expose Redis port for local Redis clients
+      - "6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # Backend Django Application Service
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+      # Use BuildKit cache for faster builds
+      cache_from:
+        - backend-dev:latest
+
+    image: backend-dev:latest
+    container_name: app-backend
+    restart: unless-stopped
+
+    # Load environment variables from file
+    env_file:
+      - ./backend/.env.docker
+
+    # Override specific environment variables
+    environment:
+      # Django settings
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DEBUG: "True"
+
+      # Database connection (use service name as host)
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-backend_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # Redis connection (use service name as host)
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+      # CORS - allow frontend container
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://frontend:5173
+      CSRF_TRUSTED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000
+
+      # Development server settings
+      PYTHONUNBUFFERED: "1"
+
+    volumes:
+      # Mount source code for live reloading
+      - ./backend:/app
+      # Prevent node_modules and venv from being overridden
+      - /app/venv
+      # Persistent logs
+      - ./backend/logs:/app/logs
+      # Persistent media files
+      - backend_media:/app/media
+      # Persistent static files
+      - backend_static:/app/staticfiles
+
+    ports:
+      # Expose Django development server
+      - "${BACKEND_PORT:-8000}:8000"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Frontend React/Vite Application Service
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+
+    image: frontend-dev:latest
+    container_name: app-frontend
+    restart: unless-stopped
+
+    # Load environment variables from file
+    env_file:
+      - ./frontend/.env.docker
+
+    # Override specific environment variables
+    environment:
+      - NODE_ENV=development
+      # API URL points to backend service
+      - VITE_API_URL=http://localhost:8000
+
+    volumes:
+      # Bind mount source code for live editing
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/package-lock.json:/app/package-lock.json
+
+      # Named volume for node_modules
+      - frontend_node_modules:/app/node_modules
+
+    ports:
+      # Expose Vite dev server
+      - "${FRONTEND_PORT:-5173}:5173"
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker Service (Optional - for background tasks)
+  # ---------------------------------------------------------------------------
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+      cache_from:
+        - backend-dev:latest
+
+    image: backend-dev:latest
+    container_name: app-celery
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env.docker
+
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-backend_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+    volumes:
+      - ./backend:/app
+      - /app/venv
+      - ./backend/logs:/app/logs
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: celery -A config worker -l info
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Only start if you need background task processing
+    profiles:
+      - with-celery
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app-network:
+    driver: bridge
+    name: app-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # PostgreSQL data persists between container restarts
+  postgres_data:
+    name: app-postgres-data
+    driver: local
+
+  # Redis data persists between container restarts
+  redis_data:
+    name: app-redis-data
+    driver: local
+
+  # Backend media files persist between container restarts
+  backend_media:
+    name: app-backend-media
+    driver: local
+
+  # Backend static files persist between container restarts
+  backend_static:
+    name: app-backend-static
+    driver: local
+
+  # Frontend node_modules persist between container restarts
+  frontend_node_modules:
+    name: app-frontend-node-modules
+    driver: local
