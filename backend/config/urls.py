@@ -39,8 +39,13 @@ if settings.DEBUG:
 
     # Django Debug Toolbar
     if "debug_toolbar" in settings.INSTALLED_APPS:
-        import debug_toolbar
+        try:
+            import debug_toolbar
 
-        urlpatterns = [
-            path("__debug__/", include(debug_toolbar.urls)),
-        ] + urlpatterns
+            urlpatterns = [
+                path("__debug__/", include(debug_toolbar.urls)),
+            ] + urlpatterns
+        except ImportError:
+            # debug_toolbar not installed - skip adding debug URLs
+            # This can happen in production builds or CI/CD environments
+            pass
