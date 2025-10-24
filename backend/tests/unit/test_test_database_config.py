@@ -44,7 +44,7 @@ class TestTestDatabaseConfiguration:
             # In CI: DB_USER=test_user, DB_PASSWORD=test_password, DB_NAME=test_backend_db
             expected_user = os.environ.get("DB_USER", "postgres")
             expected_password = os.environ.get("DB_PASSWORD", "postgres")
-            expected_name = os.environ.get("DB_NAME", "backend_test_db")
+            expected_base_name = os.environ.get("DB_NAME", "backend_test_db")
             expected_host = os.environ.get("DB_HOST", "localhost")
             expected_port = os.environ.get("DB_PORT", "5432")
 
@@ -55,10 +55,29 @@ class TestTestDatabaseConfiguration:
             assert (
                 db_config["PASSWORD"] == expected_password
             ), "Should use DB_PASSWORD from environment"
-            assert db_config["NAME"] == expected_name, (
-                f"Should use DB_NAME from environment, "
-                f"expected {expected_name} but got {db_config['NAME']}"
+
+            # Django automatically modifies test database names when using pytest-xdist:
+            # 1. Prefixes with "test_" (e.g., test_backend_db -> test_test_backend_db)
+            # 2. Adds worker suffix (e.g., _gw0, _gw1) for parallel execution
+            # So we verify the base name is derived from the environment variable
+            actual_db_name = db_config["NAME"]
+
+            # The database name should contain the base name from environment
+            # It may be prefixed with "test_" and suffixed with worker ID
+            assert expected_base_name in actual_db_name, (
+                f"Database name should be derived from DB_NAME environment variable. "
+                f"Expected to find '{expected_base_name}' in '{actual_db_name}'"
             )
+
+            # If it's a test database (has "test_" prefix or worker suffix),
+            # verify it follows Django's naming convention
+            if actual_db_name != expected_base_name:
+                # Check for Django's "test_" prefix pattern
+                assert actual_db_name.startswith("test_"), (
+                    f"Test database should start with 'test_' prefix, "
+                    f"but got '{actual_db_name}'"
+                )
+
             assert db_config["HOST"] == expected_host, "Should use DB_HOST from environment"
             assert str(db_config["PORT"]) == expected_port, "Should use DB_PORT from environment"
 
