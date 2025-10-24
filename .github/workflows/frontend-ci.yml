@@ -940,8 +940,11 @@ jobs:
     name: Deploy Frontend to Ubuntu Server
     uses: ./.github/workflows/deploy-to-ubuntu.yml
     needs: [build-container-prod, security-scan-prod]
-    # Only deploy on pushes to main branch (not on PRs)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only deploy after successful PR merge to main (not on direct pushes)
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      contains(github.event.head_commit.message, 'Merge pull request')
 
     with:
       service_name: frontend
