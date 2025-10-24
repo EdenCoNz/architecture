@@ -133,7 +133,14 @@ This command reads the user stories file, processes the execution order, and coo
 
 For each phase in the execution order:
 
-1. Skip stories that are already completed (check implementation-log.json)
+1. **Skip stories that are already completed (optimized check)**:
+   - Read `docs/features/feature-log.json`
+   - Find the feature entry with matching featureID
+   - Check if `completedStories` array exists in the feature entry
+   - Skip any story whose identifier (e.g., "Story-1", "Story-2") is in the `completedStories` array
+   - If `completedStories` doesn't exist yet, assume no stories are completed
+   - **Token Optimization**: This avoids reading the massive implementation-log.json file just to check what's done
+
 2. Execute ALL stories in the phase regardless of agent type
 3. For sequential phases:
    - Launch agents one by one in the specified order
@@ -144,6 +151,7 @@ For each phase in the execution order:
 
 ### Step 4: Pass Story Context to Agents
 
+**For FEATURE_MODE**:
 ```
 Feature ID: {feature_id}
 
@@ -170,11 +178,43 @@ If this is a design story (ui-ux-designer agent) and you updated the design brie
 {"actionType": "design", "completedAt": "{YYYY-MM-DDTHH:mm:ssZ}", "designBriefUpdated": true}
 ```
 
+**For FIX_MODE**:
+```
+Feature ID: {feature_id}
+Issue Number: {issue_number}
+
+Implement the following fix story from docs/features/{feature_id}/issues/{issue_number}/user-stories.md:
+
+[Story Title]
+[Story Description]
+
+Acceptance Criteria:
+[List all acceptance criteria]
+
+Execute this fix following best practices and ensure all acceptance criteria are met.
+
+IMPORTANT: After completing this fix story, you MUST record your work in docs/features/{feature_id}/issues/{issue_number}/implementation-log.json with:
+- Story number and title
+- Timestamp of completion
+- All files created or modified
+- All actions taken (tool calls, decisions made)
+- Any issues encountered and how they were resolved
+- Status (completed/partial/blocked)
+- If the file already exists, append to it. If it doesn't exist, create it as a JSON array.
+
+**Token Optimization**: Each issue has its own implementation log, preventing the cumulative growth that led to Feature 7 having a 6,871-line log. Future fixes only read their own small log (~50-200 lines).
+```
+
 ### Step 5: Verify Completion and Update Feature Log
 
 After all phases complete:
 
-1. Verify all stories in the execution order have been completed by checking implementation-log.json
+1. **Verify completion and build completedStories list**:
+   - **For FEATURE_MODE**: Read `docs/features/{feature_id}/implementation-log.json`
+   - **For FIX_MODE**: Read `docs/features/{feature_id}/issues/{issue_number}/implementation-log.json`
+   - Check which stories were completed in the appropriate log
+   - Build a list of completed story identifiers (e.g., ["Story-1", "Story-2", "Story-3"])
+   - Count completed vs total stories from execution order
 
 2. **Update feature-log.json for both FEATURE_MODE and FIX_MODE**:
 
@@ -197,17 +237,23 @@ After all phases complete:
    - If this is the FIRST feature implementation for this feature:
      - Also set `userStoriesImplemented` to current timestamp (for backward compatibility)
      - Ensure `isSummarised` is set to `false`
+   - **Add or update `completedStories` array** with the list of completed story identifiers
+     - Example: `"completedStories": ["Story-1", "Story-2", "Story-3", ...]`
+     - This enables fast skip-checking in future /implement runs without reading implementation-log.json
 
    **For FIX_MODE**:
    - Add implementation entry with:
      ```json
      {
        "type": "fix",
+       "issueNumber": {issue_number},
        "timestamp": "{YYYY-MM-DDTHH:mm:ssZ}",
        "status": "completed",
-       "implementationLog": "docs/features/{feature_id}/implementation-log.json"
+       "implementationLog": "docs/features/{feature_id}/issues/{issue_number}/implementation-log.json"
      }
      ```
+   - **Do NOT update `completedStories` array** for fixes (only feature stories go in this array)
+   - **Token Optimization**: Separate log per issue prevents cumulative log growth
 
 3. **Validation**:
    - Ensure the feature entry exists in feature-log.json before updating
@@ -215,6 +261,39 @@ After all phases complete:
    - Verify the JSON structure is valid before writing
 
 Note: The `implementations` array provides a complete history of all work on the feature (both initial implementation and subsequent fixes). The `isSummarised` property tracks whether this feature has been summarised by the /summarise command to reduce context for future agents.
+
+### Step 5.5: Create Incremental Summary (Optional but Recommended)
+
+After updating feature-log.json:
+
+1. **Create or update implementation summary** (only for FEATURE_MODE):
+   - Read the implementation log that was just completed
+   - Create a concise summary (50-150 lines) covering:
+     - What was accomplished
+     - Key technical decisions made
+     - Files created/modified
+     - Any issues encountered and resolutions
+   - Write summary to `docs/features/{feature_id}/implementation-summary.md`
+   - If file exists, append new section with timestamp heading
+
+2. **Update global summary for FIX_MODE**:
+   - For fixes, append a brief note to `docs/features/{feature_id}/fixes-summary.md`:
+     ```markdown
+     ## Fix #{issue_number} - {issue_title} ({timestamp})
+     - **Stories**: {count} completed
+     - **Key Changes**: [brief 1-2 sentence summary]
+     - **Files Modified**: [list of main files]
+     ```
+
+3. **Token Optimization Benefits**:
+   - Future agents can read concise summaries instead of massive logs
+   - Summaries stay current without manual /summarise runs
+   - Each summary is small and focused on recent work
+
+**When to skip**: You may skip this step if:
+- Implementation was very simple (1-2 stories)
+- Time-sensitive fix that needs immediate deployment
+- You plan to run /summarise command soon anyway
 
 ## Report
 

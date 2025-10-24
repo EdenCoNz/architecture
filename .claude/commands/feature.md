@@ -56,14 +56,16 @@ After pre-flight checks pass, set up the feature branch:
    - Verify pull success by checking the command exit code
    - If pull fails: STOP execution and inform the user with message: "Failed to update main branch. Error: {error_message}. Please resolve manually."
 
-3. **Determine next feature ID**:
+3. **Determine next feature ID and cache feature log data**:
    - Read the feature-log.json file at docs/features/feature-log.json
+   - **IMPORTANT**: Store the entire parsed JSON in a variable for reuse in Steps 5 and 6
    - Parse the JSON to extract all existing feature IDs from the features array
    - Handle both "id" and "featureID" field names (check both as the structure may vary)
    - Find the maximum feature ID currently in use
    - Calculate next feature ID as: max_id + 1
    - If feature-log.json doesn't exist or features array is empty, use 1 as the first feature ID
    - If JSON parsing fails: STOP execution and inform the user with message: "Failed to read feature-log.json. Error: {error_message}. Please verify file integrity."
+   - **Token Optimization**: By caching this data, you avoid re-reading the file in Steps 5 and 6
 
 4. **Generate feature branch name**:
    - Extract a description from the feature request input {{{ input }}}
@@ -120,18 +122,20 @@ After the `/implement` command completes:
    - The feature ID will be needed for git commit messages and PR creation
 
 3. **Verify feature log update**:
-   - Read the feature-log.json file
+   - Re-read the feature-log.json file (it was updated by /implement in Step 4)
    - Find the feature entry with matching featureID
    - Confirm that `userStoriesImplemented` has been set to a timestamp (this should have been done by /implement)
+   - **Cache this updated data** for use in Step 6 (avoids third read)
 
 ### Step 6: Commit and Push Feature Changes
 
 After verifying implementation completion in Step 5:
 
-1. **Read feature title**:
-   - Read the feature-log.json file
-   - Find the feature entry with matching featureID
+1. **Extract feature title from cached data**:
+   - Use the cached feature-log data from Step 5.3 (do NOT re-read the file)
+   - Find the feature entry with matching featureID in the cached data
    - Extract the feature title for use in the commit message
+   - **Token Optimization**: Using cached data saves ~400 lines of JSON parsing
 
 2. **Use /push command to stage, commit, and push**:
    - Use SlashCommand tool to execute: `/push "Feature {feature_id}: {feature_title}"`

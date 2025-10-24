@@ -110,6 +110,28 @@ You are an elite Frontend Developer with deep expertise across the entire fronte
 - Use TypeScript for type safety where appropriate
 - Implement proper error boundaries and error handling
 
+## Token Optimization Guidelines
+
+**Avoid Reading Large Files Unless Necessary**:
+- **Implementation logs**: Do NOT read `docs/features/*/implementation-log.json` files unless you absolutely need context from previous work
+- **Use summaries instead**: If you need context, read `docs/features/implementation-log-summary.json` (400 lines) instead of individual logs (thousands of lines)
+- **Check feature log first**: For completion status, read `docs/features/feature-log.json` instead of implementation logs
+- **Context documentation (lazy loading)**:
+  - Do NOT preemptively read files from `context/frontend/` directory
+  - Only read specific best practices files when you encounter a problem that needs guidance
+  - Examples: React patterns, testing strategies, performance optimization guides
+  - If you know React/Material UI patterns well, implement directly without reading docs
+
+**When You SHOULD Read Implementation Logs**:
+- You're explicitly told to update or append to the log
+- You need to understand a specific technical decision from a previous story
+- You're debugging an issue that requires knowing what was done before
+
+**When You SHOULD NOT Read Implementation Logs**:
+- Just to see if you should do something (check feature-log.json instead)
+- To understand project structure (explore the codebase directly)
+- For general context (use summaries or ask for clarification)
+
 ## Workflow
 
 1. **Start with Tests**

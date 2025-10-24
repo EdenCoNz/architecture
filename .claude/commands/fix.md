@@ -298,18 +298,29 @@ After product-owner agent completes:
 
 After /implement completes:
 
-1. **Read implementation log**:
-   - Check `docs/features/{featureID}/implementation-log.json`
-   - Verify all fix stories have status "completed"
-   - Count completed vs total stories
-   - If any stories are incomplete:
-     - Display warning: "Warning: {incomplete_count}/{total} stories incomplete"
-     - List incomplete stories with their status
-     - Ask user if they want to continue with commit anyway or stop
+1. **Check feature-log.json for completion status (optimized approach)**:
+   - Read `docs/features/feature-log.json`
+   - Find the feature entry with matching featureID
+   - Look in the `implementations` array for the fix entry with matching issue_number
+   - Check the `status` field of the implementation entry
+   - Check the `totalStories` field to know how many stories were planned
+   - If status is "completed": All stories are done ✅
+   - If status is "partial" or "blocked": Some stories incomplete ⚠️
 
-2. **Report implementation status**:
-   - Display: "Implementation complete: {completed}/{total} stories finished"
-   - List all completed stories
+2. **Only read implementation-log.json if verification fails**:
+   - If the implementation entry in feature-log.json shows "partial" or "blocked" status
+   - THEN read `docs/features/{featureID}/issues/{issue_number}/implementation-log.json` for details
+   - Count stories with status "completed" vs status "partial"/"blocked"
+   - List incomplete stories with their status
+   - Ask user if they want to continue with commit anyway or stop
+   - **Note**: Each issue has its own implementation log, so you're only reading a small file (~50-200 lines)
+
+3. **Report implementation status**:
+   - If status is "completed": Display "✅ Implementation complete: All {totalStories} fix stories finished"
+   - If status is "partial": Display "⚠️ Implementation partial: {completed}/{total} stories finished"
+   - List story titles from the implementation entry (if available)
+
+**Token Optimization**: This approach checks the small feature-log.json first (~400 lines) instead of always reading the massive implementation-log.json (potentially 6,000+ lines for Feature 7). Only reads full log if there are problems.
 
 ### Step 8: Commit and Push Changes
 

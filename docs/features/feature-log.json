@@ -7,8 +7,8 @@
       "createdAt": "2025-10-15T00:00:00Z",
       "userStoriesCreated": "2025-10-15T00:00:00Z",
       "userStoriesImplemented": "2025-10-15T19:45:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "totalStories": 10,
       "completedStories": 10,
       "assignedAgents": [
@@ -34,8 +34,8 @@
       "createdAt": "2025-10-20T00:00:00Z",
       "userStoriesCreated": "2025-10-20T00:00:00Z",
       "userStoriesImplemented": "2025-10-20T23:25:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": []
     },
     {
@@ -44,8 +44,8 @@
       "createdAt": "2025-10-20T23:30:00Z",
       "userStoriesCreated": "2025-10-20T23:30:00Z",
       "userStoriesImplemented": "2025-10-20T12:15:45Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": []
     },
     {
@@ -54,8 +54,8 @@
       "createdAt": "2025-10-21T00:00:00Z",
       "userStoriesCreated": "2025-10-21T00:00:00Z",
       "userStoriesImplemented": "2025-10-21T10:45:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": []
     },
     {
@@ -64,8 +64,8 @@
       "createdAt": "2025-10-21T00:00:00Z",
       "userStoriesCreated": "2025-10-21T00:00:00Z",
       "userStoriesImplemented": "2025-10-21T15:35:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "actions": [
         {
           "actionType": "design",
@@ -163,8 +163,8 @@
       "createdAt": "2025-10-22T00:00:00Z",
       "userStoriesCreated": "2025-10-22T00:00:00Z",
       "userStoriesImplemented": "2025-10-22T11:00:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "totalStories": 7,
       "completedStories": 7,
       "assignedAgents": [
@@ -216,8 +216,8 @@
       "createdAt": "2025-10-23T00:00:00Z",
       "userStoriesCreated": "2025-10-23T00:00:00Z",
       "userStoriesImplemented": "2025-10-23T14:30:00Z",
-      "isSummarised": false,
-      "summarisedAt": null,
+      "isSummarised": true,
+      "summarisedAt": "2025-10-24T15:00:00Z",
       "totalStories": 14,
       "completedStories": 14,
       "assignedAgents": [

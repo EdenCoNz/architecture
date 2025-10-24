@@ -1,0 +1,172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Feature Log Schema",
+  "description": "Schema for tracking features, their implementations, and fixes in the architecture system",
+  "type": "object",
+  "properties": {
+    "features": {
+      "type": "array",
+      "description": "Array of all features in the system",
+      "items": {
+        "type": "object",
+        "required": ["featureID", "title", "createdAt", "isSummarised"],
+        "properties": {
+          "featureID": {
+            "type": "string",
+            "description": "Unique feature identifier (e.g., '1', '2', '3')"
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable feature title"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of what the feature does (optional)"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when feature was created"
+          },
+          "userStoriesCreated": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when user stories were generated"
+          },
+          "userStoriesImplemented": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "DEPRECATED: Use 'implementations' array instead. Timestamp when initial feature implementation completed. Kept for backward compatibility."
+          },
+          "isSummarised": {
+            "type": "boolean",
+            "description": "Whether this feature has been summarised by /summarise command. New features should be set to false."
+          },
+          "summarisedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when feature was last summarised. Null if never summarised."
+          },
+          "totalStories": {
+            "type": "integer",
+            "description": "Total number of user stories in the feature (optional, for reporting)"
+          },
+          "completedStories": {
+            "type": "array",
+            "description": "OPTIMIZATION: Array of completed story identifiers (e.g., ['Story-1', 'Story-2']). Allows fast skip-checking without reading implementation-log.json",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assignedAgents": {
+            "type": "array",
+            "description": "List of agents assigned to this feature (optional, for reporting)",
+            "items": {
+              "type": "string",
+              "enum": ["backend-developer", "frontend-developer", "ui-ux-designer", "devops-engineer", "product-owner"]
+            }
+          },
+          "executionPhases": {
+            "type": "integer",
+            "description": "Number of execution phases in the feature (optional)"
+          },
+          "parallelPhases": {
+            "type": "integer",
+            "description": "Number of parallel execution phases (optional)"
+          },
+          "sequentialPhases": {
+            "type": "integer",
+            "description": "Number of sequential execution phases (optional)"
+          },
+          "filesPath": {
+            "type": "string",
+            "description": "Path to the user stories file (e.g., 'docs/features/1/user-stories.md')"
+          },
+          "actions": {
+            "type": "array",
+            "description": "Special actions taken during feature development (e.g., design brief updates)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "actionType": {
+                  "type": "string",
+                  "enum": ["design"]
+                },
+                "completedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "designBriefUpdated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "implementations": {
+            "type": "array",
+            "description": "RECOMMENDED: Array of all implementations (features and fixes). This provides complete history of work on the feature.",
+            "items": {
+              "type": "object",
+              "required": ["type", "timestamp", "status"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["feature", "fix"],
+                  "description": "Type of implementation: 'feature' for initial feature work, 'fix' for bug fixes"
+                },
+                "issueNumber": {
+                  "type": "integer",
+                  "description": "GitHub issue number (required for type='fix', not applicable for type='feature')"
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp when implementation completed"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["completed", "partial", "blocked", "planned"],
+                  "description": "Implementation status"
+                },
+                "implementationLog": {
+                  "type": "string",
+                  "description": "Path to implementation log. For features: 'docs/features/{id}/implementation-log.json'. For fixes: 'docs/features/{id}/issues/{issue}/implementation-log.json'"
+                },
+                "userStoriesPath": {
+                  "type": "string",
+                  "description": "Path to user stories file (optional)"
+                },
+                "totalStories": {
+                  "type": "integer",
+                  "description": "Number of stories in this implementation (optional)"
+                },
+                "assignedAgents": {
+                  "type": "array",
+                  "description": "Agents assigned to this specific implementation (optional)",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Brief description of what was implemented or fixed (optional)"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "notes": {
+    "deprecations": {
+      "userStoriesImplemented": "DEPRECATED in favor of 'implementations' array. The implementations array provides a complete history of all work (initial feature + fixes), while userStoriesImplemented only tracked the first implementation. New features should still set this for backward compatibility, but rely on the implementations array for actual tracking."
+    },
+    "tokenOptimizations": {
+      "completedStories": "Added to enable fast skip-checking without reading massive implementation-log.json files. Commands can check this array instead of parsing thousands of lines.",
+      "separateIssueLogs": "Each fix now has its own implementation log at docs/features/{id}/issues/{issue}/implementation-log.json instead of appending to the feature log. This prevents log files from growing to 6,000+ lines.",
+      "implementationsArray": "Provides complete work history in feature-log.json, reducing need to read separate implementation logs for status checking."
+    }
+  }
+}

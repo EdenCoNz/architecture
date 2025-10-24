@@ -357,23 +357,31 @@ When a commit hook fails (pre-commit, pre-push, etc.), automatically analyze the
    ⚙️ Attempting automatic fix using backend-developer agent...
    ```
 
-3. **Launch appropriate agent**:
+3. **Parse and deduplicate errors (Token Optimization)**:
+   - Extract unique error patterns from the full error output
+   - Group duplicate errors by type and file
+   - Create a condensed error summary:
+     - "E501 line too long (3 occurrences in backend/apps/users/models.py)"
+     - "F401 unused import (2 occurrences across 2 files)"
+   - Limit to ~20 lines of unique errors instead of passing 100+ lines of repetitive output
+   - Keep just enough context for the agent to understand and fix the issues
+
+4. **Launch appropriate agent**:
    - Use the Task tool with the appropriate subagent_type
-   - Provide comprehensive context:
+   - Provide condensed context:
      ```
      A pre-commit hook failed while attempting to commit code.
 
-     Error output:
-     {full_error_output}
+     Error Summary (deduplicated):
+     {condensed_error_summary}
 
-     Files with issues:
+     Affected Files:
      {list_of_affected_files}
 
      Your task:
-     1. Analyze the hook failure output
-     2. Fix all identified issues in the affected files
-     3. Ensure the fixes maintain code functionality and don't break tests
-     4. Verify the fixes resolve all the errors mentioned
+     1. Fix all identified issues in the affected files
+     2. Ensure the fixes maintain code functionality and don't break tests
+     3. Verify the fixes resolve all the errors mentioned
 
      After fixing, I will automatically retry the commit.
      ```
@@ -381,17 +389,18 @@ When a commit hook fails (pre-commit, pre-push, etc.), automatically analyze the
      - `backend-developer`: Python/Django code, tests, type errors
      - `frontend-developer`: JS/TS/React code, frontend tests
      - `devops-engineer`: Docker, CI/CD, infrastructure configs
+   - **Token Optimization**: Condensed summary reduces agent context by 70-90% while preserving all necessary information
 
-4. **Wait for agent completion**:
+5. **Wait for agent completion**:
    - Agent will fix the issues and report back
    - Display: "✅ Agent completed fixes"
 
-5. **Verify fixes were applied**:
+6. **Verify fixes were applied**:
    - Run `git status` to see which files were modified
    - Run `git diff` to review the changes made by the agent
    - Display summary: "Modified {count} file(s): {file_list}"
 
-6. **Retry commit**:
+7. **Retry commit**:
    - Increment `current_attempt`
    - If `current_attempt > max_retry_attempts`:
      - Display: "❌ Auto-fix retry limit reached. Manual intervention required."
