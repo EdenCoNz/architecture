@@ -15,33 +15,60 @@ import {
 } from './index';
 
 // Mock import.meta.env
-const mockEnv: Record<string, string> = {};
+const mockEnv: Record<string, string | boolean | undefined> = {};
+const deletedKeys = new Set<string>();
 
-vi.stubGlobal('import', {
-  meta: {
-    env: new Proxy(mockEnv, {
-      get: (target, prop: string) => target[prop],
-    }),
-  },
-});
+// Store the original import.meta.env
+const originalEnv = { ...import.meta.env };
+
+// Helper to update import.meta.env with mock values
+function updateImportMetaEnv() {
+  // Clear all current values
+  Object.keys(import.meta.env).forEach((key) => {
+    delete (import.meta.env as Record<string, unknown>)[key];
+  });
+
+  // Start with original env
+  const mergedEnv = { ...originalEnv };
+
+  // Remove explicitly deleted keys
+  deletedKeys.forEach((key) => {
+    delete mergedEnv[key];
+  });
+
+  // Apply mock values
+  Object.assign(mergedEnv, mockEnv);
+
+  // Apply to import.meta.env
+  Object.assign(import.meta.env, mergedEnv);
+}
 
 describe('Configuration Module', () => {
   beforeEach(() => {
     // Clear mock environment before each test
     Object.keys(mockEnv).forEach((key) => delete mockEnv[key]);
+    deletedKeys.clear();
+    // Reset import.meta.env to original state
+    Object.keys(import.meta.env).forEach((key) => {
+      delete (import.meta.env as Record<string, unknown>)[key];
+    });
+    Object.assign(import.meta.env, originalEnv);
   });
 
   describe('getEnv', () => {
     it('should return environment variable value', () => {
       mockEnv.VITE_TEST_VAR = 'test-value';
+      updateImportMetaEnv();
       expect(getEnv('TEST_VAR')).toBe('test-value');
     });
 
     it('should return default value when variable not set', () => {
+      updateImportMetaEnv();
       expect(getEnv('MISSING_VAR', 'default')).toBe('default');
     });
 
     it('should throw error for required missing variable', () => {
+      updateImportMetaEnv();
       expect(() => getEnv('REQUIRED_VAR', undefined, true)).toThrow(ConfigValidationError);
       expect(() => getEnv('REQUIRED_VAR', undefined, true)).toThrow(
         'Missing required environment variable: VITE_REQUIRED_VAR'
@@ -50,6 +77,7 @@ describe('Configuration Module', () => {
 
     it('should not throw for required variable that exists', () => {
       mockEnv.VITE_REQUIRED_VAR = 'exists';
+      updateImportMetaEnv();
       expect(() => getEnv('REQUIRED_VAR', undefined, true)).not.toThrow();
       expect(getEnv('REQUIRED_VAR', undefined, true)).toBe('exists');
     });
@@ -58,25 +86,30 @@ describe('Configuration Module', () => {
   describe('getBooleanEnv', () => {
     it('should return true for "true" string', () => {
       mockEnv.VITE_BOOL_VAR = 'true';
+      updateImportMetaEnv();
       expect(getBooleanEnv('BOOL_VAR')).toBe(true);
     });
 
     it('should return true for "1" string', () => {
       mockEnv.VITE_BOOL_VAR = '1';
+      updateImportMetaEnv();
       expect(getBooleanEnv('BOOL_VAR')).toBe(true);
     });
 
     it('should return false for "false" string', () => {
       mockEnv.VITE_BOOL_VAR = 'false';
+      updateImportMetaEnv();
       expect(getBooleanEnv('BOOL_VAR')).toBe(false);
     });
 
     it('should return false for "0" string', () => {
       mockEnv.VITE_BOOL_VAR = '0';
+      updateImportMetaEnv();
       expect(getBooleanEnv('BOOL_VAR')).toBe(false);
     });
 
     it('should return default value when not set', () => {
+      updateImportMetaEnv();
       expect(getBooleanEnv('MISSING_BOOL')).toBe(false);
       expect(getBooleanEnv('MISSING_BOOL', true)).toBe(true);
     });
@@ -85,33 +118,39 @@ describe('Configuration Module', () => {
   describe('getNumberEnv', () => {
     it('should return numeric value', () => {
       mockEnv.VITE_NUM_VAR = '42';
+      updateImportMetaEnv();
       expect(getNumberEnv('NUM_VAR', 0)).toBe(42);
     });
 
     it('should return default value when not set', () => {
+      updateImportMetaEnv();
       expect(getNumberEnv('MISSING_NUM', 100)).toBe(100);
     });
 
     it('should throw for non-numeric value', () => {
       mockEnv.VITE_NUM_VAR = 'not-a-number';
+      updateImportMetaEnv();
       expect(() => getNumberEnv('NUM_VAR', 0)).toThrow(ConfigValidationError);
       expect(() => getNumberEnv('NUM_VAR', 0)).toThrow('must be a valid number');
     });
 
     it('should enforce minimum value', () => {
       mockEnv.VITE_NUM_VAR = '5';
+      updateImportMetaEnv();
       expect(() => getNumberEnv('NUM_VAR', 0, 10)).toThrow(ConfigValidationError);
       expect(() => getNumberEnv('NUM_VAR', 0, 10)).toThrow('must be >= 10');
     });
 
     it('should enforce maximum value', () => {
       mockEnv.VITE_NUM_VAR = '150';
+      updateImportMetaEnv();
       expect(() => getNumberEnv('NUM_VAR', 0, undefined, 100)).toThrow(ConfigValidationError);
       expect(() => getNumberEnv('NUM_VAR', 0, undefined, 100)).toThrow('must be <= 100');
     });
 
     it('should accept value within range', () => {
       mockEnv.VITE_NUM_VAR = '50';
+      updateImportMetaEnv();
       expect(() => getNumberEnv('NUM_VAR', 0, 1, 100)).not.toThrow();
       expect(getNumberEnv('NUM_VAR', 0, 1, 100)).toBe(50);
     });
@@ -120,28 +159,35 @@ describe('Configuration Module', () => {
   describe('getEnvironment', () => {
     it('should return test environment when MODE is test', () => {
       mockEnv.MODE = 'test';
+      updateImportMetaEnv();
       expect(getEnvironment()).toBe('test');
     });
 
     it('should return test environment when VITE_NODE_ENV is test', () => {
       mockEnv.MODE = 'development';
       mockEnv.VITE_NODE_ENV = 'test';
+      updateImportMetaEnv();
       expect(getEnvironment()).toBe('test');
     });
 
     it('should return production environment when MODE is production', () => {
       mockEnv.MODE = 'production';
+      deletedKeys.add('VITE_NODE_ENV');
+      updateImportMetaEnv();
       expect(getEnvironment()).toBe('production');
     });
 
     it('should allow staging override in production mode', () => {
       mockEnv.MODE = 'production';
       mockEnv.VITE_NODE_ENV = 'staging';
+      updateImportMetaEnv();
       expect(getEnvironment()).toBe('staging');
     });
 
     it('should default to development for other modes', () => {
       mockEnv.MODE = 'development';
+      deletedKeys.add('VITE_NODE_ENV');
+      updateImportMetaEnv();
       expect(getEnvironment()).toBe('development');
     });
   });
@@ -174,13 +220,8 @@ describe('Configuration Module', () => {
 
     it('should warn for HTTP in production', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      mockEnv.PROD = 'true';
-
-      // Mock import.meta.env.PROD for production check
-      Object.defineProperty(import.meta.env, 'PROD', {
-        value: true,
-        configurable: true,
-      });
+      mockEnv.PROD = true;
+      updateImportMetaEnv();
 
       validateApiUrl('http://api.example.com');
 
@@ -189,10 +230,6 @@ describe('Configuration Module', () => {
       );
 
       consoleSpy.mockRestore();
-      Object.defineProperty(import.meta.env, 'PROD', {
-        value: false,
-        configurable: true,
-      });
     });
   });
 
@@ -210,18 +247,20 @@ describe('Configuration Module', () => {
       // Set up minimal required environment
       mockEnv.MODE = 'development';
       mockEnv.VITE_API_URL = 'http://localhost:8000';
+      updateImportMetaEnv();
 
       // Import config module (this will call loadConfig)
       // Note: In a real test, you'd need to mock the module or reload it
       expect(() => {
-        validateApiUrl(mockEnv.VITE_API_URL);
+        validateApiUrl(mockEnv.VITE_API_URL as string);
         getEnv('API_URL', undefined, true);
       }).not.toThrow();
     });
 
     it('should fail when required configuration is missing', () => {
       mockEnv.MODE = 'production';
-      // VITE_API_URL not set
+      deletedKeys.add('VITE_API_URL');
+      updateImportMetaEnv();
 
       expect(() => getEnv('API_URL', undefined, true)).toThrow(ConfigValidationError);
     });

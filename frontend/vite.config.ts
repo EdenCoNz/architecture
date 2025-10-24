@@ -15,5 +15,9 @@ export default defineConfig({
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],
       exclude: ['node_modules/', 'tests/', '**/*.config.{js,ts}', '**/dist/**', '**/*.d.ts'],
     },
+    // Ensure test environment variables are loaded
+    env: {
+      VITE_API_URL: 'http://localhost:8000',
+    },
   },
 });

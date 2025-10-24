@@ -299,27 +299,5 @@ function loadConfig(): AppConfig {
  */
 export const config = loadConfig();
 
-/**
- * Print configuration summary to console
- *
- * This is useful for debugging and verifying configuration in different
- * environments. Sensitive values are not included in the output.
- */
-export function printConfigSummary(): void {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Application Configuration Summary');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`Environment:           ${config.environment}`);
-  console.log(`Application Name:      ${config.app.name}`);
-  console.log(`Application Version:   ${config.app.version}`);
-  console.log(`API Base URL:          ${config.api.baseUrl}`);
-  console.log(`API Timeout:           ${config.api.timeout}ms`);
-  console.log(`Debug Mode:            ${config.app.debug}`);
-  console.log(`Analytics:             ${config.features.enableAnalytics ? 'enabled' : 'disabled'}`);
-  console.log(`Error Reporting:       ${config.features.enableErrorReporting ? 'enabled' : 'disabled'}`);
-  console.log(`Service Worker:        ${config.features.enableServiceWorker ? 'enabled' : 'disabled'}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-}
-
 // Export everything for testing
 export { getEnv, getBooleanEnv, getNumberEnv, getEnvironment, validateApiUrl };
