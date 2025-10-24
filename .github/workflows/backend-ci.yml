@@ -1364,11 +1364,10 @@ jobs:
     name: Deploy Backend to Ubuntu Server
     uses: ./.github/workflows/deploy-to-ubuntu.yml
     needs: [build-backend-prod-container, security-scan-backend-prod, test-backend-prod-container]
-    # Only deploy after successful PR merge to main (not on direct pushes)
+    # Deploy on any push to main branch
     if: |
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      contains(github.event.head_commit.message, 'Merge pull request')
+      github.ref == 'refs/heads/main'
 
     with:
       service_name: backend
