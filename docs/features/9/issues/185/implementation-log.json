@@ -1,0 +1,66 @@
+[
+  {
+    "story": "Story-185.1: Container Health Check Verification Before Testing",
+    "timestamp": "2025-10-25T00:00:00Z",
+    "status": "completed",
+    "filesModified": [
+      ".github/workflows/backend-ci.yml"
+    ],
+    "filesCreated": [],
+    "actions": [
+      {
+        "type": "analysis",
+        "description": "Analyzed backend CI workflow to identify the root cause of test failures",
+        "details": "Found that the 'Verify container health' step (lines 819-862) was not failing when health checks didn't pass within the timeout. Instead, it logged a warning and proceeded to test steps, allowing tests to run against containers still in 'starting' state."
+      },
+      {
+        "type": "code_change",
+        "description": "Modified health check verification to fail if container doesn't reach healthy state",
+        "file": ".github/workflows/backend-ci.yml",
+        "lineRange": "854-867",
+        "changes": [
+          "Changed the else branch from logging a warning to failing the step with exit 1",
+          "Updated error message from '⚠️ Health check status' to '❌ Health check failed to pass within timeout period'",
+          "Removed 'Proceeding with manual API tests...' message that indicated tests would continue",
+          "Added container logs output to help diagnose health check failures"
+        ]
+      },
+      {
+        "type": "validation",
+        "description": "Validated YAML syntax after changes",
+        "command": "python3 -c \"import yaml; yaml.safe_load(open('.github/workflows/backend-ci.yml')); print('✓ YAML syntax is valid')\"",
+        "result": "success"
+      },
+      {
+        "type": "verification",
+        "description": "Verified frontend workflow doesn't have similar issue",
+        "result": "Frontend workflow doesn't use health checks, so issue is backend-specific"
+      }
+    ],
+    "issuesEncountered": [],
+    "acceptanceCriteriaVerification": {
+      "criterion1_healthCheckCompletionFirst": {
+        "status": "met",
+        "evidence": "Health check verification step now fails with exit 1 if container doesn't reach 'healthy' state within 60 seconds (20 retries × 3 seconds). This prevents subsequent test steps from executing until health checks pass."
+      },
+      "criterion2_testExecutionAfterReadyState": {
+        "status": "met",
+        "evidence": "By failing the health check step when container is not healthy, subsequent test steps ('Test database connectivity', 'Test API health endpoint', 'Test critical API endpoints') will only execute if the container has reached 'healthy' status."
+      },
+      "criterion3_clearStepDependencies": {
+        "status": "met",
+        "evidence": "Workflow step order is: 1) Verify container health (must pass), 2) Test database connectivity, 3) Test API health endpoint, 4) Test critical API endpoints. Steps are sequential and execute in order, with health check verification as a hard requirement."
+      },
+      "criterion4_properWaitTimeAllocation": {
+        "status": "met",
+        "evidence": "Health check verification waits up to 60 seconds (MAX_RETRIES=20, sleep 3 seconds per iteration) for container to reach 'healthy' state. If timeout is reached without achieving healthy state, the step fails with detailed logs."
+      }
+    },
+    "technicalNotes": [
+      "The fix changes workflow behavior from 'warn and continue' to 'fail fast' when health checks don't pass",
+      "This ensures functional tests only run against fully initialized containers",
+      "Container logs are now output on health check failure to aid in debugging",
+      "The 60-second timeout (20 retries × 3 seconds) should be sufficient for Django application initialization with database migrations"
+    ]
+  }
+]

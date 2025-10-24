@@ -855,9 +855,14 @@ jobs:
             echo "✅ Container health check passed" >> $GITHUB_STEP_SUMMARY
             echo "**Health Status**: healthy" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Health check status: $HEALTH_STATUS" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Health check failed to pass within timeout period" >> $GITHUB_STEP_SUMMARY
+            echo "**Health Status**: $HEALTH_STATUS" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Proceeding with manual API tests..." >> $GITHUB_STEP_SUMMARY
+            echo "### Container Logs" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            docker logs backend-prod-functional-test 2>&1 | tail -100 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
 
