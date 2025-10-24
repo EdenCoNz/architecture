@@ -890,26 +890,63 @@ jobs:
           echo "### API Health Endpoint Test" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Test the health endpoint
-          RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:8000/api/v1/health/ || echo "000")
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
+          # Test the health endpoint with retry logic to handle timing issues
+          RETRY_COUNT=0
+          MAX_RETRIES=20  # 20 retries × 3 seconds = 60 seconds total
+          HEALTH_ENDPOINT_PASSED=false
+          LAST_HTTP_CODE=""
+          LAST_BODY=""
 
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Health endpoint responding correctly" >> $GITHUB_STEP_SUMMARY
-            echo "**HTTP Status**: $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+          echo "Testing health endpoint with retry logic (up to 60 seconds)..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            # Capture start time for response time calculation
+            START_TIME=$(date +%s%N)
+
+            # Test the health endpoint
+            RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:8000/api/v1/health/ 2>/dev/null || echo -e "\n000")
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            # Calculate response time in milliseconds
+            END_TIME=$(date +%s%N)
+            RESPONSE_TIME_MS=$(( (END_TIME - START_TIME) / 1000000 ))
+
+            # Store last response for final reporting
+            LAST_HTTP_CODE="$HTTP_CODE"
+            LAST_BODY="$BODY"
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              HEALTH_ENDPOINT_PASSED=true
+              echo "✅ Health endpoint responding correctly (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)" >> $GITHUB_STEP_SUMMARY
+              echo "**HTTP Status**: $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+              echo "**Response Time**: ${RESPONSE_TIME_MS}ms" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Response**:" >> $GITHUB_STEP_SUMMARY
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              break
+            fi
+
+            # Log each failed attempt for debugging
+            echo "Health endpoint status: $HTTP_CODE (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES, response time: ${RESPONSE_TIME_MS}ms)"
+
+            sleep 3
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+          done
+
+          if [ "$HEALTH_ENDPOINT_PASSED" = false ]; then
+            echo "❌ Health endpoint failed to respond with HTTP 200 within timeout period" >> $GITHUB_STEP_SUMMARY
+            echo "**Final HTTP Status**: $LAST_HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+            echo "**Attempts**: $RETRY_COUNT/$MAX_RETRIES" >> $GITHUB_STEP_SUMMARY
+            echo "**Timeout Duration**: 60 seconds" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Response**:" >> $GITHUB_STEP_SUMMARY
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY" >> $GITHUB_STEP_SUMMARY
+            echo "**Final Response**:" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Health endpoint failed" >> $GITHUB_STEP_SUMMARY
-            echo "**HTTP Status**: $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Response**:" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "$BODY" >> $GITHUB_STEP_SUMMARY
+            echo "$LAST_BODY" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Container Logs" >> $GITHUB_STEP_SUMMARY
@@ -918,7 +955,6 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
 
       - name: Test critical API endpoints
         run: |
