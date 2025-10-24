@@ -10,7 +10,7 @@ Provides endpoints for monitoring the API's operational status, including:
 
 import platform
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict
 
 import psutil
@@ -164,7 +164,7 @@ class HealthCheckView(APIView):
 
         response_data = {
             "status": "healthy" if is_healthy else "unhealthy",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "database": database_health,
         }
 
@@ -243,7 +243,7 @@ class StatusView(APIView):
 
         response_data = {
             "status": "healthy" if is_healthy else "unhealthy",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "version": version_info["version"],
             "api_version": version_info["api_version"],
             "environment": get_environment(),
@@ -311,7 +311,7 @@ class ReadinessView(APIView):
 
         response_data = {
             "ready": is_ready,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
         http_status = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
@@ -360,7 +360,7 @@ class LivenessView(APIView):
         """
         response_data = {
             "alive": True,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
         return Response(response_data, status=status.HTTP_200_OK)

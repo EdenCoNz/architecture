@@ -27,15 +27,60 @@ class TestDatabaseConnectivity:
             result = cursor.fetchone()
             assert result == (1,)
 
+    @pytest.mark.django_db(transaction=False)
     def test_database_connection_can_be_closed_and_reopened(self):
-        """Test that connection can be closed and reopened."""
-        connection.close()
+        """Test that connection can be closed and reopened.
 
-        # Should be able to reopen
+        This test ensures that after a connection is closed (simulating
+        connection loss or timeout), Django can automatically reconnect
+        when the next database operation is attempted.
+
+        Note: Django's connection handling differs when in an atomic block.
+        Even with transaction=False, pytest-django sets up atomic state for
+        test isolation. When close() is called in an atomic block, Django
+        keeps the closed connection object and sets closed_in_transaction=True.
+        To test reconnection, we must manually set connection=None to simulate
+        what happens when a connection is lost externally (vs explicitly closed).
+        """
+        # First, establish a connection
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             result = cursor.fetchone()
             assert result == (1,)
+
+        # Close the connection (simulating connection loss)
+        connection.close()
+
+        # Save the current transaction state for restoration
+        # (pytest-django needs this for proper teardown)
+        was_in_atomic_block = connection.in_atomic_block
+        was_closed_in_transaction = connection.closed_in_transaction
+        original_savepoint_ids = connection.savepoint_ids.copy()
+        original_atomic_blocks = connection.atomic_blocks.copy()
+
+        # Force connection object to None to simulate external connection loss
+        # (Django doesn't do this automatically when in atomic block)
+        # This is necessary because pytest-django maintains atomic state even
+        # with transaction=False, and Django's close() keeps the connection
+        # object when in_atomic_block=True
+        connection.connection = None
+        connection.closed_in_transaction = False
+
+        try:
+            # Should be able to reconnect automatically
+            # Django's ensure_connection() is called automatically by cursor()
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                result = cursor.fetchone()
+                assert result == (1,)
+        finally:
+            # Restore transaction state for proper test teardown
+            # After reconnection, Django resets atomic state, but pytest-django
+            # needs it to be restored for proper rollback in teardown
+            connection.in_atomic_block = was_in_atomic_block
+            connection.closed_in_transaction = was_closed_in_transaction
+            connection.savepoint_ids = original_savepoint_ids
+            connection.atomic_blocks = original_atomic_blocks
 
     def test_multiple_database_queries(self):
         """Test that multiple queries work correctly."""

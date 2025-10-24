@@ -4,7 +4,7 @@ Custom exception handlers for the API.
 
 import logging
 import traceback
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional, Union
 
 from django.conf import settings
@@ -73,7 +73,7 @@ def custom_exception_handler(exc: Exception, context: Dict[str, Any]) -> Optiona
     extra_context = {
         "request_id": request_id,
         "exception_type": type(exc).__name__,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     if request:
@@ -163,7 +163,7 @@ def _format_error_response(exc: Exception, response: Response, request_id: str) 
         "status_code": response.status_code,
         "message": message,
         "request_id": request_id,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     # Add detailed errors if present and not just a simple detail message
@@ -198,7 +198,7 @@ def _format_unhandled_error(exc: Exception, request_id: str) -> Dict[str, Any]:
         "status_code": 500,
         "message": "An unexpected error occurred. Please try again later.",
         "request_id": request_id,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     # In development mode, include exception details
