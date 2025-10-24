@@ -8,8 +8,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
+import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '../../contexts';
 import { Header } from './Header';
+
+// Helper function to render Header with required providers
+const renderHeader = (props = {}) => {
+  return render(
+    <ThemeProvider>
+      <BrowserRouter>
+        <Header {...props} />
+      </BrowserRouter>
+    </ThemeProvider>
+  );
+};
 
 describe('Header Component', () => {
   beforeEach(() => {
@@ -24,32 +36,20 @@ describe('Header Component', () => {
 
   describe('Rendering', () => {
     it('should render the app title', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       expect(screen.getByText('Application')).toBeInTheDocument();
     });
 
     it('should render the menu button on mobile', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const menuButton = screen.getByRole('button', { name: /open navigation menu/i });
       expect(menuButton).toBeInTheDocument();
     });
 
     it('should render the theme toggle button', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       // Theme toggle should be present with default light mode
       const themeButton = screen.getByRole('button', { name: /switch to dark mode/i });
@@ -57,11 +57,7 @@ describe('Header Component', () => {
     });
 
     it('should render all components in AppBar with Toolbar', () => {
-      const { container } = render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      const { container } = renderHeader();
 
       const appBar = container.querySelector('.MuiAppBar-root');
       const toolbar = container.querySelector('.MuiToolbar-root');
@@ -76,11 +72,7 @@ describe('Header Component', () => {
       const user = userEvent.setup();
       const mockMenuClick = vi.fn();
 
-      render(
-        <ThemeProvider>
-          <Header onMenuClick={mockMenuClick} />
-        </ThemeProvider>
-      );
+      renderHeader({ onMenuClick: mockMenuClick });
 
       const menuButton = screen.getByRole('button', { name: /open navigation menu/i });
       await user.click(menuButton);
@@ -91,11 +83,7 @@ describe('Header Component', () => {
     it('should not error when onMenuClick is not provided', async () => {
       const user = userEvent.setup();
 
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const menuButton = screen.getByRole('button', { name: /open navigation menu/i });
       await user.click(menuButton);
@@ -111,7 +99,9 @@ describe('Header Component', () => {
 
       render(
         <ThemeProvider defaultMode="light">
-          <Header />
+          <BrowserRouter>
+            <Header />
+          </BrowserRouter>
         </ThemeProvider>
       );
 
@@ -132,7 +122,9 @@ describe('Header Component', () => {
 
       render(
         <ThemeProvider defaultMode="light">
-          <Header />
+          <BrowserRouter>
+            <Header />
+          </BrowserRouter>
         </ThemeProvider>
       );
 
@@ -154,11 +146,7 @@ describe('Header Component', () => {
     });
 
     it('should position theme toggle in AppBar right side', () => {
-      const { container } = render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      const { container } = renderHeader();
 
       const toolbar = container.querySelector('.MuiToolbar-root');
       const themeButton = screen.getByRole('button', { name: /switch to dark mode/i });
@@ -169,44 +157,28 @@ describe('Header Component', () => {
 
   describe('Layout Structure', () => {
     it('should have sticky positioning', () => {
-      const { container } = render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      const { container } = renderHeader();
 
       const appBar = container.querySelector('.MuiAppBar-root');
       expect(appBar).toHaveClass('MuiAppBar-positionSticky');
     });
 
     it('should use primary color', () => {
-      const { container } = render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      const { container } = renderHeader();
 
       const appBar = container.querySelector('.MuiAppBar-root');
       expect(appBar).toHaveClass('MuiAppBar-colorPrimary');
     });
 
     it('should render title as h1 for SEO and accessibility', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const heading = screen.getByRole('heading', { level: 1, name: 'Application' });
       expect(heading).toBeInTheDocument();
     });
 
     it('should have flexbox layout with title growing to fill space', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const title = screen.getByText('Application');
       expect(title).toBeInTheDocument();
@@ -215,11 +187,7 @@ describe('Header Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper ARIA labels for all buttons', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const menuButton = screen.getByRole('button', { name: /open navigation menu/i });
       const themeButton = screen.getByRole('button', { name: /switch to dark mode/i });
@@ -229,11 +197,7 @@ describe('Header Component', () => {
     });
 
     it('should have keyboard accessible buttons', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const buttons = screen.getAllByRole('button');
       buttons.forEach((button) => {
@@ -243,11 +207,7 @@ describe('Header Component', () => {
     });
 
     it('should have semantic HTML structure', () => {
-      const { container } = render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      const { container } = renderHeader();
 
       const appBar = container.querySelector('header.MuiAppBar-root');
       const heading = screen.getByRole('heading', { level: 1 });
@@ -259,11 +219,7 @@ describe('Header Component', () => {
 
   describe('Responsive Behavior', () => {
     it('should render both menu button and theme toggle', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const menuButton = screen.getByRole('button', { name: /open navigation menu/i });
       const themeButton = screen.getByRole('button', { name: /switch to dark mode/i });
@@ -273,11 +229,7 @@ describe('Header Component', () => {
     });
 
     it('should render theme toggle on all screen sizes', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const themeButton = screen.getByRole('button', { name: /switch to dark mode/i });
       expect(themeButton).toBeVisible();
@@ -286,11 +238,7 @@ describe('Header Component', () => {
 
   describe('Theme Context Integration', () => {
     it('should start with light theme by default', () => {
-      render(
-        <ThemeProvider>
-          <Header />
-        </ThemeProvider>
-      );
+      renderHeader();
 
       const themeButton = screen.getByRole('button', { name: /switch to dark mode/i });
       expect(themeButton).toBeInTheDocument();
@@ -299,7 +247,9 @@ describe('Header Component', () => {
     it('should respect custom default theme mode', () => {
       render(
         <ThemeProvider defaultMode="dark">
-          <Header />
+          <BrowserRouter>
+            <Header />
+          </BrowserRouter>
         </ThemeProvider>
       );
 

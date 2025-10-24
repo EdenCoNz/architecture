@@ -6,8 +6,10 @@
  * Includes theme toggle control for switching between light and dark modes.
  */
 
-import { AppBar, Toolbar, Typography, IconButton, Box } from '@mui/material';
+import { AppBar, Toolbar, Typography, IconButton, Box, Button } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import WifiIcon from '@mui/icons-material/Wifi';
+import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../common';
 import { useTheme } from '../../contexts';
 
@@ -48,7 +50,19 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         </Typography>
 
         {/* Global actions */}
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          {/* API Test navigation link */}
+          <Button
+            component={Link}
+            to="/api-test"
+            color="inherit"
+            startIcon={<WifiIcon />}
+            sx={{
+              display: { xs: 'none', sm: 'flex' },
+            }}
+          >
+            API Test
+          </Button>
           <ThemeToggle mode={mode} onToggle={toggleTheme} />
         </Box>
       </Toolbar>

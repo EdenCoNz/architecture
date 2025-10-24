@@ -14,6 +14,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.api.config_views import frontend_config
 from apps.api.health_views import HealthCheckView, LivenessView, ReadinessView, StatusView
+from apps.api.test_views import test_connection
 
 # Create a router for viewsets
 router = DefaultRouter()
@@ -57,4 +58,6 @@ urlpatterns = [
     path("status/", StatusView.as_view(), name="status"),
     path("health/ready/", ReadinessView.as_view(), name="readiness"),
     path("health/live/", LivenessView.as_view(), name="liveness"),
+    # Test endpoint for frontend-backend integration testing (Story-10.1)
+    path("test/", test_connection, name="test-connection"),
 ]

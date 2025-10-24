@@ -657,6 +657,34 @@
           "description": "Fix Docker tag generation for feature branches - branch names with slashes create invalid Docker tags"
         }
       ]
+    },
+    {
+      "featureID": "10",
+      "title": "Frontend-Backend Integration Test Page",
+      "description": "Enable users to verify that the frontend application can successfully communicate with the backend application through a dedicated test page that demonstrates API connectivity and data exchange",
+      "createdAt": "2025-10-25T00:00:00Z",
+      "userStoriesCreated": "2025-10-25T10:10:00Z",
+      "userStoriesImplemented": "2025-10-25T10:45:00Z",
+      "isSummarised": false,
+      "totalStories": 4,
+      "completedStories": ["Story-10.1", "Story-10.2", "Story-10.3", "Story-10.4"],
+      "assignedAgents": [
+        "backend-developer",
+        "frontend-developer"
+      ],
+      "executionPhases": 4,
+      "parallelPhases": 0,
+      "sequentialPhases": 4,
+      "filesPath": "docs/features/10/user-stories.md",
+      "actions": [],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-25T10:45:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/10/implementation-log.json"
+        }
+      ]
     }
   ]
 }

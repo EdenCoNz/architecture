@@ -8,15 +8,20 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '../../src/contexts';
 import { Header } from '../../src/components/layout/Header';
 
 /**
- * Helper function to render components with theme provider
- * Required for proper theme context and Material UI component rendering in tests
+ * Helper function to render components with theme provider and router
+ * Required for proper theme context, router context, and Material UI component rendering in tests
  */
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<ThemeProvider>{component}</ThemeProvider>);
+  return render(
+    <ThemeProvider>
+      <BrowserRouter>{component}</BrowserRouter>
+    </ThemeProvider>
+  );
 };
 
 describe('Header Component', () => {
