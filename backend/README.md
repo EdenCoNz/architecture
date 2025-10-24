@@ -7,6 +7,7 @@ A production-ready Django REST Framework API with PostgreSQL, Redis caching, JWT
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
+- [Docker Development Setup](#docker-development-setup)
 - [Installation](#installation)
 - [Quick Start Scripts](#quick-start-scripts)
 - [Architecture](#architecture)
@@ -89,6 +90,65 @@ sudo apt install python3.12-venv
 ### Installing python3-venv (macOS)
 
 python3-venv is included with Python on macOS. No additional installation needed.
+
+## Docker Development Setup
+
+The easiest way to get started is using Docker containers. This eliminates the need to install PostgreSQL, Redis, and other dependencies on your machine.
+
+### Prerequisites for Docker
+
+- **Docker Engine 23.0+**: [Install Docker](https://docs.docker.com/get-docker/)
+- **Docker Compose V2**: Usually included with Docker Desktop
+
+### Quick Start with Docker
+
+```bash
+# Navigate to backend directory
+cd backend/
+
+# Start all services (PostgreSQL, Redis, Backend)
+./docker-dev.sh start
+
+# View logs
+./docker-dev.sh logs
+
+# The API will be available at http://localhost:8000
+```
+
+### Common Docker Commands
+
+```bash
+# Start services
+./docker-dev.sh start
+
+# Stop services
+./docker-dev.sh stop
+
+# Run database migrations
+./docker-dev.sh migrate
+
+# Run tests
+./docker-dev.sh test
+
+# Open shell in container
+./docker-dev.sh shell
+
+# View service status
+./docker-dev.sh status
+
+# Show all commands
+./docker-dev.sh help
+```
+
+### Docker Benefits
+
+- **No local dependencies**: PostgreSQL and Redis run in containers
+- **Consistent environment**: Same setup across all developers
+- **Isolated**: Won't conflict with other projects
+- **Hot reload**: Code changes are automatically detected
+- **Data persistence**: Database data survives container restarts
+
+For detailed Docker documentation, see [DOCKER.md](DOCKER.md).
 
 ## Installation
 

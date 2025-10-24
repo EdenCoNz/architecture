@@ -1,0 +1,106 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Frontend Application - Production Docker Compose Configuration
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# This file defines the production deployment configuration for the frontend
+# application using nginx to serve optimized static assets.
+#
+# Environment Configuration:
+#   1. Copy .env.production.example to .env.production
+#   2. Update values for your production environment
+#   3. Load environment: export $(cat .env.production | xargs)
+#   4. Build with environment: docker compose -f docker-compose.prod.yml build
+#
+# Usage:
+#   Build:   docker compose -f docker-compose.prod.yml build
+#   Start:   docker compose -f docker-compose.prod.yml up -d
+#   Stop:    docker compose -f docker-compose.prod.yml down
+#   Logs:    docker compose -f docker-compose.prod.yml logs -f
+#
+# Build with custom API URL:
+#   VITE_API_URL=https://api.example.com docker compose -f docker-compose.prod.yml build
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      # Build arguments for environment configuration
+      # Override these when building: docker compose -f docker-compose.prod.yml build --build-arg VITE_API_URL=https://api.example.com
+      args:
+        VITE_NODE_ENV: production
+        VITE_API_URL: ${VITE_API_URL:-https://api.example.com}
+        VITE_API_TIMEOUT: ${VITE_API_TIMEOUT:-30000}
+        VITE_API_ENABLE_LOGGING: ${VITE_API_ENABLE_LOGGING:-false}
+        VITE_APP_NAME: ${VITE_APP_NAME:-Frontend Application}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-1.0.0}
+        VITE_APP_TITLE: ${VITE_APP_TITLE:-Frontend Application}
+        VITE_DEBUG: ${VITE_DEBUG:-false}
+        VITE_ENABLE_ANALYTICS: ${VITE_ENABLE_ANALYTICS:-true}
+        VITE_ENABLE_ERROR_REPORTING: ${VITE_ENABLE_ERROR_REPORTING:-true}
+        VITE_ENABLE_SERVICE_WORKER: ${VITE_ENABLE_SERVICE_WORKER:-false}
+        VITE_SECURITY_ENABLE_CSP: ${VITE_SECURITY_ENABLE_CSP:-true}
+        VITE_SECURITY_MAX_LOGIN_ATTEMPTS: ${VITE_SECURITY_MAX_LOGIN_ATTEMPTS:-5}
+      cache_from:
+        - type=registry,ref=frontend:prod-cache
+      cache_to:
+        - type=inline
+    image: frontend:prod
+    container_name: frontend-production
+
+    ports:
+      - "80:80"
+
+    # Restart policy for production reliability
+    restart: unless-stopped
+
+    # Resource limits to prevent excessive consumption
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Environment variables (can be overridden)
+    environment:
+      - NODE_ENV=production
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Read-only root filesystem for enhanced security
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+
+    # Network configuration
+    networks:
+      - frontend-network
+
+networks:
+  frontend-network:
+    driver: bridge
+    name: frontend-production-network
