@@ -696,6 +696,19 @@
             "frontend-developer"
           ],
           "description": "Fix TypeScript compilation errors - type import syntax violation and syntax compatibility issues"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 192,
+          "timestamp": "2025-10-25T11:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/10/issues/192/implementation-log.json",
+          "userStoriesPath": "docs/features/10/issues/192/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix ESLint code quality violation - duplicate import statements in API test page"
         }
       ]
     }

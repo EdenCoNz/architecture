@@ -14,8 +14,7 @@ import { useState } from 'react';
 import { Box, Typography, Container, Paper, Button, CircularProgress } from '@mui/material';
 import WifiIcon from '@mui/icons-material/Wifi';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { testBackendConnection, ApiError } from '../../services';
-import type { ApiTestResponse } from '../../services';
+import { testBackendConnection, ApiError, type ApiTestResponse } from '../../services';
 
 function ApiTest() {
   // State management
