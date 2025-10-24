@@ -435,6 +435,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Health", "description": "Health check and system status endpoints"},
         {"name": "Authentication", "description": "User authentication and authorization"},
         {"name": "Users", "description": "User profile and account management"},
+        {"name": "Configuration", "description": "Runtime configuration endpoints"},
     ],
     # Sorting and Display
     "SORT_OPERATIONS": True,

@@ -9,12 +9,35 @@ allowing the same frontend image to be deployed across different environments
 import os
 
 from django.conf import settings
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from apps.api.serializers import FrontendConfigSerializer
 
+
+@extend_schema(
+    summary="Get frontend runtime configuration",
+    description=(
+        "Returns runtime configuration for the frontend application based on "
+        "environment variables. This allows the same frontend container image "
+        "to be used across different environments (development, staging, production) "
+        "without rebuilding.\n\n"
+        "**Environment Variables:**\n"
+        "- `FRONTEND_API_URL`: Backend API base URL (default: http://localhost:8000)\n"
+        "- `FRONTEND_API_TIMEOUT`: API request timeout in ms (default: 30000)\n"
+        "- `FRONTEND_API_ENABLE_LOGGING`: Enable API logging (default: false)\n"
+        "- `FRONTEND_APP_NAME`: Application name (default: Frontend Application)\n"
+        "- `FRONTEND_APP_TITLE`: Application title (default: Frontend Application)\n"
+        "- `FRONTEND_APP_VERSION`: Application version (default: 1.0.0)\n"
+        "- `FRONTEND_ENABLE_ANALYTICS`: Enable analytics (default: false)\n"
+        "- `FRONTEND_ENABLE_DEBUG`: Enable debug mode (default: false)"
+    ),
+    responses={200: FrontendConfigSerializer},
+    tags=["Configuration"],
+)
 @api_view(["GET"])
 @permission_classes([AllowAny])  # Public endpoint - no authentication required
 def frontend_config(request):
