@@ -53,7 +53,13 @@ class TestCheckDatabaseCommand:
 
         # Mock database connection failure
         with patch("apps.core.database.connections") as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Connection refused")
 
             with pytest.raises(CommandError):
@@ -68,7 +74,13 @@ class TestCheckDatabaseCommand:
         out = StringIO()
 
         with patch("apps.core.database.connections") as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Database does not exist")
 
             try:
@@ -100,7 +112,13 @@ class TestDatabaseReadyCheck:
     def test_check_and_warn_failure(self, capsys):
         """Test check_and_warn returns False and prints warning on failure."""
         with patch("apps.core.database.connections") as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Connection refused")
 
             result = DatabaseReadyCheck.check_and_warn()
@@ -125,7 +143,13 @@ class TestDatabaseReadyCheck:
     def test_ensure_or_fail_exits_on_failure(self, capsys):
         """Test ensure_or_fail exits application on database failure."""
         with patch("apps.core.database.connections") as mock_conn:
-            mock_cursor = mock_conn.__getitem__.return_value.cursor
+            # Configure mock to return proper settings_dict
+            mock_connection = mock_conn.__getitem__.return_value
+            mock_connection.settings_dict = {
+                "CONN_MAX_AGE": 600,
+                "ATOMIC_REQUESTS": True,
+            }
+            mock_cursor = mock_connection.cursor
             mock_cursor.side_effect = Exception("Connection refused")
 
             with pytest.raises(SystemExit) as exc_info:

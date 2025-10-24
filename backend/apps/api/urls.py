@@ -3,6 +3,12 @@ API URL configuration for v1.
 """
 
 from django.urls import include, path
+from drf_spectacular.renderers import (
+    OpenApiJsonRenderer,
+    OpenApiJsonRenderer2,
+    OpenApiYamlRenderer,
+    OpenApiYamlRenderer2,
+)
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
@@ -20,7 +26,19 @@ urlpatterns = [
     # Router URLs
     path("", include(router.urls)),
     # API Documentation
-    path("schema/", SpectacularAPIView.as_view(), name="schema"),
+    # Schema endpoint with JSON renderer as first choice for better test compatibility
+    path(
+        "schema/",
+        SpectacularAPIView.as_view(
+            renderer_classes=[
+                OpenApiJsonRenderer,
+                OpenApiJsonRenderer2,
+                OpenApiYamlRenderer,
+                OpenApiYamlRenderer2,
+            ]
+        ),
+        name="schema",
+    ),
     path(
         "docs/",
         SpectacularSwaggerView.as_view(url_name="api:schema"),

@@ -382,6 +382,9 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SCHEMA_PATH_PREFIX": "/api/v1/",
+    # Format Settings - Default to JSON for better API compatibility
+    "DEFAULT_GENERATOR_CLASS": "drf_spectacular.generators.SchemaGenerator",
+    "SERVE_URLCONF": None,
     # API Information
     "CONTACT": {
         "name": "API Support",

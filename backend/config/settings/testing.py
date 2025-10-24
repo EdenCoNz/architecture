@@ -6,6 +6,9 @@ import os
 
 from .base import *
 
+# Allow all hosts in testing (required for test client)
+ALLOWED_HOSTS = ["*"]
+
 # Use PostgreSQL for acceptance tests, SQLite for unit tests (based on environment variable)
 # This allows fast unit tests while still testing PostgreSQL functionality in acceptance tests
 USE_POSTGRES_FOR_TESTS = os.environ.get("USE_POSTGRES_FOR_TESTS", "false").lower() == "true"

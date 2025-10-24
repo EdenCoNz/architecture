@@ -98,9 +98,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         """
         Create a new user with encrypted password.
         """
-        password = validated_data.pop("password")
-        # type: ignore[attr-defined]
-        user = User.objects.create_user(password=password, **validated_data)
+        pwd = validated_data.pop("password")
+        user = User.objects.create_user(  # type: ignore[attr-defined]
+            password=pwd, **validated_data
+        )
         return user
 
 
