@@ -155,7 +155,10 @@ function Home() {
         </Snackbar>
 
         {/* Call to Action */}
-        <Box sx={{ mt: 4 }}>
+        <Box sx={{ mt: 4, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Button component={Link} to="/api-test" variant="contained" color="primary" size="large">
+            API Connection Test
+          </Button>
           <Button component={Link} to="/test-404" variant="outlined" color="primary" size="large">
             Test 404 Page
           </Button>
