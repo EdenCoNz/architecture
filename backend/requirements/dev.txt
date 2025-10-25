@@ -23,6 +23,11 @@ django-debug-toolbar>=4.3,<5.0
 ipython>=8.20,<9.0
 ipdb>=0.13,<1.0
 
+# Development Server - Enhanced auto-reload
+# watchdog provides better file change detection than Django's default autoreload
+# Especially useful in Docker environments with bind mounts
+watchdog[watchmedo]>=4.0,<5.0
+
 # Documentation
 Sphinx>=7.2,<8.0
 sphinx-rtd-theme>=2.0,<3.0

@@ -58,44 +58,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN mkdir -p /app/logs /app/media /app/staticfiles /app/static && \
     chown -R django:django /app/logs /app/media /app/staticfiles /app/static
 
-# Copy application code
+# Copy application code (includes docker-entrypoint-dev.sh from repository)
 # In development, this will be overridden by volume mount for live code reloading
+# IMPORTANT: docker-entrypoint-dev.sh is maintained in the repository at backend/docker-entrypoint-dev.sh
+# It will be accessible via the volume mount at /app/docker-entrypoint-dev.sh
 COPY --chown=django:django . /app/
 
-# Create entrypoint script for development
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-echo "=== Backend Development Container ==="\n\
-\n\
-# Validate configuration\n\
-echo "Validating configuration..."\n\
-python manage.py check_config --quiet || exit 1\n\
-echo "Configuration validated successfully!"\n\
-echo ""\n\
-\n\
-echo "Waiting for PostgreSQL to be ready..."\n\
-\n\
-# Wait for database to be ready\n\
-python manage.py check_database --wait 30\n\
-\n\
-echo "Database is ready!"\n\
-echo ""\n\
-\n\
-# Check for pending migrations\n\
-if python manage.py showmigrations | grep -q "\[ \]"; then\n\
-    echo "Found pending migrations. Running migrate..."\n\
-    python manage.py migrate --noinput\n\
-    echo "Migrations applied successfully!"\n\
-    echo ""\n\
-else\n\
-    echo "No pending migrations."\n\
-    echo ""\n\
-fi\n\
-\n\
-# Execute the command passed to docker run\n\
-exec "$@"' > /app/docker-entrypoint-dev.sh && \
-    chmod +x /app/docker-entrypoint-dev.sh && \
+# Ensure entrypoint script has correct permissions
+# This handles the case where the file is copied from the repository
+RUN chmod +x /app/docker-entrypoint-dev.sh && \
     chown django:django /app/docker-entrypoint-dev.sh
 
 # Switch to non-root user
@@ -105,8 +76,9 @@ USER django
 EXPOSE 8000
 
 # Health check for development
+# Use 127.0.0.1 instead of localhost to force IPv4 (Django binds to 0.0.0.0 IPv4 by default)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/ || exit 1
+    CMD curl -f http://127.0.0.1:8000/api/v1/health/ || exit 1
 
 # Set entrypoint and default command
 ENTRYPOINT ["/app/docker-entrypoint-dev.sh"]
@@ -161,6 +133,7 @@ RUN mkdir -p /app/logs /app/media /app/staticfiles /app/static && \
     chown -R django:django /app/logs /app/media /app/staticfiles /app/static
 
 # Create production entrypoint script
+# Note: Production stage does NOT use volume mounts, so inline creation is safe
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
@@ -209,8 +182,9 @@ USER django
 EXPOSE 8000
 
 # Health check for production
+# Use 127.0.0.1 instead of localhost to force IPv4 (Gunicorn binds to 0.0.0.0 IPv4 by default)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/ || exit 1
+    CMD curl -f http://127.0.0.1:8000/api/v1/health/ || exit 1
 
 # Set entrypoint and default command
 ENTRYPOINT ["/app/docker-entrypoint-prod.sh"]
