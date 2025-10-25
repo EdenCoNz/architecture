@@ -59,7 +59,8 @@ services:
       - CSRF_COOKIE_SECURE=False
 
       # Frontend runtime config for local development
-      - FRONTEND_API_URL=http://localhost
+      # Empty FRONTEND_API_URL = use same origin (works for localhost AND network IPs)
+      - FRONTEND_API_URL=
       - FRONTEND_API_ENABLE_LOGGING=true
       - FRONTEND_APP_NAME=Application (Local Dev)
       - FRONTEND_ENABLE_DEBUG=true
@@ -98,7 +99,8 @@ services:
       - VITE_DEBUG=true
 
       # API URL - fallback for runtime config
-      - VITE_API_URL=http://localhost
+      # Empty VITE_API_URL = use same origin (works for localhost AND network IPs)
+      - VITE_API_URL=
 
     # Expose frontend port directly for accessing Vite dev server
     ports:
