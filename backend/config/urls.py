@@ -28,6 +28,8 @@ urlpatterns = [
     path("api/v1/", include("apps.api.urls")),
     # Authentication endpoints (accessible via auth: namespace)
     path("api/v1/auth/", include("apps.users.urls")),
+    # Assessment endpoints
+    path("api/v1/", include("apps.assessments.urls")),
 ]
 
 # Serve media files in development

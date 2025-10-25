@@ -29,9 +29,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     # TEMPORARILY DISABLED - Only keeping build and deploy jobs
-    if: false
+    # if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -77,9 +77,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     # TEMPORARILY DISABLED - Only keeping build and deploy jobs
-    if: false
+    # if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -114,9 +114,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     # TEMPORARILY DISABLED - Only keeping build and deploy jobs
-    if: false
+    # if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:

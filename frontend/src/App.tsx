@@ -9,7 +9,7 @@ import { Box } from '@mui/material';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts';
 import { Header } from './components/layout';
-import { Home, NotFound, ApiTest } from './pages';
+import { Home, NotFound, ApiTest, Onboarding } from './pages';
 import './styles/global.css';
 
 function App() {
@@ -48,6 +48,9 @@ function App() {
 
               {/* API Test route - Feature #10 */}
               <Route path="/api-test" element={<ApiTest />} />
+
+              {/* Onboarding route - Feature #11 */}
+              <Route path="/onboarding" element={<Onboarding />} />
 
               {/* 404 Not Found route - catches all unmatched routes */}
               <Route path="*" element={<NotFound />} />

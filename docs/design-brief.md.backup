@@ -2193,3 +2193,338 @@ const equipmentItems = [
 - **Intelligent category state**: Auto-selects/deselects based on items
 - **"No Equipment" exclusivity**: Prevents contradictory selections
 - **Wrapping layout**: Adapts to screen sizes
+
+#### Story 11.3: Experience Level Selection
+
+**Component Specifications**:
+
+| Aspect | Specification |
+|--------|--------------|
+| **Container** | Box wrapper with mb: 3 for spacing |
+| **Layout** | Stack with spacing(3) = 24px between elements |
+| **Section Title** | Typography variant h5 (24px, 400 weight) |
+| **Section Subtitle** | Typography variant body2 (14px), color text.secondary |
+| **Selection Component** | MUI RadioGroup with FormControlLabel per option |
+| **Radio Button Size** | medium (24x24px icon, 48x48px touch target) |
+| **Radio Button Color** | primary (theme.palette.primary.main) |
+| **Option Spacing** | spacing(2) = 16px vertical between options |
+| **Validation Message** | FormHelperText, color error.main, with ErrorOutline icon |
+
+**Experience Level Options**:
+
+| Level | Label | Description | Value |
+|-------|-------|-------------|-------|
+| **Beginner** | "Beginner" | "New to structured training, or returning after extended break (6+ months). Focus on building foundation and learning proper form." | "beginner" |
+| **Intermediate** | "Intermediate" | "Consistent training for 6+ months. Comfortable with basic exercises and ready to increase intensity and complexity." | "intermediate" |
+| **Advanced** | "Advanced" | "Training consistently for 1+ year with structured programs. Comfortable with high-intensity workouts and complex movements." | "advanced" |
+
+**Interactive States - Light Theme**:
+
+| State | Radio Border | Radio Fill | Label Text | Background | Border | Description |
+|-------|--------------|------------|------------|------------|--------|-------------|
+| **Unselected Default** | 2px rgba(0,0,0,0.54) | transparent | text.primary | transparent | none | text.secondary |
+| **Unselected Hover** | 2px rgba(0,0,0,0.87) | rgba(0,0,0,0.04) | text.primary | rgba(0,0,0,0.02) | none | text.secondary |
+| **Selected** | 2px primary.main (#1976d2) | primary.main | text.primary | rgba(25,118,210,0.04) | 1px primary.main | text.primary |
+| **Selected Hover** | 2px primary.dark | primary.dark | text.primary | rgba(25,118,210,0.08) | 1px primary.dark | text.primary |
+| **Focus (Keyboard)** | 2px primary.main | current fill | text.primary | current bg | 2px outline primary | current |
+| **Error State** | 2px error.main | transparent | text.primary | transparent | 1px error.main | error.main |
+
+**Interactive States - Dark Theme**:
+
+| State | Radio Border | Radio Fill | Label Text | Background | Border | Description |
+|-------|--------------|------------|------------|------------|--------|-------------|
+| **Unselected Default** | 2px rgba(255,255,255,0.7) | transparent | text.primary | transparent | none | text.secondary |
+| **Unselected Hover** | 2px rgba(255,255,255,0.87) | rgba(255,255,255,0.08) | text.primary | rgba(255,255,255,0.04) | none | text.secondary |
+| **Selected** | 2px primary.main (#90caf9) | primary.main | text.primary | rgba(144,202,249,0.12) | 1px primary.main | text.primary |
+| **Selected Hover** | 2px primary.light | primary.light | text.primary | rgba(144,202,249,0.16) | 1px primary.light | text.primary |
+| **Focus (Keyboard)** | 2px primary.main | current fill | text.primary | current bg | 2px outline primary | current |
+| **Error State** | 2px error.main | transparent | text.primary | transparent | 1px error.main | error.main |
+
+**All UI States**:
+
+| State | Condition | Visual Treatment | User Action |
+|-------|-----------|------------------|-------------|
+| **Default** | No selection made | All options unselected, neutral state | User can select any option |
+| **Selected** | One option chosen | Selected radio filled with primary color, FormControlLabel has subtle background and border | User can change selection |
+| **Validation Error** | Next clicked without selection | Error border on FormControl, error message "Please select your experience level" with icon below options | User must select to proceed |
+| **Validation Success** | Valid selection made | No error indicators, ready to proceed | User can proceed to next step |
+| **Disabled** | Form locked during submission | All options opacity 0.38, cursor not-allowed | User cannot interact |
+
+**Layout Structure**:
+```jsx
+<Box sx={{ mb: 3 }}>
+  <Stack spacing={3}>
+    {/* Section Header */}
+    <Box>
+      <Typography variant="h5" gutterBottom>
+        What's your training experience level?
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Select the level that best matches your current fitness and training background
+      </Typography>
+    </Box>
+
+    {/* Radio Group */}
+    <FormControl error={!!errors.experienceLevel} component="fieldset" fullWidth>
+      <RadioGroup
+        value={formData.experienceLevel}
+        onChange={handleExperienceLevelChange}
+        name="experience-level"
+      >
+        {/* Beginner Option */}
+        <FormControlLabel
+          value="beginner"
+          control={<Radio />}
+          label={
+            <Box sx={{ ml: 1 }}>
+              <Typography variant="body1" fontWeight={500}>
+                Beginner
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                New to structured training, or returning after extended break (6+ months).
+                Focus on building foundation and learning proper form.
+              </Typography>
+            </Box>
+          }
+          sx={{
+            border: formData.experienceLevel === 'beginner' ? '1px solid' : 'none',
+            borderColor: 'primary.main',
+            backgroundColor: formData.experienceLevel === 'beginner' ? 'action.selected' : 'transparent',
+            borderRadius: 1,
+            p: 2,
+            mb: 2,
+            m: 0,
+            alignItems: 'flex-start',
+            '&:hover': {
+              backgroundColor: 'action.hover',
+            },
+          }}
+        />
+
+        {/* Intermediate Option */}
+        <FormControlLabel
+          value="intermediate"
+          control={<Radio />}
+          label={
+            <Box sx={{ ml: 1 }}>
+              <Typography variant="body1" fontWeight={500}>
+                Intermediate
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Consistent training for 6+ months. Comfortable with basic exercises
+                and ready to increase intensity and complexity.
+              </Typography>
+            </Box>
+          }
+          sx={{
+            border: formData.experienceLevel === 'intermediate' ? '1px solid' : 'none',
+            borderColor: 'primary.main',
+            backgroundColor: formData.experienceLevel === 'intermediate' ? 'action.selected' : 'transparent',
+            borderRadius: 1,
+            p: 2,
+            mb: 2,
+            m: 0,
+            alignItems: 'flex-start',
+            '&:hover': {
+              backgroundColor: 'action.hover',
+            },
+          }}
+        />
+
+        {/* Advanced Option */}
+        <FormControlLabel
+          value="advanced"
+          control={<Radio />}
+          label={
+            <Box sx={{ ml: 1 }}>
+              <Typography variant="body1" fontWeight={500}>
+                Advanced
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Training consistently for 1+ year with structured programs.
+                Comfortable with high-intensity workouts and complex movements.
+              </Typography>
+            </Box>
+          }
+          sx={{
+            border: formData.experienceLevel === 'advanced' ? '1px solid' : 'none',
+            borderColor: 'primary.main',
+            backgroundColor: formData.experienceLevel === 'advanced' ? 'action.selected' : 'transparent',
+            borderRadius: 1,
+            p: 2,
+            mb: 2,
+            m: 0,
+            alignItems: 'flex-start',
+            '&:hover': {
+              backgroundColor: 'action.hover',
+            },
+          }}
+        />
+      </RadioGroup>
+
+      {/* Error Message */}
+      {errors.experienceLevel && (
+        <FormHelperText>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <ErrorOutline fontSize="small" />
+            {errors.experienceLevel}
+          </Box>
+        </FormHelperText>
+      )}
+    </FormControl>
+  </Stack>
+</Box>
+```
+
+**Responsive Behavior**:
+
+| Breakpoint | Container Padding | Option Layout | Description Text | Radio Size |
+|-----------|------------------|---------------|------------------|------------|
+| **xs (0-599px)** | spacing(2) = 16px | Single column, full width | Full text visible, line wrap | 24x24px, 48x48px touch |
+| **sm (600-899px)** | spacing(3) = 24px | Single column, max 600px | Full text visible | 24x24px, 48x48px touch |
+| **md (900px+)** | spacing(4) = 32px | Single column, max 800px | Full text visible | 24x24px, 48x48px touch |
+
+**Accessibility**:
+
+| Aspect | Specification | Compliance |
+|--------|--------------|------------|
+| **Radio Contrast - Light** | rgba(0,0,0,0.54) border on white = 7.2:1 | WCAG AAA |
+| **Radio Contrast - Dark** | rgba(255,255,255,0.7) border on #1e1e1e = 9.8:1 | WCAG AAA |
+| **Label Text Contrast** | text.primary meets 15.8:1 (light), 14.9:1 (dark) | WCAG AAA |
+| **Focus Indicator** | 2px outline, primary color, 3:1+ contrast | WCAG AA (2.4.7) |
+| **Touch Target** | 48x48px minimum for radio buttons | WCAG 2.1 AA (2.5.5) |
+| **Keyboard Navigation** | Tab to focus options, Arrow keys to select, Space to toggle | WCAG AA (2.1.1) |
+| **Screen Reader** | FormControlLabel provides radio + label association, error announced via aria-describedby | WCAG AA (4.1.3) |
+| **Radio Group Role** | radiogroup role (native RadioGroup), aria-required, aria-invalid when error | WCAG AA (4.1.2) |
+| **Error Association** | FormHelperText linked via aria-describedby to RadioGroup | WCAG AA (3.3.1) |
+
+**Validation Rules**:
+- **Required**: User must select exactly one option before proceeding to next step
+- **Trigger**: Validation occurs on Next button click (form-level validation)
+- **Error Display**: Error message "Please select your experience level" appears below options with ErrorOutline icon
+- **Error Clear**: Selecting any option immediately clears error state
+- **Persistence**: Selection persists when user navigates back/forward in stepper
+
+**Components Used**:
+- Typography (MUI) - h5 for title, body2 for descriptions
+- FormControl, FormControlLabel, FormHelperText (MUI)
+- RadioGroup, Radio (MUI)
+- Stack, Box (MUI)
+- ErrorOutline icon (MUI @mui/icons-material)
+
+**Styling Approach**:
+- sx prop for conditional styling based on selection state (border, background)
+- MUI theme for colors, spacing, typography
+- Dynamic border and background based on selected value
+- Hover states via sx pseudo-selectors (&:hover)
+- alignItems: 'flex-start' on FormControlLabel to align radio button with first line of text
+
+**Integration with Multi-Step Form**:
+- Appears in Step 3 of onboarding flow
+- Follows Age Information (Story 11.2), precedes Weekly Training Availability
+- Validation integrated with form-level validation (blocks Next button if invalid)
+- Value stored in parent form state (formData.experienceLevel)
+- Progress indicator shows step completion status
+- User can navigate back to revise selection without losing data
+
+**Edge Cases Handled**:
+- No initial selection (default state shows all options unselected)
+- User clicks Next without selecting (validation error displays)
+- User changes selection (previous selection automatically deselected by radio group behavior)
+- User navigates back and changes selection (updated value persists forward)
+- Form submission while error present (blocked at form level)
+
+**Design Rationale**:
+- **Descriptive options over minimal labels**: Experience level is subjective, detailed descriptions reduce ambiguity and help users self-assess accurately
+- **Card-like option treatment with borders**: Larger touch targets (entire FormControlLabel clickable), clearer visual grouping, easier to scan and compare options
+- **Inline descriptions within labels**: User doesn't need external help/tooltips to understand options, reduces cognitive load
+- **Single-column vertical layout**: Reduces horizontal comparison fatigue, easier to read multi-line descriptions top-to-bottom, works better on mobile
+- **Subtle selected state**: Primary color border + light background tint signals selection without overwhelming, maintains visual hierarchy with unselected options
+- **Radio buttons over buttons/chips**: Standard pattern for mutually exclusive choices, users familiar with interaction model, accessibility built-in
+
+
+- **Deferred validation**: Shows error only on proceed attempt
+
+
+
+
+### Styling Approach Priority
+1. **MUI Theme**: Global design tokens, component defaults
+2. **sx prop**: Component-specific one-off styles, responsive overrides
+3. **styled()**: Reusable custom components, complex hover states
+4. **Global CSS**: CSS reset, utility classes, print styles
+
+### File Organization
+```
+src/
+├─ theme/
+│  ├─ index.ts          # Theme configuration export
+│  ├─ palette.ts        # Color definitions
+│  ├─ typography.ts     # Typography scale
+│  └─ components.ts     # Component overrides
+├─ components/
+│  └─ [ComponentName]/
+│     ├─ index.tsx      # Component implementation
+│     ├─ styles.ts      # styled() components (if needed)
+│     └─ types.ts       # TypeScript interfaces
+```
+
+### Theme Usage Example
+```jsx
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import theme from './theme';
+
+function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      {/* App content */}
+    </ThemeProvider>
+  );
+}
+```
+
+### Responsive Styling Patterns
+```jsx
+// Using sx prop with breakpoints
+<Box
+  sx={{
+    padding: { xs: 2, md: 4 },
+    display: { xs: 'block', md: 'flex' },
+    gap: 2,
+  }}
+>
+
+// Using theme breakpoints in styled()
+const ResponsiveCard = styled(Card)(({ theme }) => ({
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(2),
+  },
+  [theme.breakpoints.up('md')]: {
+    padding: theme.spacing(4),
+  },
+}));
+```
+
+### Accessibility Implementation
+```jsx
+// Semantic HTML with ARIA
+<Button
+  aria-label="Add item to cart"
+  aria-describedby="cart-help-text"
+>
+  <AddIcon />
+</Button>
+<Typography id="cart-help-text" variant="caption">
+  Click to add item to your shopping cart
+</Typography>
+
+// Focus management
+const dialogRef = useRef();
+useEffect(() => {
+  if (open) {
+    dialogRef.current?.focus();
+  }
+}, [open]);
+```

@@ -41,6 +41,7 @@ LOCAL_APPS = [
     "apps.core",
     "apps.api",
     "apps.users",
+    "apps.assessments",
     "apps.utils",
 ]
 
