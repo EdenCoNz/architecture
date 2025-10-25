@@ -1,11 +1,31 @@
 # =============================================================================
-# Multi-Container Orchestration for Local Development
+# Unified Multi-Service Orchestration (Feature #12 - Stories 12.1 & 12.2)
 # =============================================================================
-# This Docker Compose file orchestrates the complete application stack:
-#   - Frontend (React/Vite) on port 5173
-#   - Backend (Django/DRF) on port 8000
-#   - PostgreSQL database on port 5432
-#   - Redis cache on port 6379
+# This Docker Compose file orchestrates the complete application stack with a
+# unified entry point through an nginx reverse proxy and proper dependency
+# management to ensure services start in the correct order.
+#
+# Services:
+#   - Reverse Proxy (Nginx) - UNIFIED ENTRY POINT on port 80
+#   - Frontend (React/Vite) - internal port 5173
+#   - Backend (Django/DRF) - internal port 8000
+#   - PostgreSQL database - exposed on port 5432 (for dev tools)
+#   - Redis cache - exposed on port 6379 (for dev tools)
+#   - Celery worker (optional) - background tasks
+#
+# Unified Access (through reverse proxy):
+#   http://localhost/           -> Frontend (React SPA)
+#   http://localhost/api/       -> Backend API
+#   http://localhost/admin/     -> Django Admin
+#   http://localhost/static/    -> Backend static files
+#   http://localhost/media/     -> Backend media files
+#
+# Service Dependency Order (Story 12.2):
+#   1. db, redis (no dependencies)
+#   2. backend (depends on: db, redis)
+#   3. frontend (depends on: backend)
+#   4. proxy (depends on: frontend, backend)
+#   5. celery (depends on: db, redis)
 #
 # Quick Start:
 #   docker compose up                    # Start all services
@@ -22,6 +42,17 @@
 #   ./docker-dev.sh logs                 # View logs
 #   ./docker-dev.sh rebuild              # Rebuild and restart
 #
+# Dependency Validation:
+#   ./scripts/check-dependencies.sh      # Check service health and dependencies
+#   ./scripts/check-dependencies.sh -v   # Verbose mode with details
+#   ./scripts/check-dependencies.sh -w 60 # Wait up to 60s for services
+#
+# Orchestration Validation (Story 12.11):
+#   ./scripts/validate-orchestration.sh  # Comprehensive end-to-end validation
+#   ./scripts/validate-orchestration.sh --verbose # Detailed validation output
+#   ./scripts/validate-orchestration.sh --quick   # Quick health-only validation
+#   ./docker-dev.sh validate             # Validate via helper script
+#
 # Service-Specific Commands:
 #   docker compose up frontend           # Start only frontend (and dependencies)
 #   docker compose up backend            # Start only backend (and dependencies)
@@ -32,7 +63,16 @@
 
 services:
   # ---------------------------------------------------------------------------
-  # PostgreSQL Database Service
+  # PostgreSQL Database Service (Layer 1 - No Dependencies)
+  # ---------------------------------------------------------------------------
+  # This service starts first and has no dependencies. It must be healthy
+  # before the backend service can start successfully.
+  #
+  # NETWORK ISOLATION (Story 12.5):
+  # - NO ports exposed to host by default (secure)
+  # - Only accessible via internal Docker network to backend service
+  # - Development override (compose.override.yml) exposes port for DB tools
+  # - Production keeps database isolated from external access
   # ---------------------------------------------------------------------------
   db:
     image: postgres:15-alpine
@@ -49,16 +89,19 @@ services:
       # Persistent database storage
       - postgres_data:/var/lib/postgresql/data
 
-    ports:
-      # Expose PostgreSQL port for local database tools
-      - "${DB_PORT:-5432}:5432"
+    # IMPORTANT: No ports exposed to host by default (Story 12.5 - Service Isolation)
+    # Database is only accessible via internal 'app-network' to backend service
+    # Development: compose.override.yml exposes 5432 for database tools (pgAdmin, DBeaver)
+    # Production: Port remains unexposed for security
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-backend_db}"]
-      interval: 10s
-      timeout: 5s
+      # Verify PostgreSQL is ready to accept connections
+      # This ensures backend won't fail on connection attempts
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-backend_db} || exit 1"]
+      interval: 5s
+      timeout: 3s
       retries: 5
-      start_period: 10s
+      start_period: 15s
 
     networks:
       - app-network
@@ -73,8 +116,24 @@ services:
           cpus: '0.5'
           memory: 256M
 
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # ---------------------------------------------------------------------------
-  # Redis Cache Service
+  # Redis Cache Service (Layer 1 - No Dependencies)
+  # ---------------------------------------------------------------------------
+  # This service starts first and has no dependencies. It must be healthy
+  # before the backend service can start successfully.
+  #
+  # NETWORK ISOLATION (Story 12.5):
+  # - NO ports exposed to host by default (secure)
+  # - Only accessible via internal Docker network to backend service
+  # - Development override (compose.override.yml) exposes port for Redis tools
+  # - Production keeps Redis isolated from external access
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -87,13 +146,16 @@ services:
       # Persistent Redis data
       - redis_data:/data
 
-    ports:
-      # Expose Redis port for local Redis clients
-      - "6379:6379"
+    # IMPORTANT: No ports exposed to host by default (Story 12.5 - Service Isolation)
+    # Redis is only accessible via internal 'app-network' to backend service
+    # Development: compose.override.yml exposes 6379 for Redis clients (RedisInsight, redis-cli)
+    # Production: Port remains unexposed for security
 
     healthcheck:
+      # Verify Redis is responding to PING commands
+      # This ensures backend won't fail on cache/queue operations
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 3s
       retries: 5
       start_period: 10s
@@ -110,8 +172,19 @@ services:
           cpus: '0.25'
           memory: 128M
 
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # ---------------------------------------------------------------------------
-  # Backend Django Application Service
+  # Backend Django Application Service (Layer 2 - Depends on: db, redis)
+  # ---------------------------------------------------------------------------
+  # This service depends on both database and redis being healthy. The backend
+  # entrypoint script validates database connectivity before starting the
+  # application server, providing clear error messages if dependencies fail.
   # ---------------------------------------------------------------------------
   backend:
     build:
@@ -167,22 +240,32 @@ services:
       # Persistent static files
       - backend_static:/app/staticfiles
 
-    ports:
-      # Expose Django development server
-      - "${BACKEND_PORT:-8000}:8000"
+    # NETWORK ISOLATION (Story 12.5):
+    # - NO ports exposed to host by default (secure)
+    # - Only accessible via reverse proxy on internal network
+    # - Development override (compose.override.yml) exposes port for direct API access/debugging
+    # - Production: All traffic routed through reverse proxy
 
+    # Service Dependencies (Layer 2)
+    # Backend requires database and redis to be healthy before starting
+    # The entrypoint script (docker-entrypoint-dev.sh) performs additional
+    # validation and provides clear error messages on dependency failures
     depends_on:
       db:
         condition: service_healthy
+        restart: true
       redis:
         condition: service_healthy
+        restart: true
 
     healthcheck:
+      # Verify Django application is responding to health check endpoint
+      # This endpoint validates database and redis connectivity internally
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
-      interval: 30s
-      timeout: 3s
+      interval: 15s
+      timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 45s
 
     networks:
       - app-network
@@ -196,8 +279,19 @@ services:
           cpus: '0.5'
           memory: 512M
 
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # ---------------------------------------------------------------------------
-  # Frontend React/Vite Application Service
+  # Frontend React/Vite Application Service (Layer 3 - Depends on: backend)
+  # ---------------------------------------------------------------------------
+  # This service depends on the backend being healthy to fetch runtime
+  # configuration from /api/v1/config/frontend/. If backend is not available,
+  # frontend will use fallback configuration values.
   # ---------------------------------------------------------------------------
   frontend:
     build:
@@ -234,20 +328,27 @@ services:
       # Named volume for node_modules
       - frontend_node_modules:/app/node_modules
 
-    ports:
-      # Expose Vite dev server
-      - "${FRONTEND_PORT:-5173}:5173"
+    # NETWORK ISOLATION (Story 12.5):
+    # - NO ports exposed to host by default (secure)
+    # - Only accessible via reverse proxy on internal network
+    # - Development override (compose.override.yml) exposes port for HMR and direct access
+    # - Production: All traffic routed through reverse proxy
 
+    # Service Dependencies (Layer 3)
+    # Frontend depends on backend for runtime configuration
+    # If backend is unavailable, frontend uses fallback values
     depends_on:
       backend:
         condition: service_healthy
+        restart: true
 
     healthcheck:
+      # Verify Vite dev server is responding
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
-      interval: 30s
-      timeout: 3s
+      interval: 15s
+      timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 35s
 
     networks:
       - app-network
@@ -267,6 +368,89 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy Service (Layer 4 - Depends on: frontend, backend)
+  # ---------------------------------------------------------------------------
+  # This service starts LAST after both frontend and backend are healthy.
+  # It provides the unified entry point for the entire application stack.
+  # Enhanced with:
+  #   - Comprehensive security headers
+  #   - Advanced caching for static/media files
+  #   - Full WebSocket support with fallback
+  #   - Rate limiting for API endpoints
+  #   - Response compression (gzip)
+  #   - SSL/TLS preparation
+  # ---------------------------------------------------------------------------
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: app-proxy
+    restart: unless-stopped
+
+    volumes:
+      # Custom nginx configuration for reverse proxy (read-only)
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+      # Nginx logs (persistent)
+      - proxy_logs:/var/log/nginx
+
+      # Cache directories for static and media files (Story 12.3)
+      - proxy_cache_static:/var/cache/nginx/static
+      - proxy_cache_media:/var/cache/nginx/media
+
+    # NETWORK ISOLATION (Story 12.5):
+    # UNIFIED ENTRY POINT - ONLY reverse proxy exposes ports to host
+    # This is the ONLY service with external port exposure (security by design)
+    # All other services communicate via internal Docker network only
+    ports:
+      - "${PROXY_PORT:-80}:80"
+      # HTTPS port (prepared for production, currently unused)
+      # - "${PROXY_HTTPS_PORT:-443}:443"
+
+    # Service Dependencies (Layer 4)
+    # Proxy is the final service to start, requiring both frontend and backend
+    # to be healthy before accepting traffic. This ensures all upstream
+    # services are ready before the unified entry point becomes available.
+    depends_on:
+      frontend:
+        condition: service_healthy
+        restart: true
+      backend:
+        condition: service_healthy
+        restart: true
+
+    healthcheck:
+      # Verify nginx is responding and can reach upstream services
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M  # Increased for cache storage
+        reservations:
+          cpus: '0.25'
+          memory: 256M  # Increased for cache storage
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Environment variables for nginx (if needed)
+    # environment:
+    #   - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
+    #   - NGINX_HOST=localhost
+    #   - NGINX_PORT=80
 
   # ---------------------------------------------------------------------------
   # Celery Worker Service (Optional - for background tasks)
@@ -326,12 +510,40 @@ services:
       - with-celery
 
 # =============================================================================
-# Networks
+# Networks (Story 12.5 - Service Isolation and Networking)
+# =============================================================================
+# NETWORK ISOLATION STRATEGY:
+#
+# All services communicate through a single isolated Docker bridge network.
+# This provides:
+#   1. Service isolation from host network (no direct access except proxy)
+#   2. Service-to-service communication via DNS names (backend, frontend, db, redis)
+#   3. Network segmentation (services can only communicate within network)
+#   4. Multiple instance support (project-prefixed containers prevent conflicts)
+#
+# SECURITY MODEL:
+#   - External access: ONLY through reverse proxy port 80 (443 for HTTPS)
+#   - Internal access: Services communicate via container names on app-network
+#   - Database/Redis: NO external ports (isolated from internet)
+#   - Backend/Frontend: NO external ports (only accessible via proxy)
+#
+# MULTIPLE INSTANCES:
+#   To run multiple instances simultaneously, use Docker Compose project names:
+#     docker compose -p myapp-instance1 up -d
+#     docker compose -p myapp-instance2 up -d
+#   Each instance gets isolated network: myapp-instance1_app-network, myapp-instance2_app-network
+#   Port conflicts avoided by changing PROXY_PORT in .env or via environment variable
+#
+# DEVELOPMENT vs PRODUCTION:
+#   - Development (compose.override.yml): Exposes db/redis/backend/frontend ports for debugging
+#   - Production (compose.production.yml): NO service ports exposed except proxy (secure by default)
 # =============================================================================
 networks:
   app-network:
     driver: bridge
-    name: app-network
+    name: ${COMPOSE_PROJECT_NAME:-app}-network
+    # Network is project-scoped for multiple instance support
+    # Use COMPOSE_PROJECT_NAME to create isolated instances
 
 # =============================================================================
 # Volumes
@@ -360,4 +572,19 @@ volumes:
   # Frontend node_modules persist between container restarts
   frontend_node_modules:
     name: app-frontend-node-modules
+    driver: local
+
+  # Nginx proxy logs persist between container restarts
+  proxy_logs:
+    name: app-proxy-logs
+    driver: local
+
+  # Nginx cache for static files (Story 12.3)
+  proxy_cache_static:
+    name: app-proxy-cache-static
+    driver: local
+
+  # Nginx cache for media files (Story 12.3)
+  proxy_cache_media:
+    name: app-proxy-cache-media
     driver: local

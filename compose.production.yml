@@ -1,0 +1,420 @@
+# =============================================================================
+# Docker Compose Production Environment Configuration
+# =============================================================================
+# This file provides production-specific overrides for the base docker-compose.yml
+#
+# ENVIRONMENT: production
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f compose.production.yml up -d
+#   docker compose -f docker-compose.yml -f compose.production.yml down
+#   docker compose -f docker-compose.yml -f compose.production.yml logs -f
+#
+# Or use the environment helper script:
+#   ./docker-env.sh production start
+#   ./docker-env.sh production stop
+#   ./docker-env.sh production logs
+#
+# Features:
+#   - Production-optimized configuration
+#   - Pre-built, security-scanned images from registry
+#   - Strict resource limits for stability
+#   - Minimal logging for performance
+#   - No direct port exposure (only through reverse proxy)
+#   - HTTPS enforced with security headers
+#   - Health checks with auto-restart
+#   - No development tools or debug features
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend Service - Production Configuration
+  # ---------------------------------------------------------------------------
+  backend:
+    # Use production image from registry (built and scanned in CI/CD)
+    image: ${BACKEND_IMAGE:-ghcr.io/edenconz/backend:latest}
+
+    build:
+      target: production
+      cache_from:
+        - ghcr.io/edenconz/backend:latest
+
+    # Load production environment variables from file
+    env_file:
+      - ./backend/.env.production
+
+    # Production environment variables
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - DEBUG=False
+      - LOG_LEVEL=WARNING
+      - ENVIRONMENT=production
+
+      # Database connection (use service name as host)
+      - DB_HOST=db
+      - DB_PORT=5432
+
+      # Redis connection (use service name as host)
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      # Security settings - HTTPS only
+      - SECURE_SSL_REDIRECT=True
+      - SESSION_COOKIE_SECURE=True
+      - CSRF_COOKIE_SECURE=True
+      - SECURE_HSTS_SECONDS=31536000
+      - SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+      - SECURE_HSTS_PRELOAD=True
+
+      # Frontend runtime config for production
+      - FRONTEND_API_URL=https://yourdomain.com
+      - FRONTEND_API_ENABLE_LOGGING=false
+      - FRONTEND_APP_NAME=Application
+      - FRONTEND_APP_VERSION=${APP_VERSION:-1.0.0}
+      - FRONTEND_ENABLE_DEBUG=false
+      - FRONTEND_ENABLE_ANALYTICS=true
+
+    # No direct port exposure in production - ONLY through reverse proxy
+    ports: []
+
+    # Production volumes - persistent data only (no bind mounts)
+    volumes:
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+      - ./backend/logs:/app/logs
+
+    # Production resource limits - strict
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+    # Always restart in production
+    restart: always
+
+    # Optimized health check for production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+    # Production logging - minimal, structured
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "environment=production,service=backend"
+        compress: "true"
+
+  # ---------------------------------------------------------------------------
+  # Frontend Service - Production Configuration
+  # ---------------------------------------------------------------------------
+  frontend:
+    # Use production image from registry (built and scanned in CI/CD)
+    image: ${FRONTEND_IMAGE:-ghcr.io/edenconz/frontend:latest}
+
+    build:
+      target: production
+      cache_from:
+        - ghcr.io/edenconz/frontend:latest
+
+    # Load production environment variables from file
+    env_file:
+      - ./frontend/.env.production
+
+    # Production environment variables
+    environment:
+      - NODE_ENV=production
+      - ENVIRONMENT=production
+
+    # No direct port exposure in production - ONLY through reverse proxy
+    ports: []
+
+    # Production volumes - no bind mounts, no data to persist
+    volumes: []
+
+    # Production resource limits - strict
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+    # Always restart in production
+    restart: always
+
+    # Optimized health check for production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+    # Production logging - minimal, structured
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "environment=production,service=frontend"
+        compress: "true"
+
+  # ---------------------------------------------------------------------------
+  # Database Service - Production Configuration
+  # ---------------------------------------------------------------------------
+  db:
+    # Load production environment variables
+    environment:
+      POSTGRES_DB: ${DB_NAME:-backend_prod_db}
+      POSTGRES_USER: ${DB_USER:-backend_prod_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}  # MUST be set in .env.production
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
+
+      # PostgreSQL performance tuning for production
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-512MB}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-2GB}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-200}
+      POSTGRES_WORK_MEM: ${POSTGRES_WORK_MEM:-4MB}
+      POSTGRES_MAINTENANCE_WORK_MEM: ${POSTGRES_MAINTENANCE_WORK_MEM:-128MB}
+
+    # No direct port exposure in production
+    ports: []
+
+    # Production resource limits - generous for database
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+
+    # Always restart in production
+    restart: always
+
+    # Optimized health check for production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-backend_prod_user} -d ${DB_NAME:-backend_prod_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    # Production logging - minimal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "environment=production,service=database"
+        compress: "true"
+
+  # ---------------------------------------------------------------------------
+  # Redis Service - Production Configuration
+  # ---------------------------------------------------------------------------
+  redis:
+    # Redis with password and optimized persistence
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory ${REDIS_MAXMEMORY:-1gb}
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-keepalive 300
+      --timeout 0
+
+    # No direct port exposure in production
+    ports: []
+
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+    # Always restart in production
+    restart: always
+
+    # Optimized health check for production
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    # Production logging - minimal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "environment=production,service=redis"
+        compress: "true"
+
+  # ---------------------------------------------------------------------------
+  # Proxy Service - Production Configuration
+  # ---------------------------------------------------------------------------
+  proxy:
+    # Use production nginx configuration (with SSL/TLS, security headers)
+    volumes:
+      - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - proxy_logs:/var/log/nginx
+
+    # Expose HTTP (redirect to HTTPS) and HTTPS ports
+    ports:
+      - "80:80"
+      - "443:443"
+
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+    # Always restart in production
+    restart: always
+
+    # Optimized health check for production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    # Production logging - structured
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "environment=production,service=proxy"
+        compress: "true"
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker Service - Production Configuration
+  # ---------------------------------------------------------------------------
+  celery:
+    # Use production backend image
+    image: ${BACKEND_IMAGE:-ghcr.io/edenconz/backend:latest}
+
+    # Load production environment variables
+    env_file:
+      - ./backend/.env.production
+
+    # Production environment
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+      - DB_HOST=db
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+
+    # Celery command with production concurrency
+    command: celery -A config worker -l warning --concurrency=${CELERY_WORKER_CONCURRENCY:-8} --max-tasks-per-child=1000
+
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+
+    # Always restart in production
+    restart: always
+
+    # Remove profile - always run in production
+    profiles: []
+
+    # Production logging - minimal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "environment=production,service=celery"
+        compress: "true"
+
+# =============================================================================
+# Production Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    name: app-production-postgres-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker-volumes/app-production/postgres
+
+  redis_data:
+    name: app-production-redis-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker-volumes/app-production/redis
+
+  backend_media:
+    name: app-production-backend-media
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker-volumes/app-production/media
+
+  backend_static:
+    name: app-production-backend-static
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker-volumes/app-production/static
+
+  proxy_logs:
+    name: app-production-proxy-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker-volumes/app-production/logs
+
+# =============================================================================
+# Production Network
+# =============================================================================
+networks:
+  app-network:
+    name: app-production-network
+    driver: bridge

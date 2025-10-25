@@ -17,8 +17,18 @@
 #   shell <service>      Open shell in service container
 #   exec <service> <cmd> Execute command in service container
 #   ps                   Show service status
-#   clean                Remove containers and volumes (DESTRUCTIVE)
 #   status               Show detailed service status
+#   validate [--quick] [--verbose] Validate orchestration is working correctly
+#   clean                Remove containers and volumes (DESTRUCTIVE)
+#   clean-containers     Remove only containers, preserve data
+#   clean-logs           Remove only log files
+#   clean-cache          Remove only Redis cache data
+#   clean-all            Remove everything including persistent data
+#   status               Show detailed service status
+#   volumes              Show volume information and disk usage
+#   backup               Backup all persistent data
+#   backup-db            Backup database only
+#   restore <file>       Restore from backup file
 #   backend-shell        Open Django shell
 #   backend-migrate      Run database migrations
 #   backend-makemigrations Create new migrations
@@ -162,15 +172,85 @@ cmd_ps() {
 }
 
 cmd_clean() {
-    print_warning "This will remove all containers and volumes (including database data)"
-    read -p "Are you sure? (yes/no): " -r
+    print_warning "This will remove containers but preserve all data volumes"
+    print_info "For complete cleanup including data, use: ./docker-dev.sh clean-all"
+    read -p "Continue? (yes/no): " -r
     echo
     if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
-        print_header "Cleaning up containers and volumes"
-        docker compose down -v
-        print_success "Cleanup complete"
+        print_header "Cleaning up containers"
+        docker compose down
+        print_success "Containers removed, data volumes preserved"
     else
         print_info "Cleanup cancelled"
+    fi
+}
+
+cmd_clean_containers() {
+    print_header "Removing containers only"
+    docker compose down
+    print_success "Containers removed, all data preserved"
+}
+
+cmd_clean_logs() {
+    print_warning "This will remove log files and proxy logs volume"
+    read -p "Continue? (yes/no): " -r
+    echo
+    if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        print_header "Cleaning log files"
+        # Remove backend logs directory
+        if [ -d "./backend/logs" ]; then
+            rm -rf ./backend/logs/*
+            print_success "Backend log files removed"
+        fi
+        # Remove proxy logs volume
+        docker volume rm app-proxy-logs 2>/dev/null || true
+        print_success "Log cleanup complete"
+    else
+        print_info "Cleanup cancelled"
+    fi
+}
+
+cmd_clean_cache() {
+    print_warning "This will remove Redis cache data"
+    read -p "Continue? (yes/no): " -r
+    echo
+    if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        print_header "Cleaning Redis cache"
+        docker compose stop redis
+        docker volume rm app-redis-data 2>/dev/null || true
+        print_success "Cache data removed"
+        print_info "Run './docker-dev.sh start' to recreate Redis with empty cache"
+    else
+        print_info "Cleanup cancelled"
+    fi
+}
+
+cmd_clean_all() {
+    print_error "╔════════════════════════════════════════════════════════════╗"
+    print_error "║                    DESTRUCTIVE ACTION                      ║"
+    print_error "╚════════════════════════════════════════════════════════════╝"
+    print_warning "This will permanently remove:"
+    echo "  - All containers"
+    echo "  - All volumes (database, uploads, cache, logs)"
+    echo "  - All persistent data"
+    echo ""
+    print_warning "You will lose:"
+    echo "  - Database records"
+    echo "  - Uploaded files and media"
+    echo "  - Redis cache data"
+    echo "  - Application logs"
+    echo ""
+    print_info "Consider backing up first: ./docker-dev.sh backup"
+    echo ""
+    read -p "Type 'DELETE EVERYTHING' to confirm: " -r
+    echo
+    if [[ $REPLY == "DELETE EVERYTHING" ]]; then
+        print_header "Removing all containers and volumes"
+        docker compose down -v
+        print_success "Complete cleanup finished"
+        print_info "All data has been permanently deleted"
+    else
+        print_info "Cleanup cancelled (confirmation did not match)"
     fi
 }
 
@@ -181,7 +261,7 @@ cmd_status() {
 
     # Check health status
     print_info "Health checks:"
-    for service in db redis backend frontend; do
+    for service in db redis backend frontend proxy; do
         health=$(docker inspect --format='{{.State.Health.Status}}' "app-$service" 2>/dev/null || echo "not running")
         if [ "$health" = "healthy" ]; then
             echo -e "  $service: ${GREEN}healthy${NC}"
@@ -196,11 +276,17 @@ cmd_status() {
     echo ""
 
     # Show URLs
-    print_info "Application URLs:"
-    echo "  Frontend: http://localhost:5173"
-    echo "  Backend API: http://localhost:8000"
-    echo "  Backend Admin: http://localhost:8000/admin"
-    echo "  Backend Health: http://localhost:8000/api/v1/health/"
+    print_info "Application URLs (Unified Entry Point):"
+    echo "  Application: http://localhost/"
+    echo "  Frontend: http://localhost/"
+    echo "  Backend API: http://localhost/api/"
+    echo "  Admin Panel: http://localhost/admin/"
+    echo "  Backend Health: http://localhost/api/v1/health/"
+    echo "  Proxy Health: http://localhost/health"
+    echo ""
+    print_info "Direct Service Access (for debugging):"
+    echo "  Frontend Direct: http://localhost:5173"
+    echo "  Backend Direct: http://localhost:8000"
     echo ""
 
     print_info "Database connection:"
@@ -214,6 +300,194 @@ cmd_status() {
     print_info "Redis connection:"
     echo "  Host: localhost"
     echo "  Port: 6379"
+}
+
+cmd_validate() {
+    print_header "Running orchestration validation"
+
+    local verbose_flag=""
+    local quick_flag=""
+
+    # Parse optional flags
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --verbose|-v)
+                verbose_flag="--verbose"
+                shift
+                ;;
+            --quick)
+                quick_flag="--quick"
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    # Check if validation script exists
+    if [ ! -f "./scripts/validate-orchestration.sh" ]; then
+        print_error "Validation script not found at ./scripts/validate-orchestration.sh"
+        exit 1
+    fi
+
+    # Run validation
+    ./scripts/validate-orchestration.sh $verbose_flag $quick_flag
+}
+
+cmd_volumes() {
+    print_header "Volume information and disk usage"
+    echo ""
+
+    print_info "Persistent volumes:"
+    docker volume ls --filter "name=app-" --format "table {{.Name}}\t{{.Driver}}\t{{.Mountpoint}}"
+    echo ""
+
+    print_info "Volume sizes:"
+    for volume in postgres-data redis-data backend-media backend-static frontend-node-modules proxy-logs; do
+        if docker volume inspect "app-$volume" &>/dev/null; then
+            size=$(docker run --rm -v "app-$volume:/data" alpine du -sh /data 2>/dev/null | cut -f1)
+            echo "  app-$volume: $size"
+        fi
+    done
+    echo ""
+
+    print_info "Volume details:"
+    echo "  📊 app-postgres-data     - Database records (PostgreSQL data)"
+    echo "  📊 app-redis-data        - Cache and queue data (Redis persistence)"
+    echo "  📁 app-backend-media     - User uploaded files and media"
+    echo "  📁 app-backend-static    - Collected static files (CSS, JS, images)"
+    echo "  📦 app-frontend-node-modules - Frontend dependencies (npm packages)"
+    echo "  📝 app-proxy-logs        - Nginx access and error logs"
+    echo ""
+
+    print_info "Data persistence locations:"
+    echo "  Database:        /var/lib/postgresql/data (in container)"
+    echo "  Redis:           /data (in container)"
+    echo "  Media files:     /app/media (in container)"
+    echo "  Static files:    /app/staticfiles (in container)"
+    echo "  Node modules:    /app/node_modules (in container)"
+    echo "  Proxy logs:      /var/log/nginx (in container)"
+}
+
+cmd_backup() {
+    local backup_dir="./backups"
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="$backup_dir/full_backup_$timestamp.tar.gz"
+
+    print_header "Creating full backup"
+
+    # Create backup directory
+    mkdir -p "$backup_dir"
+
+    print_info "Backing up database..."
+    docker compose exec -T db pg_dump -U postgres backend_db > "$backup_dir/db_backup_$timestamp.sql"
+
+    print_info "Backing up media files..."
+    docker run --rm -v app-backend-media:/data -v "$(pwd)/$backup_dir:/backup" alpine \
+        tar czf "/backup/media_backup_$timestamp.tar.gz" -C /data .
+
+    print_info "Backing up static files..."
+    docker run --rm -v app-backend-static:/data -v "$(pwd)/$backup_dir:/backup" alpine \
+        tar czf "/backup/static_backup_$timestamp.tar.gz" -C /data .
+
+    print_info "Creating combined backup archive..."
+    tar czf "$backup_file" -C "$backup_dir" \
+        "db_backup_$timestamp.sql" \
+        "media_backup_$timestamp.tar.gz" \
+        "static_backup_$timestamp.tar.gz"
+
+    # Clean up individual backup files
+    rm "$backup_dir/db_backup_$timestamp.sql"
+    rm "$backup_dir/media_backup_$timestamp.tar.gz"
+    rm "$backup_dir/static_backup_$timestamp.tar.gz"
+
+    print_success "Backup created: $backup_file"
+
+    local backup_size=$(du -h "$backup_file" | cut -f1)
+    print_info "Backup size: $backup_size"
+}
+
+cmd_backup_db() {
+    local backup_dir="./backups"
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="$backup_dir/db_backup_$timestamp.sql"
+
+    print_header "Creating database backup"
+
+    # Create backup directory
+    mkdir -p "$backup_dir"
+
+    print_info "Backing up database..."
+    docker compose exec -T db pg_dump -U postgres backend_db > "$backup_file"
+
+    print_success "Database backup created: $backup_file"
+
+    local backup_size=$(du -h "$backup_file" | cut -f1)
+    print_info "Backup size: $backup_size"
+}
+
+cmd_restore() {
+    local backup_file=$1
+
+    if [ -z "$backup_file" ]; then
+        print_error "Please specify a backup file"
+        echo "Usage: ./docker-dev.sh restore <backup_file>"
+        echo ""
+        print_info "Available backups:"
+        ls -lh ./backups/ 2>/dev/null || echo "  No backups found"
+        exit 1
+    fi
+
+    if [ ! -f "$backup_file" ]; then
+        print_error "Backup file not found: $backup_file"
+        exit 1
+    fi
+
+    print_warning "This will restore data from: $backup_file"
+    print_warning "Current data will be overwritten!"
+    read -p "Continue? (yes/no): " -r
+    echo
+
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        print_info "Restore cancelled"
+        exit 0
+    fi
+
+    print_header "Restoring from backup"
+
+    # Extract backup
+    local temp_dir=$(mktemp -d)
+    tar xzf "$backup_file" -C "$temp_dir"
+
+    # Find SQL file
+    local sql_file=$(find "$temp_dir" -name "*.sql" | head -1)
+    if [ -n "$sql_file" ]; then
+        print_info "Restoring database..."
+        docker compose exec -T db psql -U postgres backend_db < "$sql_file"
+    fi
+
+    # Find media backup
+    local media_file=$(find "$temp_dir" -name "media_backup_*.tar.gz" | head -1)
+    if [ -n "$media_file" ]; then
+        print_info "Restoring media files..."
+        docker run --rm -v app-backend-media:/data -v "$temp_dir:/backup" alpine \
+            sh -c "rm -rf /data/* && tar xzf /backup/$(basename $media_file) -C /data"
+    fi
+
+    # Find static backup
+    local static_file=$(find "$temp_dir" -name "static_backup_*.tar.gz" | head -1)
+    if [ -n "$static_file" ]; then
+        print_info "Restoring static files..."
+        docker run --rm -v app-backend-static:/data -v "$temp_dir:/backup" alpine \
+            sh -c "rm -rf /data/* && tar xzf /backup/$(basename $static_file) -C /data"
+    fi
+
+    # Clean up
+    rm -rf "$temp_dir"
+
+    print_success "Restore complete"
+    print_info "Restart services to apply changes: ./docker-dev.sh restart"
 }
 
 cmd_backend_shell() {
@@ -254,18 +528,31 @@ ${CYAN}Docker Development Helper Script${NC}
 
 ${YELLOW}Usage:${NC} ./docker-dev.sh <command> [options]
 
-${YELLOW}Commands:${NC}
+${YELLOW}Service Management:${NC}
   ${GREEN}start${NC}                         Start all services
   ${GREEN}stop${NC}                          Stop all services
   ${GREEN}restart${NC}                       Restart all services
   ${GREEN}build${NC}                         Build/rebuild all containers
   ${GREEN}rebuild${NC}                       Rebuild and restart all services
+  ${GREEN}ps${NC}                            Show service status
+  ${GREEN}status${NC}                        Show detailed service status
+  ${GREEN}validate${NC} [--quick] [--verbose] Validate orchestration is working correctly
   ${GREEN}logs${NC} [service]                View logs (optionally for specific service)
+
+${YELLOW}Data Management:${NC}
+  ${GREEN}volumes${NC}                       Show volume information and disk usage
+  ${GREEN}backup${NC}                        Backup all persistent data
+  ${GREEN}backup-db${NC}                     Backup database only
+  ${GREEN}restore${NC} <file>                Restore from backup file
+  ${GREEN}clean${NC}                         Remove containers (preserve data)
+  ${GREEN}clean-containers${NC}              Remove only containers
+  ${GREEN}clean-logs${NC}                    Remove only log files
+  ${GREEN}clean-cache${NC}                   Remove only Redis cache
+  ${GREEN}clean-all${NC}                     Remove EVERYTHING (DESTRUCTIVE)
+
+${YELLOW}Service Access:${NC}
   ${GREEN}shell${NC} <service>               Open shell in service container
   ${GREEN}exec${NC} <service> <cmd>          Execute command in service container
-  ${GREEN}ps${NC}                            Show service status
-  ${GREEN}clean${NC}                         Remove containers and volumes (DESTRUCTIVE)
-  ${GREEN}status${NC}                        Show detailed service status
   ${GREEN}backend-shell${NC}                 Open Django shell
   ${GREEN}backend-migrate${NC}               Run database migrations
   ${GREEN}backend-makemigrations${NC}        Create new migrations
@@ -276,8 +563,13 @@ ${YELLOW}Commands:${NC}
 
 ${YELLOW}Examples:${NC}
   ./docker-dev.sh start
+  ./docker-dev.sh validate
+  ./docker-dev.sh validate --verbose
   ./docker-dev.sh logs backend
-  ./docker-dev.sh rebuild
+  ./docker-dev.sh volumes
+  ./docker-dev.sh backup
+  ./docker-dev.sh clean-cache
+  ./docker-dev.sh restore ./backups/full_backup_20251025_120000.tar.gz
   ./docker-dev.sh backend-shell
   ./docker-dev.sh exec backend python manage.py createsuperuser
 
@@ -288,10 +580,28 @@ ${YELLOW}Available services:${NC}
   - redis     (Redis cache)
   - celery    (Background task worker - optional)
 
-${YELLOW}Application URLs:${NC}
+${YELLOW}Application URLs (Unified Entry Point):${NC}
+  Application:   http://localhost/
+  Frontend:      http://localhost/
+  Backend API:   http://localhost/api/
+  Admin Panel:   http://localhost/admin/
+
+${YELLOW}Direct Service Access (for debugging):${NC}
   Frontend:      http://localhost:5173
-  Backend API:   http://localhost:8000
-  Backend Admin: http://localhost:8000/admin
+  Backend:       http://localhost:8000
+
+${YELLOW}Data Persistence:${NC}
+  All application data persists between restarts in named volumes:
+  - Database records (PostgreSQL)
+  - Uploaded files and media
+  - Static files
+  - Redis cache data
+  - Frontend dependencies
+  - Nginx logs
+
+  Use 'volumes' command to inspect disk usage
+  Use 'backup' command to create backups before destructive operations
+  Use 'clean-all' to reset environment (requires confirmation)
 
 EOF
 }
@@ -334,8 +644,35 @@ main() {
         clean)
             cmd_clean
             ;;
+        clean-containers)
+            cmd_clean_containers
+            ;;
+        clean-logs)
+            cmd_clean_logs
+            ;;
+        clean-cache)
+            cmd_clean_cache
+            ;;
+        clean-all)
+            cmd_clean_all
+            ;;
         status)
             cmd_status
+            ;;
+        validate)
+            cmd_validate "$@"
+            ;;
+        volumes)
+            cmd_volumes
+            ;;
+        backup)
+            cmd_backup
+            ;;
+        backup-db)
+            cmd_backup_db
+            ;;
+        restore)
+            cmd_restore "$@"
             ;;
         backend-shell)
             cmd_backend_shell

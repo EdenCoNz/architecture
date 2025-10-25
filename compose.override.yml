@@ -1,0 +1,186 @@
+# =============================================================================
+# Docker Compose Override File - Local Development (Default)
+# =============================================================================
+# This file is automatically used by Docker Compose alongside compose.yml
+# (or docker-compose.yml). It provides development-specific overrides.
+#
+# ENVIRONMENT: local (development)
+#
+# Usage:
+#   docker compose up              # Automatically uses base + override
+#   docker compose down            # Stop development environment
+#   docker compose logs -f         # View development logs
+#
+# Features:
+#   - Bind mounts for live code editing
+#   - Hot module replacement (HMR) enabled
+#   - Development ports exposed for debugging
+#   - Debug logging enabled
+#   - No resource constraints (use host resources freely)
+#   - Development-friendly restart policies
+#
+# SERVICE ISOLATION (Story 12.5 - Development Mode):
+#   Base docker-compose.yml implements secure-by-default network isolation:
+#     - Database: NO external ports (Story 12.5 security requirement)
+#     - Redis: NO external ports (Story 12.5 security requirement)
+#     - Backend: NO external ports (only accessible via proxy)
+#     - Frontend: NO external ports (only accessible via proxy)
+#     - Proxy: ONLY external port (80/443 - unified entry point)
+#
+#   This development override RELAXES security for developer productivity:
+#     - Database: Expose port 5432 for pgAdmin, DBeaver, psql
+#     - Redis: Expose port 6379 for RedisInsight, redis-cli
+#     - Backend: Expose port 8000 for direct API testing (Postman, curl)
+#     - Frontend: Expose port 5173 for direct Vite access and HMR
+#     - Proxy: Still primary entry point at port 80
+#
+#   Production uses secure base configuration (NO exposed ports except proxy).
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend Service - Development Overrides
+  # ---------------------------------------------------------------------------
+  backend:
+    # Use development target from multi-stage Dockerfile
+    build:
+      target: development
+
+    # Development environment variables
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+      - ENVIRONMENT=local
+
+      # Development-friendly security settings
+      - SECURE_SSL_REDIRECT=False
+      - SESSION_COOKIE_SECURE=False
+      - CSRF_COOKIE_SECURE=False
+
+      # Frontend runtime config for local development
+      - FRONTEND_API_URL=http://localhost
+      - FRONTEND_API_ENABLE_LOGGING=true
+      - FRONTEND_APP_NAME=Application (Local Dev)
+      - FRONTEND_ENABLE_DEBUG=true
+
+    # Expose backend port directly for debugging tools (Postman, curl, etc.)
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+    # Development volumes - enable live code reload
+    volumes:
+      - ./backend:/app
+      - /app/venv  # Don't override virtual environment
+      - ./backend/logs:/app/logs
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+
+    # Development logging - verbose
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Frontend Service - Development Overrides
+  # ---------------------------------------------------------------------------
+  frontend:
+    # Use development target from multi-stage Dockerfile
+    build:
+      target: development
+
+    # Development environment variables
+    environment:
+      - NODE_ENV=development
+      - VITE_NODE_ENV=development
+      - VITE_DEBUG=true
+
+      # API URL - fallback for runtime config
+      - VITE_API_URL=http://localhost
+
+    # Expose frontend port directly for accessing Vite dev server
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+
+    # Development volumes - bind mount for HMR
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/package-lock.json:/app/package-lock.json
+      - frontend_node_modules:/app/node_modules
+
+    # Development logging - verbose
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Database Service - Development Overrides
+  # ---------------------------------------------------------------------------
+  db:
+    # DEVELOPMENT ONLY: Expose database port for local database tools
+    # Base docker-compose.yml has NO ports exposed (Story 12.5 security)
+    # This override enables developer access to: pgAdmin, DBeaver, psql, TablePlus
+    # IMPORTANT: Production does NOT expose this port (security requirement)
+    ports:
+      - "${DB_PORT:-5432}:5432"
+
+    # Development - no strict resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # Redis Service - Development Overrides
+  # ---------------------------------------------------------------------------
+  redis:
+    # DEVELOPMENT ONLY: Expose Redis port for local Redis clients
+    # Base docker-compose.yml has NO ports exposed (Story 12.5 security)
+    # This override enables developer access to: RedisInsight, redis-cli, Medis
+    # IMPORTANT: Production does NOT expose this port (security requirement)
+    ports:
+      - "6379:6379"
+
+    # Development Redis command - no password
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # ---------------------------------------------------------------------------
+  # Proxy Service - Development Overrides
+  # ---------------------------------------------------------------------------
+  proxy:
+    # Expose proxy on port 80 (primary development access point)
+    ports:
+      - "${PROXY_PORT:-80}:80"
+
+# =============================================================================
+# Development Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+  redis_data:
+  backend_media:
+  backend_static:
+  frontend_node_modules:
+  proxy_logs:
+
+# =============================================================================
+# Development Network
+# =============================================================================
+networks:
+  app-network:
+    driver: bridge
