@@ -261,7 +261,8 @@ services:
     healthcheck:
       # Verify Django application is responding to health check endpoint
       # This endpoint validates database and redis connectivity internally
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      # Use 127.0.0.1 instead of localhost to force IPv4 (Django binds to 0.0.0.0 IPv4 by default)
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/v1/health/"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -344,7 +345,8 @@ services:
 
     healthcheck:
       # Verify Vite dev server is responding
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
+      # Use 127.0.0.1 instead of localhost to force IPv4 (Vite binds to 0.0.0.0 IPv4 only)
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5173"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -421,7 +423,8 @@ services:
 
     healthcheck:
       # Verify nginx is responding and can reach upstream services
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      # Use 127.0.0.1 to force IPv4
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 15s
       timeout: 5s
       retries: 3

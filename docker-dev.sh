@@ -93,6 +93,21 @@ check_docker() {
 # Main commands
 cmd_start() {
     print_header "Starting all services"
+
+    # Run pre-flight check first (with auto-fix)
+    if [ -f "./scripts/preflight-check.sh" ]; then
+        print_info "Running pre-flight validation..."
+        if ./scripts/preflight-check.sh --fix; then
+            echo ""
+        else
+            print_error "Pre-flight validation failed. Please fix errors above."
+            exit 1
+        fi
+    else
+        print_warning "Pre-flight check script not found, skipping validation"
+        echo ""
+    fi
+
     docker compose up -d
     print_success "All services started"
     echo ""
@@ -522,6 +537,18 @@ cmd_redis_cli() {
     docker compose exec redis redis-cli
 }
 
+cmd_preflight() {
+    print_header "Running pre-flight validation"
+
+    if [ ! -f "./scripts/preflight-check.sh" ]; then
+        print_error "Pre-flight check script not found at ./scripts/preflight-check.sh"
+        exit 1
+    fi
+
+    # Pass through arguments
+    ./scripts/preflight-check.sh "$@"
+}
+
 cmd_help() {
     cat << EOF
 ${CYAN}Docker Development Helper Script${NC}
@@ -529,13 +556,14 @@ ${CYAN}Docker Development Helper Script${NC}
 ${YELLOW}Usage:${NC} ./docker-dev.sh <command> [options]
 
 ${YELLOW}Service Management:${NC}
-  ${GREEN}start${NC}                         Start all services
+  ${GREEN}start${NC}                         Start all services (with pre-flight check)
   ${GREEN}stop${NC}                          Stop all services
   ${GREEN}restart${NC}                       Restart all services
   ${GREEN}build${NC}                         Build/rebuild all containers
   ${GREEN}rebuild${NC}                       Rebuild and restart all services
   ${GREEN}ps${NC}                            Show service status
   ${GREEN}status${NC}                        Show detailed service status
+  ${GREEN}preflight${NC} [--fix] [--verbose]  Run pre-flight validation checks
   ${GREEN}validate${NC} [--quick] [--verbose] Validate orchestration is working correctly
   ${GREEN}logs${NC} [service]                View logs (optionally for specific service)
 
@@ -562,8 +590,10 @@ ${YELLOW}Service Access:${NC}
   ${GREEN}help${NC}                          Show this help message
 
 ${YELLOW}Examples:${NC}
-  ./docker-dev.sh start
-  ./docker-dev.sh validate
+  ./docker-dev.sh preflight               # Check setup before starting
+  ./docker-dev.sh preflight --fix         # Check and auto-fix issues
+  ./docker-dev.sh start                   # Start (runs preflight automatically)
+  ./docker-dev.sh validate                # Validate running services
   ./docker-dev.sh validate --verbose
   ./docker-dev.sh logs backend
   ./docker-dev.sh volumes
@@ -640,6 +670,9 @@ main() {
             ;;
         ps)
             cmd_ps
+            ;;
+        preflight)
+            cmd_preflight "$@"
             ;;
         clean)
             cmd_clean
