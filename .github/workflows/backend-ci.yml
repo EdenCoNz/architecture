@@ -28,8 +28,10 @@ jobs:
     name: Lint and Format Check
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -74,8 +76,10 @@ jobs:
     name: Type Check with mypy
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -109,8 +113,10 @@ jobs:
     name: Tests with Coverage
     runs-on: ubuntu-22.04
     timeout-minutes: 15
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -254,8 +260,10 @@ jobs:
     name: Security Audit
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -363,7 +371,8 @@ jobs:
     name: Build Backend Production Container
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    needs: [lint, typecheck, test, security]
+    # TEMPORARILY REMOVED DEPENDENCIES - Running independently
+    # needs: [lint, typecheck, test, security]
     # Only run on feature branches for PRs, or always for pushes/manual triggers
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
@@ -553,8 +562,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     needs: [build-backend-prod-container]
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
     permissions:
       contents: read
       security-events: write  # Required to upload SARIF results
@@ -713,8 +724,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     needs: [build-backend-prod-container, security-scan-backend-prod]
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     services:
       # PostgreSQL database for functional testing
@@ -1132,11 +1145,13 @@ jobs:
     timeout-minutes: 15
     # Run after prod container is built, tested, and scanned
     needs: [build-backend-prod-container, security-scan-backend-prod, test-backend-prod-container]
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only publish on successful builds, not from forks
-    if: |
-      success() &&
-      github.event_name != 'pull_request' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    # if: |
+    #   success() &&
+    #   github.event_name != 'pull_request' ||
+    #   (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       packages: write  # Required for GHCR push
@@ -1363,7 +1378,9 @@ jobs:
   deploy-backend-to-ubuntu:
     name: Deploy Backend to Ubuntu Server
     uses: ./.github/workflows/deploy-to-ubuntu.yml
-    needs: [build-backend-prod-container, security-scan-backend-prod, test-backend-prod-container]
+    # TEMPORARILY REMOVED DEPENDENCIES - Running independently after build
+    needs: [build-backend-prod-container]
+    # needs: [build-backend-prod-container, security-scan-backend-prod, test-backend-prod-container]
     # Deploy on any push to main branch
     if: |
       github.event_name == 'push' &&

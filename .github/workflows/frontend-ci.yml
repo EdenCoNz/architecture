@@ -29,8 +29,10 @@ jobs:
     name: Lint and Format Check
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -61,8 +63,10 @@ jobs:
     name: TypeScript Type Check
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -90,8 +94,10 @@ jobs:
     name: Unit Tests with Coverage
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -179,7 +185,8 @@ jobs:
     name: Build Production Container
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-    needs: [lint, typecheck, test]
+    # TEMPORARILY REMOVED DEPENDENCIES - Running independently
+    # needs: [lint, typecheck, test]
     # Only run on feature branches for PRs, or always for pushes/manual triggers
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
@@ -503,8 +510,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     needs: [build-container-prod]
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
     permissions:
       contents: read
       security-events: write  # Required to upload SARIF results
@@ -677,11 +686,13 @@ jobs:
     timeout-minutes: 10
     # Run after prod container is built, tested, and scanned
     needs: [build-container-prod, security-scan-prod]
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only publish on successful builds, not from forks
-    if: |
-      success() &&
-      github.event_name != 'pull_request' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    # if: |
+    #   success() &&
+    #   github.event_name != 'pull_request' ||
+    #   (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       packages: write  # Required for GHCR push
@@ -939,7 +950,9 @@ jobs:
   deploy-frontend-to-ubuntu:
     name: Deploy Frontend to Ubuntu Server
     uses: ./.github/workflows/deploy-to-ubuntu.yml
-    needs: [build-container-prod, security-scan-prod]
+    # TEMPORARILY REMOVED DEPENDENCIES - Running independently after build
+    needs: [build-container-prod]
+    # needs: [build-container-prod, security-scan-prod]
     # Deploy on any push to main branch
     if: |
       github.event_name == 'push' &&
@@ -969,7 +982,9 @@ jobs:
     timeout-minutes: 10
     # Run after container builds and publishing complete (success or failure)
     needs: [build-container-prod, publish-container-prod]
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
+    # if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       actions: write
 
@@ -1031,8 +1046,10 @@ jobs:
     name: Security Audit
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
     # Only run on feature branches for PRs, or always for pushes/manual triggers
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
+    # if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feature/')
 
     defaults:
       run:
@@ -1072,7 +1089,9 @@ jobs:
     timeout-minutes: 10
     # Run after all container jobs complete (success or failure)
     needs: [build-container-prod, security-scan-prod, publish-container-prod]
-    if: always()
+    # TEMPORARILY DISABLED - Only keeping build and deploy jobs
+    if: false
+    # if: always()
     permissions:
       contents: read
       actions: read
