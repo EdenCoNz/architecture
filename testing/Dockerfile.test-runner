@@ -1,0 +1,104 @@
+# =============================================================================
+# Test Runner Docker Image (Feature #13 - Story 13.1)
+# =============================================================================
+# Multi-stage Dockerfile for executing all test types in isolated environment.
+# Includes tools for e2e, integration, visual, and performance testing.
+#
+# Build: docker build -f testing/Dockerfile.test-runner -t test-runner:latest .
+# Run:   docker compose -f compose.yml -f compose.test.yml run test-runner
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Base Stage: Common dependencies for all test types
+# -----------------------------------------------------------------------------
+FROM python:3.12-slim AS base
+
+# Install system dependencies needed for testing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Network tools for connectivity testing
+    curl \
+    wget \
+    netcat-traditional \
+    # Database client for test data setup
+    postgresql-client \
+    # Git for version control integration
+    git \
+    # Build tools for some Python packages
+    gcc \
+    g++ \
+    make \
+    # Node.js for frontend testing (Playwright)
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm@latest \
+    # Cleanup
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for test execution
+RUN groupadd -g 1001 tester && \
+    useradd -r -u 1001 -g tester tester
+
+# Create test directories
+RUN mkdir -p /testing/reports /testing/fixtures /testing/config && \
+    chown -R tester:tester /testing
+
+WORKDIR /testing
+
+# -----------------------------------------------------------------------------
+# Python Test Dependencies Stage
+# -----------------------------------------------------------------------------
+FROM base AS python-deps
+
+# Copy test requirements
+COPY --chown=tester:tester testing/requirements.txt /testing/
+
+# Install Python test dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# -----------------------------------------------------------------------------
+# Node Test Dependencies Stage
+# -----------------------------------------------------------------------------
+FROM python-deps AS node-deps
+
+# Copy package files for frontend testing
+COPY --chown=tester:tester testing/package.json testing/package-lock.json* /testing/
+
+# Install Node.js test dependencies (Playwright, etc.)
+RUN npm ci --omit=dev
+
+# Install Playwright browsers
+RUN npx playwright install --with-deps chromium firefox webkit
+
+# -----------------------------------------------------------------------------
+# Production Test Runner Stage
+# -----------------------------------------------------------------------------
+FROM node-deps AS production
+
+# Switch to non-root user
+USER tester
+
+# Copy test suites
+COPY --chown=tester:tester testing/e2e /testing/e2e
+COPY --chown=tester:tester testing/integration /testing/integration
+COPY --chown=tester:tester testing/visual /testing/visual
+COPY --chown=tester:tester testing/performance /testing/performance
+COPY --chown=tester:tester testing/fixtures /testing/fixtures
+COPY --chown=tester:tester testing/config /testing/config
+
+# Copy test runner scripts
+COPY --chown=tester:tester testing/*.sh /testing/
+RUN chmod +x /testing/*.sh
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TEST_ENV=isolated \
+    REPORTS_DIR=/testing/reports
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD echo "Test runner ready"
+
+# Default command: show available test suites
+CMD ["./run-tests.sh", "--help"]

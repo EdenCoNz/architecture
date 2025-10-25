@@ -22,6 +22,8 @@ Usage Examples:
     user = UserFactory.build()
 """
 
+import random
+
 import factory
 from django.contrib.auth import get_user_model
 from factory.django import DjangoModelFactory
@@ -29,6 +31,12 @@ from faker import Faker
 
 fake = Faker()
 User = get_user_model()
+
+# Import assessment models - wrapped in try/except for test discovery
+try:
+    from apps.assessments.models import Assessment
+except (ImportError, RuntimeError):
+    Assessment = None
 
 
 class UserFactory(DjangoModelFactory):
@@ -120,6 +128,153 @@ class InactiveUserFactory(UserFactory):
     email = factory.Sequence(lambda n: f"inactive{n}@example.com")
 
 
+# ==============================================================================
+# Assessment Factories
+# ==============================================================================
+
+
+class AssessmentFactory(DjangoModelFactory):
+    """
+    Factory for creating Assessment instances.
+
+    Default values:
+    - user: Created via UserFactory (unique)
+    - sport: Random choice between football/cricket
+    - age: Random age between 18-65
+    - experience_level: Random choice (beginner/intermediate/advanced)
+    - training_days: Random choice (2-3, 4-5, 6-7)
+    - injuries: Default "no"
+    - equipment: Random choice (no_equipment/basic_equipment/full_gym)
+
+    Examples:
+        # Create assessment with default values
+        assessment = AssessmentFactory()
+
+        # Create football assessment for existing user
+        assessment = AssessmentFactory(user=user, sport='football')
+
+        # Create beginner assessment with no equipment
+        assessment = AssessmentFactory(
+            experience_level='beginner',
+            equipment='no_equipment'
+        )
+
+        # Create multiple assessments
+        assessments = AssessmentFactory.create_batch(5)
+    """
+
+    class Meta:
+        model = "assessments.Assessment"
+        django_get_or_create = ("user",)
+
+    # User relationship - creates a unique user for each assessment
+    user = factory.SubFactory(UserFactory)
+
+    # Sport selection - random choice
+    sport = factory.LazyFunction(lambda: random.choice(["football", "cricket"]))
+
+    # Age with realistic distribution
+    age = factory.LazyFunction(lambda: random.randint(18, 65))
+
+    # Experience level - random choice
+    experience_level = factory.LazyFunction(
+        lambda: random.choice(["beginner", "intermediate", "advanced"])
+    )
+
+    # Training days - random choice
+    training_days = factory.LazyFunction(lambda: random.choice(["2-3", "4-5", "6-7"]))
+
+    # Injury history - default to no injuries
+    injuries = "no"
+
+    # Equipment - random choice
+    equipment = factory.LazyFunction(
+        lambda: random.choice(["no_equipment", "basic_equipment", "full_gym"])
+    )
+
+
+class FootballAssessmentFactory(AssessmentFactory):
+    """
+    Factory for creating football-focused assessments.
+
+    Examples:
+        # Create football assessment
+        assessment = FootballAssessmentFactory()
+    """
+
+    sport = "football"
+
+
+class CricketAssessmentFactory(AssessmentFactory):
+    """
+    Factory for creating cricket-focused assessments.
+
+    Examples:
+        # Create cricket assessment
+        assessment = CricketAssessmentFactory()
+    """
+
+    sport = "cricket"
+
+
+class BeginnerAssessmentFactory(AssessmentFactory):
+    """
+    Factory for creating beginner-level assessments.
+
+    Realistic defaults for beginners:
+    - Age: 16-30
+    - Experience: Beginner
+    - Training: 2-3 days per week
+    - Equipment: No equipment or basic equipment
+
+    Examples:
+        # Create beginner assessment
+        assessment = BeginnerAssessmentFactory()
+    """
+
+    age = factory.LazyFunction(lambda: random.randint(16, 30))
+    experience_level = "beginner"
+    training_days = "2-3"
+    equipment = factory.LazyFunction(
+        lambda: random.choice(["no_equipment", "basic_equipment"])
+    )
+
+
+class AdvancedAssessmentFactory(AssessmentFactory):
+    """
+    Factory for creating advanced-level assessments.
+
+    Realistic defaults for advanced users:
+    - Age: 20-45
+    - Experience: Advanced
+    - Training: 4-5 or 6-7 days per week
+    - Equipment: Basic equipment or full gym
+
+    Examples:
+        # Create advanced assessment
+        assessment = AdvancedAssessmentFactory()
+    """
+
+    age = factory.LazyFunction(lambda: random.randint(20, 45))
+    experience_level = "advanced"
+    training_days = factory.LazyFunction(lambda: random.choice(["4-5", "6-7"]))
+    equipment = factory.LazyFunction(
+        lambda: random.choice(["basic_equipment", "full_gym"])
+    )
+
+
+class InjuredAssessmentFactory(AssessmentFactory):
+    """
+    Factory for creating assessments with injury history.
+
+    Examples:
+        # Create assessment with injury history
+        assessment = InjuredAssessmentFactory()
+    """
+
+    injuries = "yes"
+
+
 # Test Data Helpers
 class TestDataBuilder:
     """
@@ -199,6 +354,97 @@ class TestDataBuilder:
         user = UserFactory(email=email, password=password)
         return user, password
 
+    @staticmethod
+    def create_assessment_batch(count=5, **kwargs):
+        """
+        Create a batch of assessments.
+
+        Args:
+            count (int): Number of assessments to create
+            **kwargs: Additional attributes to apply to all assessments
+
+        Returns:
+            list: List of Assessment instances
+
+        Examples:
+            # Create 10 football assessments
+            assessments = TestDataBuilder.create_assessment_batch(
+                10, sport='football'
+            )
+        """
+        return AssessmentFactory.create_batch(count, **kwargs)
+
+    @staticmethod
+    def create_user_with_assessment(
+        sport="football", experience_level="beginner", **kwargs
+    ):
+        """
+        Create a user with an associated assessment.
+
+        Args:
+            sport (str): Sport type (football/cricket)
+            experience_level (str): Experience level
+            **kwargs: Additional assessment attributes
+
+        Returns:
+            tuple: (user, assessment)
+
+        Examples:
+            user, assessment = (
+                TestDataBuilder.create_user_with_assessment(
+                    sport='football',
+                    experience_level='advanced'
+                )
+            )
+        """
+        user = UserFactory()
+        assessment = AssessmentFactory(
+            user=user, sport=sport, experience_level=experience_level, **kwargs
+        )
+        return user, assessment
+
+    @staticmethod
+    def create_complete_onboarding_scenario():
+        """
+        Create a complete onboarding test scenario.
+
+        Returns:
+            dict: Dictionary containing:
+                - beginner_user: User with beginner assessment
+                - intermediate_user: User with intermediate assessment
+                - advanced_user: User with advanced assessment
+                - injured_user: User with injury history
+
+        Examples:
+            scenario = TestDataBuilder.create_complete_onboarding_scenario()
+            beginner = scenario['beginner_user']
+            advanced = scenario['advanced_user']
+        """
+        beginner_user = UserFactory()
+        beginner_assessment = BeginnerAssessmentFactory(user=beginner_user)
+
+        intermediate_user = UserFactory()
+        intermediate_assessment = AssessmentFactory(
+            user=intermediate_user, experience_level="intermediate"
+        )
+
+        advanced_user = UserFactory()
+        advanced_assessment = AdvancedAssessmentFactory(user=advanced_user)
+
+        injured_user = UserFactory()
+        injured_assessment = InjuredAssessmentFactory(user=injured_user)
+
+        return {
+            "beginner_user": beginner_user,
+            "beginner_assessment": beginner_assessment,
+            "intermediate_user": intermediate_user,
+            "intermediate_assessment": intermediate_assessment,
+            "advanced_user": advanced_user,
+            "advanced_assessment": advanced_assessment,
+            "injured_user": injured_user,
+            "injured_assessment": injured_assessment,
+        }
+
 
 # Test Fixtures Helper
 class FixtureHelper:
@@ -234,6 +480,31 @@ class FixtureHelper:
             FixtureHelper.cleanup_users()
         """
         User.objects.all().delete()
+
+    @staticmethod
+    def cleanup_assessments():
+        """
+        Remove all assessments from the test database.
+
+        Examples:
+            FixtureHelper.cleanup_assessments()
+        """
+        if Assessment:
+            Assessment.objects.all().delete()
+
+    @staticmethod
+    def cleanup_all():
+        """
+        Remove all test data from the database.
+
+        Cleans up users, assessments, and all related data.
+
+        Examples:
+            FixtureHelper.cleanup_all()
+        """
+        # Order matters: delete assessments before users due to foreign keys
+        FixtureHelper.cleanup_assessments()
+        FixtureHelper.cleanup_users()
 
 
 # Usage Documentation for Test Files

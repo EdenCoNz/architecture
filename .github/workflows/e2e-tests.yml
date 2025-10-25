@@ -1,0 +1,576 @@
+name: End-to-End Tests
+
+# Run E2E tests automatically on code changes
+on:
+  # Run on pull requests to main branch
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'testing/e2e/**'
+      - 'docker-compose.yml'
+      - 'compose.test.yml'
+      - '.github/workflows/e2e-tests.yml'
+
+  # Run on push to main and feature branches
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'testing/e2e/**'
+      - 'docker-compose.yml'
+      - 'compose.test.yml'
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'E2E test suite to run'
+        required: false
+        type: choice
+        options:
+          - all
+          - auth
+          - onboarding
+          - navigation
+        default: 'all'
+      headed_mode:
+        description: 'Run tests in headed mode (visible browser)'
+        required: false
+        type: boolean
+        default: false
+
+# Explicit permissions (least privilege)
+permissions:
+  contents: read
+  pull-requests: write  # For PR comments with test results
+  checks: write  # For check runs
+  actions: read  # For workflow run information
+
+# Prevent concurrent E2E test runs for same branch/PR
+concurrency:
+  group: e2e-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-tests:
+    name: End-to-End Test Execution
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226  # v3.0.0
+
+      - name: Create test environment file
+        run: |
+          cat > .env.test << 'EOF'
+          # Test Database Configuration
+          TEST_DB_NAME=backend_test_db
+          TEST_DB_USER=postgres_test
+          TEST_DB_PASSWORD=postgres_test_password
+          TEST_DB_HOST=db
+          TEST_DB_PORT=5432
+
+          # Test Redis Configuration
+          TEST_REDIS_HOST=redis
+          TEST_REDIS_PORT=6379
+
+          # Django Test Configuration
+          DJANGO_SETTINGS_MODULE=config.settings.test
+          DEBUG=False
+          SECRET_KEY=test-secret-key-for-e2e-testing-only
+
+          # Playwright Test Configuration
+          PLAYWRIGHT_HEADLESS=true
+          PLAYWRIGHT_BASE_URL=http://proxy:80
+
+          # Test execution settings
+          CI=true
+          EOF
+
+      - name: Determine test suite
+        id: test_suite
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use input
+            SUITE="${{ inputs.test_suite }}"
+            HEADED="${{ inputs.headed_mode }}"
+          else
+            # Automatic trigger - run all tests
+            SUITE="all"
+            HEADED="false"
+          fi
+
+          echo "suite=${SUITE}" >> $GITHUB_OUTPUT
+          echo "headed=${HEADED}" >> $GITHUB_OUTPUT
+
+          if [ "${SUITE}" = "all" ]; then
+            echo "grep_pattern=" >> $GITHUB_OUTPUT
+            echo "description=All E2E tests" >> $GITHUB_OUTPUT
+          else
+            echo "grep_pattern=testing/e2e/specs/${SUITE}/" >> $GITHUB_OUTPUT
+            echo "description=E2E tests for ${SUITE}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build test environment
+        run: |
+          echo "## Building Test Environment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Building Docker containers for E2E testing..." >> $GITHUB_STEP_SUMMARY
+
+          # Build all test services
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            build --no-cache
+
+          echo "✅ Test environment built successfully" >> $GITHUB_STEP_SUMMARY
+
+      - name: Start test services
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Starting Test Services" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Start all required services
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            up -d db redis backend frontend proxy
+
+          echo "Services started:" >> $GITHUB_STEP_SUMMARY
+          echo "- PostgreSQL (test database)" >> $GITHUB_STEP_SUMMARY
+          echo "- Redis (test cache)" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend (Django API)" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend (React application)" >> $GITHUB_STEP_SUMMARY
+          echo "- Nginx (reverse proxy)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Waiting for Services" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for database to be ready
+          echo "Waiting for PostgreSQL..." >> $GITHUB_STEP_SUMMARY
+          timeout 120 bash -c 'until docker compose -f docker-compose.yml -f compose.test.yml exec -T db pg_isready -U postgres_test; do sleep 2; done'
+          echo "✅ PostgreSQL ready" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for Redis to be ready
+          echo "Waiting for Redis..." >> $GITHUB_STEP_SUMMARY
+          timeout 120 bash -c 'until docker compose -f docker-compose.yml -f compose.test.yml exec -T redis redis-cli ping | grep -q PONG; do sleep 2; done'
+          echo "✅ Redis ready" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for backend health check
+          echo "Waiting for Backend API..." >> $GITHUB_STEP_SUMMARY
+          timeout 180 bash -c 'until curl -f http://localhost:8001/api/v1/health/ > /dev/null 2>&1; do sleep 3; done'
+          echo "✅ Backend API ready" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for frontend to be ready
+          echo "Waiting for Frontend..." >> $GITHUB_STEP_SUMMARY
+          timeout 180 bash -c 'until curl -f http://localhost:5174 > /dev/null 2>&1; do sleep 3; done'
+          echo "✅ Frontend ready" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All services are healthy and ready for testing" >> $GITHUB_STEP_SUMMARY
+
+      - name: Run database migrations
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Database Setup" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Run migrations
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            exec -T backend python manage.py migrate --noinput
+
+          echo "✅ Database migrations applied" >> $GITHUB_STEP_SUMMARY
+
+      - name: Load test fixtures
+        run: |
+          # Load any required test data fixtures
+          # This ensures tests have consistent baseline data
+          if [ -f testing/fixtures/test-users.json ]; then
+            docker compose -f docker-compose.yml -f compose.test.yml \
+              --env-file .env.test \
+              exec -T backend python manage.py loaddata testing/fixtures/test-users.json
+
+            echo "✅ Test fixtures loaded" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No test fixtures to load" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Run E2E tests
+        id: run_tests
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Running E2E Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Suite:** ${{ steps.test_suite.outputs.description }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Headed Mode:** ${{ steps.test_suite.outputs.headed }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Create reports directory
+          mkdir -p testing/reports/{screenshots,videos,traces,html,json}
+
+          # Determine test command based on suite
+          TEST_CMD="npx playwright test"
+
+          if [ "${{ steps.test_suite.outputs.grep_pattern }}" != "" ]; then
+            TEST_CMD="${TEST_CMD} ${{ steps.test_suite.outputs.grep_pattern }}"
+          fi
+
+          # Add headed mode flag if requested
+          if [ "${{ steps.test_suite.outputs.headed }}" = "true" ]; then
+            TEST_CMD="${TEST_CMD} --headed"
+          fi
+
+          # Run Playwright tests with proper configuration
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            run --rm \
+            -e PLAYWRIGHT_BASE_URL=http://proxy:80 \
+            -e CI=true \
+            test-runner \
+            bash -c "cd /app/testing/e2e && ${TEST_CMD} --reporter=html,json,list" \
+            || echo "test_failed=true" >> $GITHUB_OUTPUT
+
+      - name: Generate test summary
+        id: test_summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check if test results exist
+          if [ -f testing/e2e/playwright-report/index.html ]; then
+            # Parse Playwright JSON report if available
+            if [ -f testing/e2e/test-results.json ]; then
+              # Extract test statistics
+              TOTAL=$(jq '.suites[].specs | length' testing/e2e/test-results.json | awk '{s+=$1} END {print s}')
+              PASSED=$(jq '[.suites[].specs[].tests[] | select(.status == "passed")] | length' testing/e2e/test-results.json)
+              FAILED=$(jq '[.suites[].specs[].tests[] | select(.status == "failed")] | length' testing/e2e/test-results.json)
+              SKIPPED=$(jq '[.suites[].specs[].tests[] | select(.status == "skipped")] | length' testing/e2e/test-results.json)
+
+              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+              echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+              echo "| Total Tests | ${TOTAL:-0} |" >> $GITHUB_STEP_SUMMARY
+              echo "| ✅ Passed | ${PASSED:-0} |" >> $GITHUB_STEP_SUMMARY
+              echo "| ❌ Failed | ${FAILED:-0} |" >> $GITHUB_STEP_SUMMARY
+              echo "| ⏭️ Skipped | ${SKIPPED:-0} |" >> $GITHUB_STEP_SUMMARY
+
+              # Save metrics for later use
+              echo "total=${TOTAL:-0}" >> $GITHUB_OUTPUT
+              echo "passed=${PASSED:-0}" >> $GITHUB_OUTPUT
+              echo "failed=${FAILED:-0}" >> $GITHUB_OUTPUT
+              echo "skipped=${SKIPPED:-0}" >> $GITHUB_OUTPUT
+
+              # Extract detailed failure information for notifications
+              if [ "${FAILED:-0}" -gt 0 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "### Failed Tests Details" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+
+                # Extract failed test names and error messages
+                jq -r '.suites[] | .specs[] | .tests[] | select(.status == "failed") |
+                  "- **" + (.results[0].workerIndex // 0 | tostring) + "-" + .title + "**\n  - Error: " + (.results[0].error.message // "No error message") + "\n  - File: " + .file + "\n"' \
+                  testing/e2e/test-results.json >> $GITHUB_STEP_SUMMARY || true
+
+                # Create a structured failure report for PR comments
+                mkdir -p testing/reports/failures
+                jq -r '.suites[] | .specs[] | .tests[] | select(.status == "failed") |
+                  {
+                    title: .title,
+                    file: .file,
+                    line: .line,
+                    error: (.results[0].error.message // "No error message"),
+                    stack: (.results[0].error.stack // "")
+                  }' testing/e2e/test-results.json > testing/reports/failures/failed-tests.json || echo "[]" > testing/reports/failures/failed-tests.json
+              fi
+            else
+              echo "⚠️ Test results JSON not found - unable to generate detailed statistics" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "HTML report generated - available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Test execution may have failed - no test report generated" >> $GITHUB_STEP_SUMMARY
+            echo "failed=0" >> $GITHUB_OUTPUT
+            echo "passed=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate comprehensive test report
+        id: generate_report
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Generating Comprehensive Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Install reporting dependencies
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            run --rm test-runner \
+            bash -c "cd /app/testing/reporting && pip install -r ../requirements.txt --quiet"
+
+          # Generate comprehensive report (HTML, JSON, PDF)
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            run --rm test-runner \
+            bash -c "cd /app/testing/reporting && python generate_report.py \
+              --output-dir ../reports \
+              --e2e-report ../e2e/test-results.json \
+              --with-trends \
+              --detect-flaky \
+              --git-commit ${{ github.sha }} \
+              --git-branch ${{ github.ref_name }} \
+              --ci-run-id ${{ github.run_id }} \
+              --no-pdf" \
+            || echo "report_failed=true" >> $GITHUB_OUTPUT
+
+          if [ "${{ steps.generate_report.outputs.report_failed }}" != "true" ]; then
+            echo "✅ Comprehensive test report generated successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Report generation encountered issues (check logs)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload comprehensive test reports
+        if: always()
+        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8  # v4.3.0
+        with:
+          name: comprehensive-test-reports-${{ github.sha }}
+          path: |
+            testing/reports/test-report.html
+            testing/reports/test-report.json
+            testing/reports/test-trends.json
+            testing/reports/flaky-tests-report.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8  # v4.3.0
+        with:
+          name: e2e-test-results-${{ github.sha }}
+          path: |
+            testing/e2e/playwright-report/
+            testing/e2e/test-results/
+            testing/e2e/test-results.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload screenshots and videos
+        if: failure()
+        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8  # v4.3.0
+        with:
+          name: e2e-test-failures-${{ github.sha }}
+          path: |
+            testing/reports/screenshots/
+            testing/reports/videos/
+            testing/reports/traces/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const total = '${{ steps.test_summary.outputs.total }}' || '0';
+            const passed = '${{ steps.test_summary.outputs.passed }}' || '0';
+            const failed = '${{ steps.test_summary.outputs.failed }}' || '0';
+            const skipped = '${{ steps.test_summary.outputs.skipped }}' || '0';
+
+            const passRate = total > 0 ? ((passed / total) * 100).toFixed(1) : '0.0';
+            const status = failed === '0' ? '✅ PASSED' : '❌ FAILED';
+            const emoji = failed === '0' ? '✅' : '❌';
+
+            // Build failure details section
+            let failureDetails = '';
+            if (failed !== '0') {
+              failureDetails = `
+            ### ⚠️ Test Failures Detected
+
+            Please review the test results and fix any failing tests before merging.
+
+            #### 🔍 Failure Analysis
+            `;
+
+              // Try to read detailed failure information
+              try {
+                if (fs.existsSync('testing/reports/failures/failed-tests.json')) {
+                  const failuresData = JSON.parse(fs.readFileSync('testing/reports/failures/failed-tests.json', 'utf8'));
+
+                  if (Array.isArray(failuresData) && failuresData.length > 0) {
+                    failureDetails += '\n**Failed Tests:**\n\n';
+                    failuresData.slice(0, 10).forEach((test, index) => {
+                      failureDetails += `${index + 1}. **${test.title}**\n`;
+                      failureDetails += `   - **File:** \`${test.file}\`\n`;
+                      failureDetails += `   - **Error:** ${test.error.split('\n')[0]}\n`;
+                      failureDetails += '\n';
+                    });
+
+                    if (failuresData.length > 10) {
+                      failureDetails += `\n_...and ${failuresData.length - 10} more failures_\n`;
+                    }
+                  }
+                }
+              } catch (err) {
+                console.log('Could not read failure details:', err);
+              }
+
+              failureDetails += `
+            #### 📊 Available Test Artifacts
+
+            The following artifacts are available for debugging:
+
+            - **📄 [HTML Test Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})** - Detailed test execution report
+            - **📸 Screenshots** - Visual snapshots at point of failure (artifact: \`e2e-test-failures-${{ github.sha }}\`)
+            - **🎥 Video Recordings** - Full test execution videos (artifact: \`e2e-test-failures-${{ github.sha }}\`)
+            - **🔍 Trace Files** - Playwright traces for step-by-step debugging (artifact: \`e2e-test-failures-${{ github.sha }}\`)
+            - **📋 Service Logs** - Backend/frontend/database logs (artifact: \`service-logs-${{ github.sha }}\`)
+
+            #### 🛠️ Debugging Steps
+
+            1. Download the test artifacts from the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Review screenshots and videos to see visual state at failure
+            3. Open trace files in [Playwright Trace Viewer](https://trace.playwright.dev/)
+            4. Check service logs for backend/API errors
+            5. Review the HTML report for detailed error messages and stack traces
+
+            #### 📖 Documentation
+
+            - [E2E Testing Guide](https://github.com/${{ github.repository }}/tree/main/testing/e2e/README.md)
+            - [Troubleshooting Test Failures](https://github.com/${{ github.repository }}/tree/main/testing/README.md#troubleshooting)
+            `;
+            } else {
+              failureDetails = `
+            ### ✅ All Tests Passed
+
+            Great job! All end-to-end tests are passing. The application is working correctly and ready for deployment.
+            `;
+            }
+
+            const body = `## ${emoji} E2E Test Results
+
+            **Suite:** ${{ steps.test_suite.outputs.description }}
+            **Overall Status:** ${status}
+            **Branch:** \`${{ github.head_ref }}\`
+            **Commit:** \`${{ github.sha }}\`
+
+            | Metric | Count | Percentage |
+            |--------|-------|------------|
+            | Total Tests | ${total} | 100% |
+            | ✅ Passed | ${passed} | ${passRate}% |
+            | ❌ Failed | ${failed} | ${total > 0 ? ((failed / total) * 100).toFixed(1) : '0.0'}% |
+            | ⏭️ Skipped | ${skipped} | ${total > 0 ? ((skipped / total) * 100).toFixed(1) : '0.0'}% |
+
+            ${failureDetails}
+
+            ---
+            📊 [View Full Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+            🔔 [Workflow Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs)
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Display test execution progress
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Execution Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.run_tests.outputs.test_failed }}" = "true" ]; then
+            echo "❌ **Some tests failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Review the test results above and check:" >> $GITHUB_STEP_SUMMARY
+            echo "- Failure screenshots in artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "- Video recordings of failed tests" >> $GITHUB_STEP_SUMMARY
+            echo "- Trace files for detailed debugging" >> $GITHUB_STEP_SUMMARY
+            echo "- HTML test report for full details" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **All tests passed successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The application is working correctly and ready for deployment." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Available" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 HTML test report" >> $GITHUB_STEP_SUMMARY
+          echo "- 📸 Screenshots (on failure)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎥 Video recordings (on failure)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 Trace files (on failure)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Collect service logs
+        if: failure()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Service Logs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          mkdir -p testing/reports/logs
+
+          # Collect logs from all services
+          docker compose -f docker-compose.yml -f compose.test.yml logs backend > testing/reports/logs/backend.log 2>&1 || true
+          docker compose -f docker-compose.yml -f compose.test.yml logs frontend > testing/reports/logs/frontend.log 2>&1 || true
+          docker compose -f docker-compose.yml -f compose.test.yml logs db > testing/reports/logs/db.log 2>&1 || true
+          docker compose -f docker-compose.yml -f compose.test.yml logs redis > testing/reports/logs/redis.log 2>&1 || true
+          docker compose -f docker-compose.yml -f compose.test.yml logs proxy > testing/reports/logs/proxy.log 2>&1 || true
+
+          echo "✅ Service logs collected" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload service logs
+        if: failure()
+        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8  # v4.3.0
+        with:
+          name: service-logs-${{ github.sha }}
+          path: testing/reports/logs/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Stop test services
+        if: always()
+        run: |
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            down -v
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Test environment cleaned up" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check test result and fail if needed
+        if: steps.run_tests.outputs.test_failed == 'true'
+        run: |
+          echo "❌ E2E tests failed - blocking deployment"
+          echo ""
+          echo "Tests must pass before code can be merged or deployed."
+          echo "Review test results and fix any failing tests."
+          exit 1
+
+      - name: Final summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY

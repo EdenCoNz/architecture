@@ -174,6 +174,64 @@ def enable_db_access_for_all_tests(db):
     pass
 
 
+@pytest.fixture(scope="function")
+def isolated_db(db, django_db_blocker):
+    """
+    Provide a completely isolated database for tests.
+
+    Each test using this fixture gets a fresh database state. Django's
+    transactional test case behavior ensures data is rolled back after
+    each test, providing complete isolation.
+
+    This fixture is useful when you need to ensure zero data contamination
+    between tests.
+
+    Usage:
+        def test_with_isolated_db(isolated_db):
+            # Test runs with clean database state
+            user = User.objects.create(email='test@example.com')
+            assert User.objects.count() == 1
+            # Data automatically cleaned up after test
+    """
+    # Django's transaction test case automatically provides isolation
+    # This fixture explicitly marks tests that require strict isolation
+    yield db
+
+
+@pytest.fixture(scope="function")
+def clean_database(db):
+    """
+    Ensure database is clean before test starts.
+
+    Explicitly clears all data from key tables before each test.
+    Use this when you need to be absolutely certain the database
+    is empty before your test runs.
+
+    Usage:
+        def test_with_clean_db(clean_database):
+            assert User.objects.count() == 0
+            # Start with guaranteed empty database
+    """
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    # Clear all users
+    User.objects.all().delete()
+
+    # Import and clear assessment models if they exist
+    try:
+        from apps.assessments.models import Assessment, AssessmentProfile
+
+        Assessment.objects.all().delete()
+        AssessmentProfile.objects.all().delete()
+    except (ImportError, RuntimeError):
+        # Models may not be loaded yet or app not installed
+        pass
+
+    yield db
+
+
 # ==============================================================================
 # Test Data Cleanup Fixtures
 # ==============================================================================

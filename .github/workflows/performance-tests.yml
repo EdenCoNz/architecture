@@ -1,0 +1,309 @@
+name: Performance Tests
+
+on:
+  # Run on schedule (weekly performance validation)
+  schedule:
+    - cron: '0 2 * * 0'  # Every Sunday at 2 AM UTC
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      load_type:
+        description: 'Load test type'
+        required: true
+        type: choice
+        options:
+          - normal
+          - peak
+          - stress
+          - spike
+        default: 'normal'
+      duration:
+        description: 'Test duration (seconds)'
+        required: false
+        type: number
+        default: 120
+      users:
+        description: 'Concurrent users'
+        required: false
+        type: number
+        default: 50
+
+  # Run on pull requests (light performance check)
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'testing/performance/**'
+
+# Explicit permissions (least privilege)
+permissions:
+  contents: read
+  pull-requests: write  # For PR comments with performance results
+  checks: write  # For check runs
+  actions: read  # For workflow run information
+
+# Prevent concurrent performance tests
+concurrency:
+  group: performance-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance-test:
+    name: Performance Threshold Validation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226  # v3.0.0
+
+      - name: Create test environment file
+        run: |
+          cat > .env.test << EOF
+          # Test Database Configuration
+          TEST_DB_NAME=backend_test_db
+          TEST_DB_USER=postgres_test
+          TEST_DB_PASSWORD=postgres_test_password
+          TEST_DB_HOST=db
+          TEST_DB_PORT=5432
+
+          # Test Redis Configuration
+          TEST_REDIS_HOST=redis
+          TEST_REDIS_PORT=6379
+
+          # Django Test Configuration
+          DJANGO_SETTINGS_MODULE=backend.settings.test
+          DEBUG=False
+          SECRET_KEY=test-secret-key-for-performance-testing
+
+          # Performance Test Configuration
+          PERFORMANCE_USERS=${{ inputs.users || 50 }}
+          PERFORMANCE_DURATION=${{ inputs.duration || 120 }}
+          PERFORMANCE_SPAWN_RATE=5
+          EOF
+
+      - name: Determine test parameters
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Light performance check for PRs
+            echo "users=10" >> $GITHUB_OUTPUT
+            echo "spawn_rate=2" >> $GITHUB_OUTPUT
+            echo "duration=60" >> $GITHUB_OUTPUT
+            echo "description=Light performance check (PR)" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.load_type }}" = "stress" ]; then
+            # Stress test
+            echo "users=100" >> $GITHUB_OUTPUT
+            echo "spawn_rate=10" >> $GITHUB_OUTPUT
+            echo "duration=${{ inputs.duration || 300 }}" >> $GITHUB_OUTPUT
+            echo "description=Stress test" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.load_type }}" = "spike" ]; then
+            # Spike test
+            echo "users=100" >> $GITHUB_OUTPUT
+            echo "spawn_rate=50" >> $GITHUB_OUTPUT
+            echo "duration=${{ inputs.duration || 120 }}" >> $GITHUB_OUTPUT
+            echo "description=Spike test" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.load_type }}" = "peak" ]; then
+            # Peak load test
+            echo "users=50" >> $GITHUB_OUTPUT
+            echo "spawn_rate=5" >> $GITHUB_OUTPUT
+            echo "duration=${{ inputs.duration || 600 }}" >> $GITHUB_OUTPUT
+            echo "description=Peak load test" >> $GITHUB_OUTPUT
+          else
+            # Normal load test (default)
+            echo "users=${{ inputs.users || 50 }}" >> $GITHUB_OUTPUT
+            echo "spawn_rate=5" >> $GITHUB_OUTPUT
+            echo "duration=${{ inputs.duration || 120 }}" >> $GITHUB_OUTPUT
+            echo "description=Normal load test" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build test environment
+        run: |
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            build --no-cache test-runner
+
+      - name: Start test services
+        run: |
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            up -d db redis backend frontend proxy
+
+      - name: Wait for services to be healthy
+        run: |
+          timeout 300 bash -c 'until docker compose -f docker-compose.yml -f compose.test.yml ps backend | grep -q "healthy"; do sleep 2; done'
+          timeout 300 bash -c 'until docker compose -f docker-compose.yml -f compose.test.yml ps frontend | grep -q "healthy"; do sleep 2; done'
+
+          echo "All services are healthy"
+
+      - name: Run performance tests
+        id: perf_test
+        run: |
+          mkdir -p testing/reports/{html,json,csv}
+
+          # Run Locust performance tests with threshold validation
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            run --rm test-runner \
+            bash -c "cd /app/testing && locust \
+              -f performance/locustfile.py \
+              --host=http://proxy:80 \
+              --headless \
+              --users ${{ steps.params.outputs.users }} \
+              --spawn-rate ${{ steps.params.outputs.spawn_rate }} \
+              --run-time ${{ steps.params.outputs.duration }}s \
+              --html=reports/html/performance-report.html \
+              --csv=reports/csv/performance-data \
+              --json" \
+            || echo "performance_failed=true" >> $GITHUB_OUTPUT
+
+      - name: Generate performance reports
+        if: always()
+        run: |
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            run --rm test-runner \
+            python3 performance/report_generator.py \
+            --input reports/csv/performance-data_stats.json \
+            --output-dir reports/ \
+            || echo "Report generation skipped (stats file not found)"
+
+      - name: Extract performance metrics
+        id: metrics
+        if: always()
+        run: |
+          if [ -f testing/reports/json/performance-report.json ]; then
+            # Extract key metrics from JSON report
+            total_requests=$(jq -r '.summary.total_requests // 0' testing/reports/json/performance-report.json)
+            failure_rate=$(jq -r '.summary.failure_rate_percent // 0' testing/reports/json/performance-report.json)
+            rps=$(jq -r '.summary.requests_per_second // 0' testing/reports/json/performance-report.json)
+            response_time_95th=$(jq -r '.response_times_ms."95th" // 0' testing/reports/json/performance-report.json)
+            passed=$(jq -r '.result.passed // false' testing/reports/json/performance-report.json)
+
+            echo "total_requests=${total_requests}" >> $GITHUB_OUTPUT
+            echo "failure_rate=${failure_rate}" >> $GITHUB_OUTPUT
+            echo "rps=${rps}" >> $GITHUB_OUTPUT
+            echo "response_time_95th=${response_time_95th}" >> $GITHUB_OUTPUT
+            echo "passed=${passed}" >> $GITHUB_OUTPUT
+
+            # Create performance summary for PR comment
+            cat > testing/reports/performance-summary.md << EOF
+          ## 🚀 Performance Test Results
+
+          **Test Type:** ${{ steps.params.outputs.description }}
+          **Duration:** ${{ steps.params.outputs.duration }}s
+          **Concurrent Users:** ${{ steps.params.outputs.users }}
+
+          ### Summary Metrics
+
+          | Metric | Value | Status |
+          |--------|-------|--------|
+          | Total Requests | ${total_requests} | ✅ |
+          | Failure Rate | ${failure_rate}% | $([ $(echo "${failure_rate} <= 1.0" | bc -l) -eq 1 ] && echo "✅" || echo "❌") |
+          | Throughput | ${rps} RPS | $([ $(echo "${rps} >= 50" | bc -l) -eq 1 ] && echo "✅" || echo "⚠️") |
+          | Response Time (95th) | ${response_time_95th}ms | $([ $(echo "${response_time_95th} <= 500" | bc -l) -eq 1 ] && echo "✅" || echo "❌") |
+
+          ### Overall Result: $([ "${passed}" = "true" ] && echo "✅ PASSED" || echo "❌ FAILED")
+
+          View detailed reports in workflow artifacts.
+          EOF
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "Performance report not generated - test may have failed" > testing/reports/performance-summary.md
+          fi
+
+      - name: Comment PR with performance results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const summaryFile = 'testing/reports/performance-summary.md';
+            const passed = '${{ steps.metrics.outputs.passed }}' === 'true';
+
+            let summary = '## 🚀 Performance Test Results\n\n';
+
+            if (fs.existsSync(summaryFile)) {
+              summary += fs.readFileSync(summaryFile, 'utf8');
+            } else {
+              summary += '⚠️ Performance test execution failed or incomplete.\n\n';
+              summary += 'Please check the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs) for details.';
+            }
+
+            // Add failure details and debugging information if tests failed
+            if (!passed) {
+              summary += '\n\n---\n\n';
+              summary += '### ⚠️ Performance Threshold Violations Detected\n\n';
+              summary += 'The application failed to meet one or more performance thresholds.\n\n';
+              summary += '#### 📊 Available Artifacts\n\n';
+              summary += '- **📄 HTML Performance Report** - Detailed test execution report (artifact: `performance-test-reports-${{ github.sha }}`)\n';
+              summary += '- **📊 CSV Data Files** - Raw performance metrics (artifact: `performance-test-reports-${{ github.sha }}`)\n';
+              summary += '- **📈 JSON Summary** - Structured performance data (artifact: `performance-test-reports-${{ github.sha }}`)\n\n';
+              summary += '#### 🛠️ Debugging Steps\n\n';
+              summary += '1. Download performance reports from [workflow artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n';
+              summary += '2. Review the HTML report for detailed metrics and graphs\n';
+              summary += '3. Analyze response time distribution and identify slow endpoints\n';
+              summary += '4. Check error rate patterns and failure types\n';
+              summary += '5. Compare metrics against baseline performance\n\n';
+              summary += '#### 📖 Documentation\n\n';
+              summary += '- [Performance Testing Guide](https://github.com/${{ github.repository }}/tree/main/testing/performance/README.md)\n';
+              summary += '- [Performance Troubleshooting](https://github.com/${{ github.repository }}/tree/main/testing/README.md#performance-issues)\n';
+            }
+
+            summary += '\n\n---\n';
+            summary += '📊 [View Full Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) | ';
+            summary += '🔔 [Workflow Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs)';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+      - name: Upload performance reports
+        if: always()
+        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8  # v4.3.0
+        with:
+          name: performance-test-reports-${{ github.sha }}
+          path: |
+            testing/reports/html/performance-report.html
+            testing/reports/json/performance-report.json
+            testing/reports/csv/performance-data*.csv
+          retention-days: 30
+
+      - name: Stop test services
+        if: always()
+        run: |
+          docker compose -f docker-compose.yml -f compose.test.yml \
+            --env-file .env.test \
+            down -v
+
+      - name: Check performance test result
+        if: steps.metrics.outputs.passed == 'false'
+        run: |
+          echo "❌ Performance tests failed - threshold violations detected"
+          echo "Review the performance reports for details"
+          exit 1
+
+      - name: Performance test summary
+        if: always()
+        run: |
+          echo "### Performance Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Configuration:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Type: ${{ steps.params.outputs.description }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Users: ${{ steps.params.outputs.users }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Duration: ${{ steps.params.outputs.duration }}s" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f testing/reports/performance-summary.md ]; then
+            cat testing/reports/performance-summary.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Performance report not available" >> $GITHUB_STEP_SUMMARY
+          fi

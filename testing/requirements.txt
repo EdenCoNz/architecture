@@ -1,0 +1,71 @@
+# =============================================================================
+# Test Runner Python Dependencies (Feature #13 - Story 13.1)
+# =============================================================================
+# Python packages needed for executing all test types
+# Install: pip install -r testing/requirements.txt
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Core Testing Frameworks
+# -----------------------------------------------------------------------------
+pytest>=8.0.0,<9.0.0              # Primary test framework
+pytest-django>=4.7.0,<5.0.0       # Django integration for pytest
+pytest-asyncio>=0.23.0,<1.0.0     # Async test support
+pytest-xdist>=3.5.0,<4.0.0        # Parallel test execution
+pytest-timeout>=2.2.0,<3.0.0      # Test timeout management
+pytest-cov>=4.1.0,<5.0.0          # Code coverage reporting
+pytest-mock>=3.12.0,<4.0.0        # Mock utilities
+
+# -----------------------------------------------------------------------------
+# Integration Testing
+# -----------------------------------------------------------------------------
+requests>=2.31.0,<3.0.0           # HTTP client for API testing
+httpx>=0.26.0,<1.0.0              # Async HTTP client
+psycopg2-binary>=2.9.9,<3.0.0     # PostgreSQL adapter for database testing
+redis>=5.0.1,<6.0.0               # Redis client for cache testing
+
+# -----------------------------------------------------------------------------
+# API Testing
+# -----------------------------------------------------------------------------
+pytest-bdd>=7.0.0,<8.0.0          # BDD-style API tests
+pytest-responses>=0.5.1,<1.0.0    # Mock HTTP responses
+factory-boy>=3.3.0,<4.0.0         # Test data factories
+faker>=22.0.0,<23.0.0             # Realistic test data generation
+
+# -----------------------------------------------------------------------------
+# Performance Testing
+# -----------------------------------------------------------------------------
+locust>=2.20.0,<3.0.0             # Load testing framework
+pytest-benchmark>=4.0.0,<5.0.0    # Performance benchmarking
+
+# -----------------------------------------------------------------------------
+# Visual Regression Testing (Python utilities)
+# -----------------------------------------------------------------------------
+pillow>=10.2.0,<11.0.0            # Image processing for visual diffs
+imagehash>=4.3.1,<5.0.0           # Perceptual image hashing
+
+# -----------------------------------------------------------------------------
+# Reporting and Output
+# -----------------------------------------------------------------------------
+pytest-html>=4.1.0,<5.0.0         # HTML test reports
+pytest-json-report>=1.5.0,<2.0.0  # JSON test reports
+allure-pytest>=2.13.2,<3.0.0      # Allure test reporting
+coverage[toml]>=7.4.0,<8.0.0      # Code coverage with TOML support
+
+# Story 13.15: Test Execution Reporting
+jinja2>=3.1.2,<4.0.0              # HTML template engine for reports
+weasyprint>=60.0,<61.0            # PDF report generation
+matplotlib>=3.8.0,<4.0.0          # Charts and visualizations for trends
+
+# -----------------------------------------------------------------------------
+# Database Utilities
+# -----------------------------------------------------------------------------
+sqlparse>=0.4.4,<1.0.0            # SQL formatting for debug output
+django-extensions>=3.2.3,<4.0.0   # Django shell plus and utilities
+
+# -----------------------------------------------------------------------------
+# Development and Debugging
+# -----------------------------------------------------------------------------
+ipdb>=0.13.13,<1.0.0              # Enhanced debugger
+colorama>=0.4.6,<1.0.0            # Colored terminal output
+tabulate>=0.9.0,<1.0.0            # Pretty table formatting
