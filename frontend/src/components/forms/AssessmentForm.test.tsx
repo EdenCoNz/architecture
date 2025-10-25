@@ -120,10 +120,11 @@ describe('AssessmentForm', () => {
 
     it('should show loading state during form submission', async () => {
       const user = userEvent.setup();
-      const mockSubmit = vi.fn(() =>
-        new Promise<{ success: boolean }>((resolve) =>
-          setTimeout(() => resolve({ success: true }), 100)
-        )
+      const mockSubmit = vi.fn(
+        () =>
+          new Promise<{ success: boolean }>((resolve) =>
+            setTimeout(() => resolve({ success: true }), 100)
+          )
       );
       render(<AssessmentForm onSubmit={mockSubmit} />);
 

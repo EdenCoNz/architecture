@@ -13,8 +13,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Typography, Box, Alert, CircularProgress } from '@mui/material';
-import { AssessmentFormStepper } from '../../components/forms';
-import type { AssessmentFormData } from '../../components/forms';
+import { AssessmentFormStepper, type AssessmentFormData } from '../../components/forms';
 import { submitAssessment } from '../../services/api';
 
 export function Onboarding() {

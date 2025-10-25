@@ -7,8 +7,7 @@
  * Story 11.8: Progress Through Assessment Steps
  */
 
-import { useState } from 'react';
-import type { FormEvent, ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import {
   Box,
   Button,

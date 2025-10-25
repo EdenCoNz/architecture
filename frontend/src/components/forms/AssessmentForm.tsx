@@ -7,8 +7,7 @@
  * Story 11.7: Complete Assessment Form
  */
 
-import { useState } from 'react';
-import type { FormEvent, ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import {
   Box,
   Button,
