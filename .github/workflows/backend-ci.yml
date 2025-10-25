@@ -1397,6 +1397,7 @@ jobs:
       health_check_enabled: true
       health_check_retries: 15
       health_check_interval: 3
+      environment_name: Staging
 
     secrets: inherit
 

@@ -121,6 +121,12 @@ on:
         type: string
         default: ''
 
+      environment_name:
+        description: 'GitHub environment name to use for deployment (e.g., Staging, Production)'
+        required: false
+        type: string
+        default: ''
+
     secrets:
       # Tailscale VPN connection
       TS_OAUTH_CLIENT_ID:
@@ -151,6 +157,7 @@ jobs:
     name: Deploy ${{ inputs.service_name }} to Ubuntu Server
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: ${{ inputs.environment_name }}
 
     permissions:
       contents: read
