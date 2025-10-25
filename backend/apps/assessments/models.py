@@ -49,7 +49,7 @@ class Assessment(TimeStampedModel):
         FULL_GYM = "full_gym", _("Full Gym")
 
     # User association - one assessment per user
-    user = models.OneToOneField(
+    user: models.OneToOneField = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="assessment",
@@ -57,7 +57,7 @@ class Assessment(TimeStampedModel):
     )
 
     # Sport selection
-    sport = models.CharField(
+    sport: models.CharField = models.CharField(
         _("sport"),
         max_length=20,
         choices=Sport.choices,
@@ -65,7 +65,7 @@ class Assessment(TimeStampedModel):
     )
 
     # Age with validation
-    age = models.PositiveSmallIntegerField(
+    age: models.PositiveSmallIntegerField = models.PositiveSmallIntegerField(
         _("age"),
         validators=[
             MinValueValidator(
@@ -77,7 +77,7 @@ class Assessment(TimeStampedModel):
     )
 
     # Experience level
-    experience_level = models.CharField(
+    experience_level: models.CharField = models.CharField(
         _("experience level"),
         max_length=20,
         choices=ExperienceLevel.choices,
@@ -85,7 +85,7 @@ class Assessment(TimeStampedModel):
     )
 
     # Training frequency
-    training_days = models.CharField(
+    training_days: models.CharField = models.CharField(
         _("training days"),
         max_length=10,
         choices=TrainingDays.choices,
@@ -93,7 +93,7 @@ class Assessment(TimeStampedModel):
     )
 
     # Injury history (optional)
-    injuries = models.CharField(
+    injuries: models.CharField = models.CharField(
         _("injuries"),
         max_length=10,
         choices=[("no", _("No injuries")), ("yes", _("I have injury history"))],
@@ -102,7 +102,7 @@ class Assessment(TimeStampedModel):
     )
 
     # Equipment availability
-    equipment = models.CharField(
+    equipment: models.CharField = models.CharField(
         _("equipment"),
         max_length=20,
         choices=Equipment.choices,

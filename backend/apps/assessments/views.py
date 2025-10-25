@@ -8,6 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 
 from apps.assessments.models import Assessment
 from apps.assessments.serializers import AssessmentSerializer
@@ -23,6 +24,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 
     serializer_class = AssessmentSerializer
     permission_classes = [IsAuthenticated]
+    queryset = Assessment.objects.all()
 
     def get_queryset(self):
         """
@@ -33,12 +35,12 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         """
         return Assessment.objects.filter(user=self.request.user)
 
-    def perform_create(self, serializer: AssessmentSerializer) -> None:
+    def perform_create(self, serializer: BaseSerializer) -> None:
         """
         Create assessment associated with authenticated user.
 
         Args:
-            serializer: Validated AssessmentSerializer instance
+            serializer: Validated serializer instance
 
         Raises:
             ValidationError: If user already has an assessment
