@@ -711,6 +711,86 @@
           "description": "Fix ESLint code quality violation - duplicate import statements in API test page"
         }
       ]
+    },
+    {
+      "featureID": "11",
+      "title": "Onboarding & Assessment",
+      "description": "Enable new users to quickly set up their profile by collecting essential information (age, sport, level, training days, injury history, and equipment) through a simple intake form, allowing the system to generate personalized training programs tailored to their needs",
+      "createdAt": "2025-10-25T00:00:00Z",
+      "userStoriesCreated": "2025-10-25T12:00:00Z",
+      "userStoriesImplemented": "2025-10-25T16:30:00Z",
+      "isSummarised": false,
+      "totalStories": 12,
+      "completedStories": ["Story-11.1", "Story-11.2", "Story-11.3", "Story-11.4", "Story-11.5", "Story-11.6", "Story-11.7", "Story-11.8", "Story-11.9", "Story-11.10", "Story-11.11", "Story-11.12"],
+      "assignedAgents": [
+        "ui-ux-designer",
+        "frontend-developer",
+        "backend-developer"
+      ],
+      "executionPhases": 4,
+      "parallelPhases": 1,
+      "sequentialPhases": 3,
+      "filesPath": "docs/features/11/user-stories.md",
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-25T12:30:00Z",
+          "designBriefUpdated": true
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-25T15:30:00Z",
+          "designBriefUpdated": true
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-25T13:00:00Z",
+          "designBriefUpdated": true,
+          "story": "11.6",
+          "component": "Equipment Selection"
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-25T15:30:00Z",
+          "designBriefUpdated": true,
+          "story": "11.4",
+          "component": "Training Days Selection"
+        }
+      ],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-25T16:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/11/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 202,
+          "timestamp": "2025-10-25T17:35:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/11/issues/202/implementation-log.json",
+          "userStoriesPath": "docs/features/11/issues/202/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix Backend CI/CD failures - mypy type annotation errors in assessment models and views, API documentation generation issues preventing container startup"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 203,
+          "timestamp": "2025-10-25T17:59:40Z",
+          "status": "completed",
+          "implementationLog": "docs/features/11/issues/203/implementation-log.json",
+          "userStoriesPath": "docs/features/11/issues/203/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix Frontend CI/CD failures - Prettier formatting errors and duplicate import statements in assessment components"
+        }
+      ]
     }
   ]
 }

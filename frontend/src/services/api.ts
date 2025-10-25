@@ -20,6 +20,30 @@ export interface ApiTestResponse {
 }
 
 /**
+ * Assessment form data structure for submission
+ */
+export interface AssessmentData {
+  sport: string | null;
+  age: number | null;
+  experienceLevel: string | null;
+  trainingDays: string | null;
+  injuries: string | null;
+  equipment: string[];
+}
+
+/**
+ * API Response from assessment submission endpoint
+ */
+export interface AssessmentResponse {
+  /** Success indicator */
+  success: boolean;
+  /** Assessment ID if successfully created */
+  id?: string;
+  /** Response message */
+  message?: string;
+}
+
+/**
  * API Error with user-friendly message
  */
 export class ApiError extends Error {
@@ -107,5 +131,85 @@ export async function testBackendConnection(): Promise<ApiTestResponse> {
 
     // Unknown error type
     throw new ApiError('An unexpected error occurred');
+  }
+}
+
+/**
+ * Submit user assessment data
+ *
+ * Sends user onboarding assessment information to the backend for storage
+ * and program generation.
+ *
+ * @param data - Assessment form data
+ * @returns Promise resolving to submission response
+ * @throws ApiError if request fails or validation errors occur
+ *
+ * Story 11.7: Complete Assessment Form
+ */
+export async function submitAssessment(data: AssessmentData): Promise<AssessmentResponse> {
+  const apiUrl = config.api.baseUrl;
+  const endpoint = `${apiUrl}/api/v1/assessments/`;
+
+  try {
+    // Make HTTP request with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), config.api.timeout);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    // Check if response is ok (status 200-299)
+    if (!response.ok) {
+      throw new ApiError(
+        `Failed to submit assessment: ${response.status} ${response.statusText}`,
+        response.status,
+        response.statusText
+      );
+    }
+
+    // Parse JSON response
+    const responseData = await response.json();
+
+    return {
+      success: true,
+      id: responseData.id,
+      message: responseData.message,
+    };
+  } catch (error) {
+    // Handle different error types
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (error instanceof Error) {
+      // Handle abort/timeout errors
+      if (error.name === 'AbortError') {
+        throw new ApiError('Request timeout - submission took too long');
+      }
+
+      // Handle network errors
+      if (error.message.includes('fetch')) {
+        throw new ApiError('Connection failed - unable to reach backend server');
+      }
+
+      // Handle JSON parsing errors
+      if (error.message.includes('JSON')) {
+        throw new ApiError('Invalid response format from backend');
+      }
+
+      // Generic error
+      throw new ApiError(`Submission failed: ${error.message}`);
+    }
+
+    // Unknown error type
+    throw new ApiError('An unexpected error occurred during submission');
   }
 }

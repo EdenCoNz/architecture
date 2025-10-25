@@ -8,3 +8,4 @@
 export { Home } from './Home';
 export { NotFound } from './NotFound';
 export { ApiTest } from './ApiTest';
+export { Onboarding } from './Onboarding';
