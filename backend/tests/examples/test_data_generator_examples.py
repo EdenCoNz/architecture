@@ -54,9 +54,7 @@ class TestUserGenerationExamples:
     def test_create_user_for_authentication_testing(self):
         """Example: Create a user with known credentials for auth tests."""
         user_gen = UserDataGenerator()
-        user, password = user_gen.generate_user_with_credentials(
-            password="SecurePass123!"
-        )
+        user, password = user_gen.generate_user_with_credentials(password="SecurePass123!")
 
         # Password is available for login tests
         assert user.check_password("SecurePass123!")
@@ -196,9 +194,7 @@ class TestCompleteScenarioExamples:
     def test_bulk_data_for_performance(self):
         """Example: Generate bulk data for performance testing."""
         test_gen = TestDataGenerator()
-        bulk_data = test_gen.generate_bulk_test_data(
-            user_count=100, assessment_count=80
-        )
+        bulk_data = test_gen.generate_bulk_test_data(user_count=100, assessment_count=80)
 
         # Use for load testing, pagination testing, etc.
         assert len(bulk_data["users"]) == 100
