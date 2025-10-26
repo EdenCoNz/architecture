@@ -1,0 +1,86 @@
+[
+  {
+    "story": "Story-215.1: Enable Database Connection Pooling",
+    "timestamp": "2025-10-26T15:30:00Z",
+    "status": "completed",
+    "files_modified": [
+      "/home/ed/Dev/architecture/backend/config/settings/testing.py",
+      "/home/ed/Dev/architecture/backend/tests/unit/test_database_connectivity.py",
+      "/home/ed/Dev/architecture/backend/tests/test_data_isolation.py"
+    ],
+    "files_created": [],
+    "actions_taken": [
+      {
+        "action": "Read configuration documentation",
+        "description": "Read /home/ed/Dev/architecture/docs/configuration.md to understand backend configuration architecture and environment-specific settings",
+        "outcome": "Confirmed database configuration structure and that CONN_MAX_AGE should be set to 600 for connection pooling"
+      },
+      {
+        "action": "Analyzed failing tests",
+        "description": "Ran the five failing connection pooling tests to identify root cause",
+        "outcome": "Discovered that testing.py settings had CONN_MAX_AGE set to 0 (disabled) instead of 600 (enabled)"
+      },
+      {
+        "action": "Updated testing.py configuration",
+        "description": "Changed CONN_MAX_AGE from 0 to 600 in both PostgreSQL and SQLite database configurations in testing.py (lines 37 and 58)",
+        "outcome": "Connection pooling enabled in testing environment for both database backends"
+      },
+      {
+        "action": "Updated test_database_connectivity.py",
+        "description": "Modified test_database_settings_loaded_from_environment to handle both SQLite and PostgreSQL configurations based on USE_POSTGRES_FOR_TESTS environment variable",
+        "outcome": "Test now validates connection pooling (CONN_MAX_AGE=600) regardless of database backend while still checking for appropriate engine configuration"
+      },
+      {
+        "action": "Updated test_data_isolation.py",
+        "description": "Changed test_connection_pooling_disabled_for_tests to test_connection_pooling_enabled_for_tests and updated assertion to expect CONN_MAX_AGE=600 instead of 0",
+        "outcome": "Resolved conflict between Story 13.2 (which expected disabled pooling) and Story 215.1 (which requires enabled pooling). Added documentation explaining that test isolation is maintained through ATOMIC_REQUESTS and pytest-django's transaction rollback"
+      },
+      {
+        "action": "Verified all five required tests",
+        "description": "Ran all five connection pooling tests specified in the user story acceptance criteria",
+        "outcome": "All five tests pass successfully: test_connection_pooling_configuration, test_connection_pool_settings, test_database_settings_loaded_from_environment, test_connection_pool_configured, test_connection_pooling_configured"
+      }
+    ],
+    "issues_encountered": [
+      {
+        "issue": "Conflicting test expectation",
+        "description": "test_data_isolation.py::test_connection_pooling_disabled_for_tests expected CONN_MAX_AGE=0, which conflicted with Story-215.1 requirement for CONN_MAX_AGE=600",
+        "resolution": "Updated the test to align with Story-215.1 requirements. Renamed test to test_connection_pooling_enabled_for_tests and updated assertion to expect CONN_MAX_AGE=600. Added documentation explaining that test isolation is preserved through Django's ATOMIC_REQUESTS and pytest-django's transaction rollback mechanism"
+      },
+      {
+        "issue": "Test environment database backend variability",
+        "description": "test_database_settings_loaded_from_environment hardcoded expectation for PostgreSQL, but testing environment uses SQLite by default unless USE_POSTGRES_FOR_TESTS=true",
+        "resolution": "Made test conditional on USE_POSTGRES_FOR_TESTS environment variable to validate appropriate database engine while still checking connection pooling configuration in both cases"
+      }
+    ],
+    "acceptance_criteria_validation": {
+      "AC1": {
+        "criteria": "Given the application is configured for testing, when the database configuration is loaded, then connection pooling should be enabled with a 600-second (10 minute) connection lifetime",
+        "status": "PASSED",
+        "evidence": "Updated testing.py to set CONN_MAX_AGE=600 for both PostgreSQL and SQLite configurations"
+      },
+      "AC2": {
+        "criteria": "Given the application processes multiple requests, when database operations are performed, then connections should be reused within the 10-minute window instead of being created fresh for each operation",
+        "status": "PASSED",
+        "evidence": "CONN_MAX_AGE=600 enables connection reuse. Django's connection pooling mechanism will maintain connections for 10 minutes"
+      },
+      "AC3": {
+        "criteria": "Given all backend tests run, when the test suite validates database configuration, then all five connection pooling tests should pass",
+        "status": "PASSED",
+        "evidence": "All five tests pass: test_connection_pooling_configuration, test_connection_pool_settings, test_database_settings_loaded_from_environment, test_connection_pool_configured, test_connection_pooling_configured"
+      },
+      "AC4": {
+        "criteria": "Given the application runs in any environment (development, testing, production), when the database configuration is applied, then connection pooling should be consistently enabled across all environments",
+        "status": "PASSED",
+        "evidence": "Verified base.py already has CONN_MAX_AGE=600. Updated testing.py to match. Connection pooling now consistent across development, testing, staging, and production"
+      }
+    },
+    "technical_notes": [
+      "Connection pooling (CONN_MAX_AGE=600) is compatible with test isolation because Django's ATOMIC_REQUESTS wraps each test in a transaction that is rolled back after test completion",
+      "pytest-django provides additional isolation by resetting database state between tests",
+      "The base settings (base.py) already had CONN_MAX_AGE=600 configured - only testing.py needed updating",
+      "Both SQLite and PostgreSQL configurations in testing.py were updated to maintain consistency",
+      "Test data isolation is preserved even with connection pooling enabled due to Django's transaction management"
+    ]
+  }
+]

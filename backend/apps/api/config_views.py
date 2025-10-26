@@ -86,9 +86,13 @@ def frontend_config(request):
         environment = "development"
 
     # Build configuration from environment variables
+    # If FRONTEND_API_URL is not set, use default localhost:8000 for local development
+    # This provides sensible defaults for developers who clone the repo
+    frontend_api_url = os.getenv("FRONTEND_API_URL", "http://localhost:8000")
+
     config = {
         "api": {
-            "url": os.getenv("FRONTEND_API_URL", "http://localhost:8000"),
+            "url": frontend_api_url,
             "timeout": int(os.getenv("FRONTEND_API_TIMEOUT", "30000")),
             "enableLogging": os.getenv("FRONTEND_API_ENABLE_LOGGING", "false").lower() == "true",
         },

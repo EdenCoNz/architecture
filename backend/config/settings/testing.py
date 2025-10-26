@@ -33,12 +33,18 @@ if USE_POSTGRES_FOR_TESTS:
             "PASSWORD": get_config("DB_PASSWORD", default="test_password"),
             "HOST": get_config("DB_HOST", default="localhost"),
             "PORT": get_config("DB_PORT", default="5432"),
-            "ATOMIC_REQUESTS": True,
-            "CONN_MAX_AGE": 600,  # Connection pooling
+            "ATOMIC_REQUESTS": True,  # Each test runs in a transaction
+            "CONN_MAX_AGE": 600,  # Connection pooling enabled (10 minutes)
+            # No custom OPTIONS needed - Django manages transaction isolation automatically
             "TEST": {  # type: ignore[dict-item]
                 # Django will create test_<DB_NAME> automatically
-                # But we can specify custom name if needed
-                "NAME": None,  # Let Django auto-generate test database name
+                # Ensure test database has a predictable name
+                "NAME": get_config("TEST_DB_NAME", default=None),
+                # Preserve test database between runs when --reuse-db is used
+                "SERIALIZE": False,  # Faster tests - no need to serialize data
+                # Use template database for faster test database creation
+                "TEMPLATE": "template0",
+                "CHARSET": "UTF8",
             },
         }
     }
@@ -48,9 +54,12 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": ":memory:",
-            "ATOMIC_REQUESTS": True,
-            # SQLite doesn't support CONN_MAX_AGE in the same way, but we set it for compatibility
-            "CONN_MAX_AGE": 600,
+            "ATOMIC_REQUESTS": True,  # Each test runs in a transaction
+            "CONN_MAX_AGE": 600,  # Connection pooling enabled (10 minutes)
+            "TEST": {  # type: ignore[dict-item]
+                "NAME": ":memory:",  # Ensure in-memory database for each test worker
+                "SERIALIZE": False,  # Faster tests
+            },
         }
     }
 

@@ -1,0 +1,553 @@
+# =============================================================================
+# Unified Docker Compose Configuration - All Environments
+# =============================================================================
+# This single Docker Compose file supports local, staging, and production
+# environments through environment variable substitution.
+#
+# ENVIRONMENT SWITCHING: Set ENVIRONMENT=local|staging|production in .env
+#
+# Key Design Principles:
+#   1. Single source of truth - one compose file for all environments
+#   2. Environment-agnostic ports - same ports across all environments
+#   3. Minimal configuration differences - only ALLOWED_HOSTS changes
+#   4. Simple switching - just change ENVIRONMENT variable
+#   5. No port conflicts - different project names isolate environments
+#
+# Quick Start:
+#   # Copy and configure environment file
+#   cp .env.example .env
+#
+#   # Edit ENVIRONMENT variable in .env
+#   nano .env  # Set ENVIRONMENT=local|staging|production
+#
+#   # Start environment
+#   docker compose up -d
+#
+#   # View logs
+#   docker compose logs -f
+#
+#   # Stop environment
+#   docker compose down
+#
+# Port Mapping (Consistent Across All Environments):
+#   - Proxy (HTTP):    80
+#   - Proxy (HTTPS):   443
+#   - Backend:         8000 (internal only, exposed in local for debugging)
+#   - Frontend:        5173 (internal only, exposed in local for debugging)
+#   - PostgreSQL:      5432 (internal only, exposed in local for debugging)
+#   - Redis:           6379 (internal only, exposed in local for debugging)
+#
+# Unified Access (through reverse proxy):
+#   http://localhost/           -> Frontend (React SPA)
+#   http://localhost/api/       -> Backend API
+#   http://localhost/admin/     -> Django Admin
+#   http://localhost/static/    -> Backend static files
+#   http://localhost/media/     -> Backend media files
+#
+# Service Dependency Order:
+#   1. db, redis (no dependencies)
+#   2. backend (depends on: db, redis)
+#   3. frontend (depends on: backend)
+#   4. proxy (depends on: frontend, backend)
+#   5. celery (depends on: db, redis)
+#
+# Environment Isolation:
+#   Run multiple environments simultaneously using project names:
+#
+#   # Local environment
+#   COMPOSE_PROJECT_NAME=app-local docker compose up -d
+#
+#   # Staging environment
+#   COMPOSE_PROJECT_NAME=app-staging docker compose up -d
+#
+#   # Production environment
+#   COMPOSE_PROJECT_NAME=app-production docker compose up -d
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # ---------------------------------------------------------------------------
+  # Isolated database for each environment with health checks
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-app}-db
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    environment:
+      POSTGRES_DB: ${DB_NAME:-backend_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
+
+      # PostgreSQL tuning (environment-specific via .env)
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-128MB}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-512MB}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+
+    volumes:
+      # Persistent database storage (environment-specific volume name)
+      - postgres_data:/var/lib/postgresql/data
+
+    # Port exposure: Only in local environment for database tools
+    # staging/production: no ports exposed (secure by default)
+    ports:
+      - "${DB_PORT_EXPOSE:-}${DB_PORT_EXPOSE:+:5432}"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-backend_db} || exit 1"]
+      interval: ${HEALTHCHECK_INTERVAL:-10s}
+      timeout: 3s
+      retries: 5
+      start_period: ${HEALTHCHECK_START_PERIOD:-15s}
+
+    networks:
+      - app-network
+
+    # Resource limits (environment-specific)
+    deploy:
+      resources:
+        limits:
+          cpus: ${DB_CPU_LIMIT:-1}
+          memory: ${DB_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: ${DB_CPU_RESERVATION:-0.5}
+          memory: ${DB_MEMORY_RESERVATION:-256M}
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+        labels: "environment=${ENVIRONMENT:-local},service=database"
+        compress: ${LOG_COMPRESS:-false}
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache Service
+  # ---------------------------------------------------------------------------
+  # In-memory cache and message broker for Celery
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-app}-redis
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    # Redis command varies by environment (password in staging/production)
+    command: >
+      redis-server
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+      --appendonly yes
+      --maxmemory ${REDIS_MAXMEMORY:-256mb}
+      --maxmemory-policy allkeys-lru
+      ${REDIS_SAVE_CONFIG:---save 900 1 --save 300 10 --save 60 10000}
+
+    volumes:
+      # Persistent Redis data
+      - redis_data:/data
+
+    # Port exposure: Only in local environment for Redis clients
+    # staging/production: no ports exposed (secure by default)
+    ports:
+      - "${REDIS_PORT_EXPOSE:-}${REDIS_PORT_EXPOSE:+:6379}"
+
+    healthcheck:
+      # Health check command varies by environment (auth required in staging/prod)
+      test: ${REDIS_PASSWORD:+["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]}${REDIS_PASSWORD:-["CMD", "redis-cli", "ping"]}
+      interval: ${HEALTHCHECK_INTERVAL:-10s}
+      timeout: 3s
+      retries: 5
+      start_period: ${HEALTHCHECK_START_PERIOD:-10s}
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: ${REDIS_CPU_LIMIT:-0.5}
+          memory: ${REDIS_MEMORY_LIMIT:-256M}
+        reservations:
+          cpus: ${REDIS_CPU_RESERVATION:-0.25}
+          memory: ${REDIS_MEMORY_RESERVATION:-128M}
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+        labels: "environment=${ENVIRONMENT:-local},service=redis"
+        compress: ${LOG_COMPRESS:-false}
+
+  # ---------------------------------------------------------------------------
+  # Backend Django Application Service
+  # ---------------------------------------------------------------------------
+  # Django REST Framework API backend
+  # ---------------------------------------------------------------------------
+  backend:
+    # Build configuration
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: ${BUILD_TARGET:-development}
+      cache_from:
+        - ${BACKEND_IMAGE:-backend-dev:latest}
+
+    # Use pre-built image if BACKEND_IMAGE is set, otherwise use built image
+    image: ${BACKEND_IMAGE:-backend-dev:latest}
+
+    container_name: ${COMPOSE_PROJECT_NAME:-app}-backend
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    # Environment-specific Django settings
+    environment:
+      # Django configuration
+      DJANGO_SETTINGS_MODULE: config.settings.${DJANGO_SETTINGS_ENV:-development}
+      DEBUG: ${DEBUG:-True}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+
+      # Security settings (HTTPS only in staging/production)
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-False}
+      CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-False}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+
+      # Database connection
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-backend_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # Redis connection (password varies by environment)
+      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+
+      # ALLOWED_HOSTS - THE KEY ENVIRONMENT DIFFERENCE
+      # This is the primary configuration that varies between environments
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      # CORS settings (environment-specific)
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost,http://127.0.0.1}
+
+      # Frontend runtime configuration
+      FRONTEND_API_URL: ${FRONTEND_API_URL:-http://localhost}
+      FRONTEND_APP_NAME: ${FRONTEND_APP_NAME:-Application}
+      FRONTEND_APP_VERSION: ${APP_VERSION:-1.0.0}
+      FRONTEND_ENABLE_DEBUG: ${FRONTEND_ENABLE_DEBUG:-true}
+      FRONTEND_ENABLE_ANALYTICS: ${FRONTEND_ENABLE_ANALYTICS:-false}
+      FRONTEND_API_ENABLE_LOGGING: ${FRONTEND_API_ENABLE_LOGGING:-true}
+
+      # Python settings
+      PYTHONUNBUFFERED: "1"
+
+    volumes:
+      # Persistent data volumes (all environments)
+      - backend_logs:/app/logs
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+
+    # Port exposure: Only in local environment for direct API access
+    # staging/production: no ports exposed (only via proxy)
+    ports:
+      - "${BACKEND_PORT_EXPOSE:-}${BACKEND_PORT_EXPOSE:+:8000}"
+
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+        restart: true
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/v1/health/"]
+      interval: ${HEALTHCHECK_INTERVAL:-15s}
+      timeout: 5s
+      retries: 3
+      start_period: ${HEALTHCHECK_START_PERIOD:-45s}
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: ${BACKEND_CPU_LIMIT:-2}
+          memory: ${BACKEND_MEMORY_LIMIT:-1G}
+        reservations:
+          cpus: ${BACKEND_CPU_RESERVATION:-0.5}
+          memory: ${BACKEND_MEMORY_RESERVATION:-512M}
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+        labels: "environment=${ENVIRONMENT:-local},service=backend"
+        compress: ${LOG_COMPRESS:-false}
+
+  # ---------------------------------------------------------------------------
+  # Frontend React/Vite Application Service
+  # ---------------------------------------------------------------------------
+  # React SPA with runtime configuration from backend
+  # ---------------------------------------------------------------------------
+  frontend:
+    # Build configuration
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: ${BUILD_TARGET:-development}
+      cache_from:
+        - ${FRONTEND_IMAGE:-frontend-dev:latest}
+
+    # Use pre-built image if FRONTEND_IMAGE is set, otherwise use built image
+    image: ${FRONTEND_IMAGE:-frontend-dev:latest}
+
+    container_name: ${COMPOSE_PROJECT_NAME:-app}-frontend
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    environment:
+      # Node environment
+      NODE_ENV: ${NODE_ENV:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+
+      # Minimal fallback configuration
+      # Frontend fetches runtime config from /api/v1/config/frontend/
+      VITE_API_URL: ${VITE_API_URL:-http://localhost}
+      VITE_DEBUG: ${VITE_DEBUG:-true}
+
+    # Note: For local development with live reload, uncomment volume mounts in compose.override.yml
+    # Production uses code baked into the image (no volumes needed)
+
+    # Port exposure: Only in local environment for Vite HMR
+    # staging/production: no ports exposed (only via proxy)
+    ports:
+      - "${FRONTEND_PORT_EXPOSE:-}${FRONTEND_PORT_EXPOSE:+:5173}"
+
+    depends_on:
+      backend:
+        condition: service_healthy
+        restart: true
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5173"]
+      interval: ${HEALTHCHECK_INTERVAL:-15s}
+      timeout: 5s
+      retries: 3
+      start_period: ${HEALTHCHECK_START_PERIOD:-35s}
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: ${FRONTEND_CPU_LIMIT:-2}
+          memory: ${FRONTEND_MEMORY_LIMIT:-2G}
+        reservations:
+          cpus: ${FRONTEND_CPU_RESERVATION:-1}
+          memory: ${FRONTEND_MEMORY_RESERVATION:-512M}
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+        labels: "environment=${ENVIRONMENT:-local},service=frontend"
+        compress: ${LOG_COMPRESS:-false}
+
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy Service
+  # ---------------------------------------------------------------------------
+  # Unified entry point for the entire application stack
+  # ---------------------------------------------------------------------------
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-app}-proxy
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    volumes:
+      # Nginx configuration (environment-specific if needed)
+      - ${NGINX_CONFIG:-./nginx/nginx.conf}:/etc/nginx/nginx.conf:ro
+
+      # Logs and cache
+      - proxy_logs:/var/log/nginx
+      - proxy_cache_static:/var/cache/nginx/static
+      - proxy_cache_media:/var/cache/nginx/media
+      # Note: For SSL in staging/production, add SSL cert volume manually or via override:
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
+
+    # Port exposure: All environments expose proxy (unified entry point)
+    # HTTP always exposed
+    # For HTTPS in staging/production, add port 443 mapping manually or via override
+    ports:
+      - "${PROXY_PORT:-80}:80"
+
+    depends_on:
+      frontend:
+        condition: service_healthy
+        restart: true
+      backend:
+        condition: service_healthy
+        restart: true
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: ${HEALTHCHECK_INTERVAL:-15s}
+      timeout: 5s
+      retries: 3
+      start_period: ${HEALTHCHECK_START_PERIOD:-15s}
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: ${PROXY_CPU_LIMIT:-0.5}
+          memory: ${PROXY_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: ${PROXY_CPU_RESERVATION:-0.25}
+          memory: ${PROXY_MEMORY_RESERVATION:-256M}
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+        labels: "environment=${ENVIRONMENT:-local},service=proxy"
+        compress: ${LOG_COMPRESS:-false}
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker Service (Optional)
+  # ---------------------------------------------------------------------------
+  # Background task processing
+  # ---------------------------------------------------------------------------
+  celery:
+    # Use same image as backend
+    image: ${BACKEND_IMAGE:-backend-dev:latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-app}-celery
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.${DJANGO_SETTINGS_ENV:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # Database connection
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-backend_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # Redis connection
+      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+
+    volumes:
+      # Persistent logs
+      - backend_logs:/app/logs
+      # Note: For local development with live reload, add bind mounts via compose.override.yml
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    # Celery command with environment-specific concurrency
+    command: celery -A config worker -l ${CELERY_LOG_LEVEL:-info} --concurrency=${CELERY_WORKER_CONCURRENCY:-2}
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: ${CELERY_CPU_LIMIT:-1}
+          memory: ${CELERY_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: ${CELERY_CPU_RESERVATION:-0.25}
+          memory: ${CELERY_MEMORY_RESERVATION:-256M}
+
+    # Use profiles to optionally enable celery
+    profiles:
+      - ${CELERY_PROFILE:-with-celery}
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+        labels: "environment=${ENVIRONMENT:-local},service=celery"
+        compress: ${LOG_COMPRESS:-false}
+
+# =============================================================================
+# Networks
+# =============================================================================
+# Isolated bridge network for service communication
+# Network name includes project name for environment isolation
+# =============================================================================
+networks:
+  app-network:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-app}-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+# Persistent storage volumes with environment-specific names
+# Volume names include project name to prevent conflicts between environments
+# =============================================================================
+volumes:
+  # PostgreSQL data
+  postgres_data:
+    name: ${COMPOSE_PROJECT_NAME:-app}-postgres-data
+    driver: local
+
+  # Redis data
+  redis_data:
+    name: ${COMPOSE_PROJECT_NAME:-app}-redis-data
+    driver: local
+
+  # Backend media files
+  backend_media:
+    name: ${COMPOSE_PROJECT_NAME:-app}-backend-media
+    driver: local
+
+  # Backend static files
+  backend_static:
+    name: ${COMPOSE_PROJECT_NAME:-app}-backend-static
+    driver: local
+
+  # Backend logs
+  backend_logs:
+    name: ${COMPOSE_PROJECT_NAME:-app}-backend-logs
+    driver: local
+
+  # Frontend node_modules (development only)
+  frontend_node_modules:
+    name: ${COMPOSE_PROJECT_NAME:-app}-frontend-node-modules
+    driver: local
+
+  # Nginx proxy logs
+  proxy_logs:
+    name: ${COMPOSE_PROJECT_NAME:-app}-proxy-logs
+    driver: local
+
+  # Nginx cache for static files
+  proxy_cache_static:
+    name: ${COMPOSE_PROJECT_NAME:-app}-proxy-cache-static
+    driver: local
+
+  # Nginx cache for media files
+  proxy_cache_media:
+    name: ${COMPOSE_PROJECT_NAME:-app}-proxy-cache-media
+    driver: local

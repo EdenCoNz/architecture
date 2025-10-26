@@ -93,6 +93,11 @@ function getFallbackConfig(): AppConfig {
   const isDevelopment = environment === 'development';
   const isTest = environment === 'test';
 
+  // For API URL, use VITE_API_URL if set, otherwise use current origin (for proxy setup)
+  // This allows frontend to work with both localhost and network IPs
+  const apiUrl = import.meta.env.VITE_API_URL as string;
+  const baseUrl = apiUrl || window.location.origin;
+
   return {
     environment,
     isProduction,
@@ -100,7 +105,7 @@ function getFallbackConfig(): AppConfig {
     isTest,
 
     api: {
-      baseUrl: (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000',
+      baseUrl,
       timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 30000,
       enableLogging:
         (import.meta.env.VITE_API_ENABLE_LOGGING as string) === 'true' || !isProduction,
@@ -147,7 +152,9 @@ function transformBackendConfig(backendConfig: BackendConfigResponse): AppConfig
     isTest,
 
     api: {
-      baseUrl: backendConfig.api.url,
+      // If backend returns empty string, use same origin (for proxy setup)
+      // This allows frontend to work with both localhost and network IPs
+      baseUrl: backendConfig.api.url || window.location.origin,
       timeout: backendConfig.api.timeout,
       enableLogging: backendConfig.api.enableLogging,
     },

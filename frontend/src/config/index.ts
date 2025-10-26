@@ -111,14 +111,16 @@ function getEnv(key: string, defaultValue?: string, required = false): string {
   const fullKey = `VITE_${key}`;
   const value = import.meta.env[fullKey] as string | undefined;
 
-  if (!value && required) {
+  // Check if value is undefined (not set), not just falsy
+  // Empty string is a valid value (e.g., for VITE_API_URL to use window.location.origin)
+  if (value === undefined && required) {
     throw new ConfigValidationError(
       `Missing required environment variable: ${fullKey}. ` +
         `Please check your .env file or build configuration.`
     );
   }
 
-  return value || defaultValue || '';
+  return value !== undefined ? value : defaultValue || '';
 }
 
 /**
@@ -198,6 +200,7 @@ function getEnvironment(): Environment {
  * @throws ConfigValidationError if URL is invalid
  */
 function validateApiUrl(url: string): void {
+  // Reject empty URL - API URL is required
   if (!url) {
     throw new ConfigValidationError('API URL cannot be empty');
   }
@@ -244,7 +247,8 @@ function loadConfig(): AppConfig {
   const isTest = environment === 'test';
 
   // Load API configuration
-  const apiBaseUrl = getEnv('API_URL', 'http://localhost:8000', true);
+  // API URL is required and must be a valid URL
+  const apiBaseUrl = getEnv('API_URL', '', false);
   validateApiUrl(apiBaseUrl);
 
   const config: AppConfig = {

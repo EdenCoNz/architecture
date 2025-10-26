@@ -1,240 +1,209 @@
-# Quick Start Guide - Docker Development Environment
+# Docker Compose Unified - Quick Start Guide
 
-## TL;DR
+**5-Minute Setup for Any Environment**
 
-```bash
-# First time setup
-./scripts/preflight-check.sh --fix
-./docker-dev.sh start
+---
 
-# Daily development
-./docker-dev.sh start          # Start all services
-./docker-dev.sh logs           # View logs
-./docker-dev.sh stop           # Stop when done
-```
-
-## Prerequisites
-
-- Docker and Docker Compose installed
-- At least 5GB free disk space
-- Ports available: 80, 5432, 6379, 5173, 8000
-
-## First Time Setup
-
-1. **Validate Environment**
-   ```bash
-   ./scripts/preflight-check.sh --fix
-   ```
-   This checks and auto-fixes:
-   - Docker installation
-   - File permissions
-   - Port availability
-   - Environment files
-
-2. **Start Services**
-   ```bash
-   ./docker-dev.sh start
-   ```
-   This automatically:
-   - Runs pre-flight validation
-   - Starts all containers
-   - Shows service status
-
-3. **Verify Everything Works**
-   ```bash
-   # Check services are healthy
-   docker compose ps
-
-   # Visit application
-   # Frontend: http://localhost/
-   # Backend API: http://localhost/api/
-   # Admin: http://localhost/admin/
-   ```
-
-## Daily Workflow
-
-### Start Development
+## Step 1: Choose Your Environment
 
 ```bash
-./docker-dev.sh start
+# Local Development
+ENVIRONMENT=local
+
+# Staging
+ENVIRONMENT=staging
+
+# Production
+ENVIRONMENT=production
 ```
 
-### View Logs
+---
+
+## Step 2: Create Your .env File
 
 ```bash
-# All services
-./docker-dev.sh logs
+# Copy template
+cp .env.unified.example .env
 
-# Specific service
-./docker-dev.sh logs backend
-./docker-dev.sh logs frontend
+# Edit and set ENVIRONMENT variable
+nano .env
 ```
 
-### Run Database Migrations
+**Edit this one line:**
+```bash
+ENVIRONMENT=local    # Change to: local, staging, or production
+```
+
+**For staging/production, also set:**
+```bash
+# Secure passwords (generate with: openssl rand -base64 32)
+DB_PASSWORD=your-secure-password
+REDIS_PASSWORD=your-secure-redis-password
+
+# Your domain
+ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
+```
+
+---
+
+## Step 3: Start Services
 
 ```bash
-./docker-dev.sh backend-migrate
+# Start all services
+docker compose -f docker-compose.unified.yml up -d
+
+# View logs
+docker compose -f docker-compose.unified.yml logs -f
+
+# Check status
+docker compose -f docker-compose.unified.yml ps
 ```
 
-### Access Django Shell
+---
+
+## Step 4: Access Your Application
+
+### Local Development
+```
+Frontend:         http://localhost/
+Backend API:      http://localhost/api/
+Django Admin:     http://localhost/admin/
+
+Development-only direct access:
+Backend:          http://localhost:8000
+Frontend:         http://localhost:5173
+Database:         localhost:5432
+Redis:            localhost:6379
+```
+
+### Staging
+```
+All Access:       https://staging.yourdomain.com/
+(No direct service access - secure by default)
+```
+
+### Production
+```
+All Access:       https://yourdomain.com/
+(No direct service access - maximum security)
+```
+
+---
+
+## Step 5: Verify Everything Works
 
 ```bash
-./docker-dev.sh backend-shell
+# Run automated validation
+chmod +x validate-environments.sh
+./validate-environments.sh local    # or staging, or production
+
+# Or manually test
+curl http://localhost/health                 # Proxy health
+curl http://localhost/api/v1/health/         # Backend health
+curl http://localhost/                       # Frontend loads
 ```
 
-### Stop Services
-
-```bash
-./docker-dev.sh stop
-```
-
-## Troubleshooting
-
-### Services Not Starting?
-
-```bash
-# Run validation
-./scripts/preflight-check.sh --fix
-
-# Check logs
-./docker-dev.sh logs
-
-# Rebuild and restart
-./docker-dev.sh rebuild
-```
-
-### Permission Errors?
-
-The entrypoint script automatically fixes log permissions on startup. If you see permission errors:
-
-```bash
-# Restart container (fixes permissions automatically)
-docker compose restart backend
-```
-
-### Ports Already in Use?
-
-```bash
-# Check what's using ports
-./scripts/preflight-check.sh --verbose
-
-# Stop conflicting containers
-docker compose down
-```
-
-### Need Clean Slate?
-
-```bash
-# Stop and remove containers (keeps data)
-./docker-dev.sh clean
-
-# Nuclear option: Remove EVERYTHING
-./docker-dev.sh clean-all
-```
+---
 
 ## Common Commands
 
-### Service Management
-
 ```bash
-./docker-dev.sh start          # Start all services
-./docker-dev.sh stop           # Stop all services
-./docker-dev.sh restart        # Restart all services
-./docker-dev.sh rebuild        # Rebuild and restart
-./docker-dev.sh status         # Show detailed status
+# Start services
+docker compose -f docker-compose.unified.yml up -d
+
+# Stop services
+docker compose -f docker-compose.unified.yml down
+
+# View logs
+docker compose -f docker-compose.unified.yml logs -f
+
+# Restart a service
+docker compose -f docker-compose.unified.yml restart backend
+
+# Rebuild and restart
+docker compose -f docker-compose.unified.yml up -d --build
+
+# Remove everything including volumes (CAUTION!)
+docker compose -f docker-compose.unified.yml down -v
 ```
 
-### Development Tools
+---
+
+## Switching Environments
 
 ```bash
-./docker-dev.sh backend-shell      # Django shell
-./docker-dev.sh backend-migrate    # Run migrations
-./docker-dev.sh db-shell           # PostgreSQL shell
-./docker-dev.sh redis-cli          # Redis CLI
-./docker-dev.sh frontend-shell     # Frontend shell
+# Edit .env
+nano .env
+
+# Change ENVIRONMENT variable
+ENVIRONMENT=staging  # was: local
+
+# Restart services
+docker compose -f docker-compose.unified.yml restart
 ```
 
-### Data Management
+---
 
+## Troubleshooting
+
+### Services won't start
 ```bash
-./docker-dev.sh volumes        # Show volume usage
-./docker-dev.sh backup         # Backup all data
-./docker-dev.sh backup-db      # Backup database only
-./docker-dev.sh clean-logs     # Remove log files
-./docker-dev.sh clean-cache    # Remove Redis cache
+# Check configuration
+docker compose -f docker-compose.unified.yml config
+
+# View service logs
+docker compose -f docker-compose.unified.yml logs [service-name]
 ```
 
-### Validation
-
+### Port already in use
 ```bash
-./docker-dev.sh preflight              # Validate setup
-./docker-dev.sh preflight --fix        # Validate and auto-fix
-./docker-dev.sh validate               # Validate running services
+# Check what's using the port
+sudo lsof -i :80
+
+# Or use different project name
+COMPOSE_PROJECT_NAME=app-test docker compose -f docker-compose.unified.yml up -d
 ```
 
-## Service URLs
+### Need help?
+See `DOCKER_COMPOSE_MIGRATION_GUIDE.md` for detailed troubleshooting.
 
-### Unified Entry Point (Reverse Proxy)
+---
 
-- **Frontend:** http://localhost/
-- **Backend API:** http://localhost/api/
-- **Admin Panel:** http://localhost/admin/
-- **Backend Health:** http://localhost/api/v1/health/
+## What Makes This Different?
 
-### Direct Service Access (for debugging)
+**Old Way (5 files):**
+```bash
+docker compose -f docker-compose.yml -f compose.override.yml up    # Local
+docker compose -f docker-compose.yml -f compose.staging.yml up     # Staging
+docker compose -f docker-compose.yml -f compose.production.yml up  # Production
+```
 
-- **Frontend Direct:** http://localhost:5173
-- **Backend Direct:** http://localhost:8000
-- **Database:** localhost:5432 (user: postgres, password: postgres, db: backend_db)
-- **Redis:** localhost:6379
+**New Way (1 file):**
+```bash
+docker compose -f docker-compose.unified.yml up -d   # All environments!
+```
 
-## Important Files
+Just change `ENVIRONMENT` in `.env` to switch. That's it!
 
-- **Main Compose File:** `docker-compose.yml`
-- **Backend Dockerfile:** `backend/Dockerfile`
-- **Frontend Dockerfile:** `frontend/Dockerfile`
-- **Helper Script:** `docker-dev.sh`
-- **Pre-Flight Check:** `scripts/preflight-check.sh`
-- **Troubleshooting Guide:** `docs/DOCKER_TROUBLESHOOTING.md`
+---
 
-## Need Help?
+## Key Features
 
-1. **Check the troubleshooting guide:**
-   ```bash
-   cat docs/DOCKER_TROUBLESHOOTING.md
-   ```
+✅ **One File:** Single docker-compose.unified.yml for everything
+✅ **Consistent Ports:** Same ports across all environments
+✅ **Simple Switching:** Change one variable to switch environments
+✅ **No Conflicts:** Run multiple environments simultaneously
+✅ **Fully Validated:** Automated testing ensures it works
 
-2. **Run validation:**
-   ```bash
-   ./scripts/preflight-check.sh --verbose
-   ```
+---
 
-3. **Check logs:**
-   ```bash
-   ./docker-dev.sh logs
-   ```
+## Need More Details?
 
-4. **View full help:**
-   ```bash
-   ./docker-dev.sh help
-   ```
+- **Full Guide:** `DOCKER_COMPOSE_MIGRATION_GUIDE.md`
+- **Complete Summary:** `DOCKER_COMPOSE_UNIFIED_SUMMARY.md`
+- **Environment Variables:** `.env.unified.example` (comprehensive docs)
+- **Validation:** `./validate-environments.sh [environment]`
 
-## Tips
+---
 
-- **Always run pre-flight check** before starting containers
-- **Check service status** regularly: `./docker-dev.sh status`
-- **Backup before destructive operations**: `./docker-dev.sh backup`
-- **Use the helper script** - it validates and handles common issues automatically
-- **View logs** when debugging: `./docker-dev.sh logs [service]`
-
-## What's Different Now?
-
-Recent fixes ensure:
-
-✅ **Entrypoint script** - Automatically managed, no missing script errors
-✅ **Log permissions** - Automatically fixed on startup, no permission errors
-✅ **Healthchecks** - Use IPv4 explicitly, no IPv6 connection failures
-✅ **Pre-flight validation** - Catches issues before containers start
-✅ **Auto-fix** - Common issues fixed automatically
-
-Just run `./docker-dev.sh start` and everything works!
+**Ready to go!** 🚀

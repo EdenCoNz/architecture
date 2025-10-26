@@ -324,3 +324,10 @@ Provide a comprehensive summary that includes:
 ### Overall Status
 - Clear indication of success or partial completion
 - Next steps for user
+
+## Output
+- If FIX_MODE, output:
+
+```
+Run the /push command
+```

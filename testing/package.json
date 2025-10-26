@@ -1,0 +1,41 @@
+{
+  "name": "test-runner",
+  "version": "1.0.0",
+  "description": "Test runner for E2E, visual regression, and performance testing (Feature #13 - Story 13.1)",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "test:e2e:headed": "playwright test --config=e2e/playwright.config.ts --headed",
+    "test:e2e:debug": "playwright test --config=e2e/playwright.config.ts --debug",
+    "test:e2e:login": "playwright test --config=e2e/playwright.config.ts e2e/specs/auth/login.spec.ts",
+    "test:e2e:logout": "playwright test --config=e2e/playwright.config.ts e2e/specs/auth/logout.spec.ts",
+    "test:e2e:session": "playwright test --config=e2e/playwright.config.ts e2e/specs/auth/session-persistence.spec.ts",
+    "test:e2e:onboarding": "playwright test --config=e2e/playwright.config.ts e2e/specs/onboarding/onboarding-form.spec.ts",
+    "test:visual": "playwright test --config=visual/playwright.config.ts",
+    "test:visual:update": "playwright test --config=visual/playwright.config.ts --update-snapshots",
+    "test:integration": "pytest integration/",
+    "test:performance": "locust -f performance/locustfile.py",
+    "test:all": "npm run test:e2e && npm run test:integration",
+    "report": "playwright show-report reports/html/e2e-report",
+    "report:json": "cat reports/json/e2e-report.json",
+    "ui": "playwright test --config=e2e/playwright.config.ts --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.41.0",
+    "@axe-core/playwright": "^4.8.4",
+    "@types/node": "^20.11.0",
+    "playwright": "^1.41.0",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "eslint-plugin-playwright": "^1.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "pixelmatch": "^5.3.0",
+    "pngjs": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

@@ -1,0 +1,274 @@
+# =============================================================================
+# Test Environment Docker Compose Configuration (Feature #13 - Story 13.1)
+# =============================================================================
+# This file extends the base docker-compose.yml to create an isolated test
+# environment with test-specific configuration. Tests run against dedicated
+# test instances without affecting production or development environments.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f compose.test.yml up -d
+#   docker compose -f docker-compose.yml -f compose.test.yml down
+#
+# Or use the test runner script (recommended):
+#   ./testing/run-tests.sh
+#   ./testing/run-tests.sh --suite e2e
+#   ./testing/run-tests.sh --clean
+#
+# Test Isolation (Story 13.1 Requirements):
+#   - Separate database instance with test data
+#   - Test-specific Redis instance for cache isolation
+#   - Frontend and backend with test configuration
+#   - All services isolated from dev/prod environments
+#   - Test artifacts stored in testing/ folder structure
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Test Database
+  # ---------------------------------------------------------------------------
+  # Isolated test database that can be reset between test runs
+  # Uses separate volume to prevent contamination of dev/prod data
+  # ---------------------------------------------------------------------------
+  db:
+    container_name: app-db-test
+    environment:
+      POSTGRES_DB: ${TEST_DB_NAME:-backend_test_db}
+      POSTGRES_USER: ${TEST_DB_USER:-postgres_test}
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-postgres_test}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
+
+    volumes:
+      # Use separate test database volume
+      - postgres_test_data:/var/lib/postgresql/data
+
+    # Expose on different port to avoid conflicts with dev database
+    ports:
+      - "5433:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USER:-postgres_test} -d ${TEST_DB_NAME:-backend_test_db} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Redis Test Cache
+  # ---------------------------------------------------------------------------
+  # Isolated Redis instance for test environment
+  # Prevents test data from polluting dev/prod cache
+  # ---------------------------------------------------------------------------
+  redis:
+    container_name: app-redis-test
+
+    volumes:
+      # Use separate test Redis data volume
+      - redis_test_data:/data
+
+    # Expose on different port to avoid conflicts
+    ports:
+      - "6380:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # Backend Test Service
+  # ---------------------------------------------------------------------------
+  # Django backend configured for test environment
+  # Uses test database and enables debug logging for test troubleshooting
+  # ---------------------------------------------------------------------------
+  backend:
+    container_name: app-backend-test
+    environment:
+      # Test environment configuration
+      DJANGO_SETTINGS_MODULE: backend.settings.test
+      ENVIRONMENT: test
+
+      # Test database connection
+      DB_NAME: ${TEST_DB_NAME:-backend_test_db}
+      DB_USER: ${TEST_DB_USER:-postgres_test}
+      DB_PASSWORD: ${TEST_DB_PASSWORD:-postgres_test}
+      DB_HOST: db
+      DB_PORT: 5432
+
+      # Test Redis connection
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # Test-specific settings
+      DEBUG: "True"
+      SECRET_KEY: "test-secret-key-not-for-production"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,backend,app-backend-test"
+      CORS_ALLOWED_ORIGINS: "http://localhost,http://localhost:5174"
+
+      # Logging configuration for tests
+      LOG_LEVEL: DEBUG
+      DJANGO_LOG_LEVEL: DEBUG
+
+      # Frontend configuration (for runtime config endpoint)
+      FRONTEND_API_URL: "http://localhost/api"
+      FRONTEND_APP_NAME: "Test Application"
+      FRONTEND_APP_TITLE: "Test Application"
+      FRONTEND_APP_VERSION: "test"
+      FRONTEND_ENVIRONMENT: "test"
+
+    # Expose on different port to avoid conflicts
+    ports:
+      - "8001:8000"
+
+    volumes:
+      # Mount backend code for test changes
+      - ./backend:/app
+      # Mount test artifacts directory
+      - ./testing/reports:/app/test-reports
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Frontend Test Service
+  # ---------------------------------------------------------------------------
+  # React frontend configured for test environment
+  # Fetches runtime configuration from test backend instance
+  # ---------------------------------------------------------------------------
+  frontend:
+    container_name: app-frontend-test
+    environment:
+      # Test environment indicator
+      NODE_ENV: test
+      VITE_ENVIRONMENT: test
+
+      # API endpoint for runtime config
+      VITE_API_URL: "http://localhost/api"
+
+      # Enable verbose logging for tests
+      VITE_LOG_LEVEL: debug
+
+    # Expose on different port to avoid conflicts
+    ports:
+      - "5174:5173"
+
+    volumes:
+      # Mount frontend code for test changes
+      - ./frontend:/app
+      - /app/node_modules
+      # Mount test artifacts directory
+      - ./testing/reports:/app/test-reports
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy (Test)
+  # ---------------------------------------------------------------------------
+  # Test instance of reverse proxy with test-specific configuration
+  # Routes requests to test frontend and backend instances
+  # ---------------------------------------------------------------------------
+  proxy:
+    container_name: app-proxy-test
+
+    # Expose on default port (test environment typically runs in isolation)
+    ports:
+      - "80:80"
+
+    volumes:
+      # Use test-specific nginx configuration if needed
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Test Runner Service
+  # ---------------------------------------------------------------------------
+  # Dedicated service for executing test suites
+  # Has access to all test types and can run them in isolation
+  # ---------------------------------------------------------------------------
+  test-runner:
+    build:
+      context: ./testing
+      dockerfile: Dockerfile.test-runner
+    container_name: app-test-runner
+
+    environment:
+      # Test configuration
+      TEST_ENV: isolated
+
+      # Service endpoints
+      FRONTEND_URL: http://frontend:5173
+      BACKEND_URL: http://backend:8000
+      PROXY_URL: http://proxy:80
+
+      # Database connection for test data setup/teardown
+      TEST_DB_NAME: ${TEST_DB_NAME:-backend_test_db}
+      TEST_DB_USER: ${TEST_DB_USER:-postgres_test}
+      TEST_DB_PASSWORD: ${TEST_DB_PASSWORD:-postgres_test}
+      TEST_DB_HOST: db
+      TEST_DB_PORT: 5432
+
+    volumes:
+      # Mount entire testing directory
+      - ./testing:/testing
+
+      # Mount application code for access to models/fixtures
+      - ./backend:/backend:ro
+      - ./frontend:/frontend:ro
+
+      # Output directories for test artifacts
+      - ./testing/reports:/testing/reports
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      proxy:
+        condition: service_healthy
+
+    # Don't start automatically - run tests on demand
+    profiles:
+      - test
+
+# =============================================================================
+# Test Volumes
+# =============================================================================
+# Isolated volumes for test environment data
+# Can be removed/recreated between test runs for clean state
+# =============================================================================
+volumes:
+  postgres_test_data:
+    name: app-postgres-test-data
+    driver: local
+
+  redis_test_data:
+    name: app-redis-test-data
+    driver: local
+
+# =============================================================================
+# Test Network
+# =============================================================================
+# Uses the same default network as base compose for service communication
+# All test services are isolated by container names and ports
+# =============================================================================

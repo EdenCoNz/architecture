@@ -18,13 +18,37 @@ Automatically resolve GitHub issues by analyzing CI/CD failure logs, creating ta
 
 ## Instructions
 
+- FIRST: Clear the conversation context using /clear to ensure optimal token efficiency and clean starting state
 - Follow the workflow steps in sequential order
 - Do NOT stop after creating user stories - automatically proceed to implementation
 - Do NOT ask the user for confirmation between steps
 - Check available agents in .claude/agents/ to understand implementation capabilities
 - Plan user stories based on available agents and issue requirements
 
+## Context Management
+
+This command automatically clears conversation context at the start because:
+- The /fix workflow is fully autonomous and doesn't require prior conversation context
+- Token efficiency is critical for this long-running workflow (fetches logs, creates stories, implements fixes, commits)
+- Clean context ensures predictable, consistent behavior across all fix executions
+- Users who need to preserve context can manually run workflow steps instead of using /fix
+
 ## Workflow
+
+### Step 0: Clear Conversation Context
+
+**CRITICAL FIRST STEP**: Before any other operations, clear the conversation context to ensure optimal token efficiency.
+
+1. **Execute /clear command**:
+   - Run the /clear command to clear all previous conversation context
+   - This ensures the fix workflow starts with minimal token usage
+   - The /clear command is a built-in Claude Code command that resets conversation history
+
+2. **Verify context cleared**:
+   - After /clear executes, the conversation should have minimal context
+   - Proceed immediately to Step 1
+
+**Note**: If /clear is not available or fails, continue with the workflow but note increased token usage.
 
 ### Step 1: Determine Issue to Fix
 
@@ -505,6 +529,7 @@ Provide a comprehensive summary with the following sections:
 
 Before finalizing, verify:
 
+- [ ] Conversation context cleared using /clear command (Step 0)
 - [ ] Issue number determined (from input or oldest issue)
 - [ ] Issue metadata successfully extracted (branch, featureID)
 - [ ] Job URLs extracted from issue (or fallback to inline logs with warning)

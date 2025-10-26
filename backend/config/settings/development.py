@@ -9,7 +9,13 @@ from .base import *
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+# Read ALLOWED_HOSTS from environment variable (for Docker and network access)
+# Defaults to localhost addresses if not set
+ALLOWED_HOSTS = get_config(
+    "ALLOWED_HOSTS",
+    default="localhost,127.0.0.1,0.0.0.0",
+    cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
+)
 
 # Development-specific apps
 # Use conditional imports to handle cases where dev packages aren't installed

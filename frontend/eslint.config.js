@@ -7,9 +7,9 @@ import prettier from 'eslint-plugin-prettier'
 import prettierConfig from 'eslint-config-prettier'
 
 export default [
-  // Ignore patterns
+  // Ignore patterns - use directory-based patterns to avoid blocking config discovery
   {
-    ignores: ['dist', 'build', 'coverage', 'node_modules', '*.config.js'],
+    ignores: ['dist/', 'build/', 'coverage/', 'node_modules/'],
   },
   // Base JavaScript config
   js.configs.recommended,

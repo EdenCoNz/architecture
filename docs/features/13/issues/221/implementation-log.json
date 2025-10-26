@@ -1,0 +1,107 @@
+[
+  {
+    "story": "Story 13-FIX-221.1: Fix ESLint Configuration File Discovery",
+    "timestamp": "2025-10-26T05:58:00Z",
+    "status": "completed",
+    "summary": "Fixed ESLint configuration file discovery in Docker container by adding missing volume mounts",
+    "rootCause": "The eslint.config.js file was not being mounted into the Docker container, causing ESLint to be unable to locate its configuration file when running in the CI/CD pipeline",
+    "solution": "Added eslint.config.js and .prettierrc to the frontend service volume mounts in docker-compose.yml",
+    "filesModified": [
+      {
+        "path": "/home/ed/Dev/architecture/docker-compose.yml",
+        "changes": "Added volume mounts for ./frontend/eslint.config.js:/app/eslint.config.js and ./frontend/.prettierrc:/app/.prettierrc in the frontend service configuration (lines 330-332)",
+        "reason": "ESLint and Prettier configuration files need to be accessible inside the Docker container for linting and formatting commands to work properly"
+      }
+    ],
+    "filesCreated": [
+      {
+        "path": "/home/ed/Dev/architecture/docs/features/13/issues/221/implementation-log.json",
+        "purpose": "Implementation log for tracking the fix"
+      }
+    ],
+    "actions": [
+      {
+        "action": "Analyzed the problem",
+        "details": "Reproduced the error by running 'docker compose run --rm frontend npm run lint' which showed 'ESLint couldn't find an eslint.config.(js|mjs|cjs) file' error",
+        "outcome": "Confirmed the issue occurs in Docker but not locally"
+      },
+      {
+        "action": "Investigated Docker configuration",
+        "details": "Examined docker-compose.yml frontend service volume mounts and found that eslint.config.js was not being mounted, while other config files (tsconfig.json, vite.config.ts, package.json) were",
+        "outcome": "Identified root cause: missing volume mount for eslint.config.js"
+      },
+      {
+        "action": "Applied fix",
+        "details": "Added two new volume mounts to frontend service: ./frontend/eslint.config.js:/app/eslint.config.js and ./frontend/.prettierrc:/app/.prettierrc",
+        "outcome": "Configuration files now accessible in Docker container"
+      },
+      {
+        "action": "Verified the fix",
+        "details": "Ran 'docker compose run --rm frontend npm run lint' successfully without configuration discovery errors",
+        "outcome": "ESLint now successfully locates and uses eslint.config.js in Docker"
+      },
+      {
+        "action": "Verified ignore patterns",
+        "details": "Tested that node_modules and other ignored directories are still properly excluded from linting using 'npx eslint --debug /app/node_modules'",
+        "outcome": "Confirmed ignore patterns in eslint.config.js are working correctly - node_modules is being ignored as expected"
+      },
+      {
+        "action": "Verified source file linting",
+        "details": "Ran 'docker compose run --rm frontend npx eslint src/main.tsx' to ensure linting works on actual source files",
+        "outcome": "Source file linting works correctly"
+      }
+    ],
+    "acceptanceCriteria": {
+      "criterion1": {
+        "description": "When I run 'npm run lint' in the frontend directory, ESLint should successfully locate the eslint.config.js file",
+        "status": "PASSED",
+        "evidence": "Command 'docker compose run --rm frontend npm run lint' completes successfully without configuration discovery errors"
+      },
+      "criterion2": {
+        "description": "When the CI/CD pipeline executes 'docker compose run --rm frontend npm run lint', the linting process should complete without errors",
+        "status": "PASSED",
+        "evidence": "Linting command runs successfully in Docker container, which is the same environment used by CI/CD"
+      },
+      "criterion3": {
+        "description": "Files in ignored directories (dist/, node_modules/, etc.) should still be properly excluded from linting checks",
+        "status": "PASSED",
+        "evidence": "ESLint debug output confirms 'all of the files matching the glob pattern /app/node_modules are ignored' - ignore patterns working correctly"
+      }
+    },
+    "issuesEncountered": [
+      {
+        "issue": "Initial confusion about root cause",
+        "description": "Linting worked locally but failed in Docker, suggesting an environment-specific issue",
+        "resolution": "Compared local environment with Docker container file structure using 'docker compose run --rm frontend ls -la /app' to identify missing configuration file"
+      }
+    ],
+    "technicalNotes": [
+      "The eslint.config.js file uses ESLint v9 flat config format with proper ignore patterns",
+      "The issue was NOT with the ignore patterns themselves, but with the file not being accessible in the Docker container at all",
+      "Also added .prettierrc mount for consistency, ensuring all code quality tools have their configuration files available in Docker",
+      "This fix ensures parity between local development and CI/CD environments"
+    ],
+    "testingPerformed": [
+      {
+        "test": "Docker linting execution",
+        "command": "docker compose run --rm frontend npm run lint",
+        "result": "PASS - No configuration discovery errors"
+      },
+      {
+        "test": "Ignore patterns validation",
+        "command": "docker compose run --rm frontend npx eslint --debug /app/node_modules",
+        "result": "PASS - node_modules correctly ignored"
+      },
+      {
+        "test": "Source file linting",
+        "command": "docker compose run --rm frontend npx eslint src/main.tsx",
+        "result": "PASS - Successfully lints source files"
+      },
+      {
+        "test": "Local linting (baseline)",
+        "command": "cd frontend && npm run lint",
+        "result": "PASS - Works as expected locally"
+      }
+    ]
+  }
+]
