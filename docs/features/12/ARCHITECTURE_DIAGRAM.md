@@ -225,6 +225,8 @@ T+90s   proxy            healthy             All services ready!
 ┌────────────────────────────────────────────────────────────────┐
 │  User Browser                                                  │
 │  - Renders React application                                   │
+│  - React Router displays onboarding page at root URL (/)       │
+│    (Feature #14: Onboarding is the main page)                  │
 │  - Connects WebSocket for HMR                                  │
 │  - Fetches runtime config from /api/v1/config/frontend/       │
 └────────────────────┬───────────────────────────────────────────┘

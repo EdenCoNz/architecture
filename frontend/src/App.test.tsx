@@ -53,26 +53,27 @@ describe('App Component - Light Theme Default', () => {
     });
   });
 
-  describe('Home Page Light Theme', () => {
-    it('should render home page content with light theme typography', () => {
+  describe('Onboarding Page Light Theme (Story 14.1)', () => {
+    it('should render onboarding page content with light theme typography', () => {
       render(<App />);
-      // Check if home page content is rendered - use heading role for more specific match
-      const welcomeText = screen.getByRole('heading', { name: /welcome to the application/i });
-      expect(welcomeText).toBeInTheDocument();
+      // Check if onboarding page content is rendered at root URL
+      const welcomeHeading = screen.getByRole('heading', {
+        name: /welcome to your training journey/i,
+      });
+      expect(welcomeHeading).toBeInTheDocument();
     });
 
-    it('should render Material UI components with light theme', () => {
+    it('should render Material UI form components with light theme', () => {
       render(<App />);
-      // Check for MUI components (Paper cards) - use getAllByText since there are multiple matches
-      const reactCards = screen.getAllByText(/React 19/i);
-      expect(reactCards.length).toBeGreaterThan(0);
-      expect(reactCards[0]).toBeInTheDocument();
+      // Check for MUI form components - the stepper starts with sport selection
+      const assessmentForm = screen.getByRole('form', { name: /assessment form/i });
+      expect(assessmentForm).toBeInTheDocument();
     });
 
-    it('should render primary button with light theme colors', () => {
+    it('should render navigation buttons with light theme colors', () => {
       render(<App />);
-      const sayHelloButton = screen.getByRole('button', { name: /say hello/i });
-      expect(sayHelloButton).toBeInTheDocument();
+      const nextButton = screen.getByRole('button', { name: /next/i });
+      expect(nextButton).toBeInTheDocument();
     });
   });
 
@@ -103,17 +104,124 @@ describe('App Component - Light Theme Default', () => {
   });
 
   describe('Routing with Light Theme', () => {
-    it('should render home route by default', () => {
+    it('should render onboarding at root route by default (Story 14.1)', () => {
       render(<App />);
-      // Home page should be rendered at root route
-      expect(screen.getByText(/welcome to the application/i)).toBeInTheDocument();
+      // Onboarding page should be rendered at root route
+      expect(screen.getByText(/welcome to your training journey/i)).toBeInTheDocument();
     });
 
     it('should include navigation elements styled with light theme', () => {
       render(<App />);
-      // Navigation should be present (link to 404 test)
-      const testLink = screen.getByRole('link', { name: /test 404 page/i });
-      expect(testLink).toBeInTheDocument();
+      // Navigation should be present
+      const banner = screen.getByRole('banner');
+      expect(banner).toBeInTheDocument();
+    });
+  });
+
+  describe('Story 14.1: Display Onboarding as Default Page', () => {
+    it('should render Onboarding component when navigating to root URL', () => {
+      render(<App />);
+      // Verify Onboarding component is rendered at root URL
+      // Look for characteristic onboarding elements
+      const onboardingHeading = screen.getByRole('heading', {
+        name: /welcome to your training journey/i,
+      });
+      expect(onboardingHeading).toBeInTheDocument();
+    });
+
+    it('should display the same interface elements that were on /onboarding route', () => {
+      render(<App />);
+      // Verify key onboarding form elements are present
+      const descriptionText = screen.getByText(/let's get to know you better/i);
+      expect(descriptionText).toBeInTheDocument();
+    });
+
+    it('should render Onboarding form at root URL', () => {
+      render(<App />);
+      // Verify assessment form is present
+      const assessmentForm = screen.getByRole('form', { name: /assessment form/i });
+      expect(assessmentForm).toBeInTheDocument();
+    });
+
+    it('should not need to navigate to a different route to access onboarding', () => {
+      render(<App />);
+      // At root URL, onboarding should be immediately visible without navigation
+      // Verify by checking that onboarding content is present without any routing
+      const welcomeMessage = screen.getByText(/welcome to your training journey/i);
+      expect(welcomeMessage).toBeInTheDocument();
+    });
+  });
+
+  describe('Story 14.2: Redirect Legacy Onboarding Route', () => {
+    it('should redirect from /onboarding to root URL /', () => {
+      // Set initial route to /onboarding
+      window.history.pushState({}, 'Test page', '/onboarding');
+      render(<App />);
+
+      // Verify we're redirected to root URL
+      expect(window.location.pathname).toBe('/');
+    });
+
+    it('should display onboarding content after redirect from /onboarding', () => {
+      // Set initial route to /onboarding
+      window.history.pushState({}, 'Test page', '/onboarding');
+      render(<App />);
+
+      // Verify onboarding content is displayed
+      const onboardingHeading = screen.getByRole('heading', {
+        name: /welcome to your training journey/i,
+      });
+      expect(onboardingHeading).toBeInTheDocument();
+    });
+
+    it('should redirect immediately without showing intermediate content', () => {
+      // Set initial route to /onboarding
+      window.history.pushState({}, 'Test page', '/onboarding');
+      const { container } = render(<App />);
+
+      // Verify onboarding content is present (redirect happened immediately)
+      // No intermediate content or error pages should be shown
+      expect(container).toBeTruthy();
+      const onboardingContent = screen.getByText(/welcome to your training journey/i);
+      expect(onboardingContent).toBeInTheDocument();
+    });
+  });
+
+  describe('Story 14.4: Relocate Previous Home Page Content', () => {
+    it('should make previous home page content accessible from a clearly labeled route', () => {
+      // Set route to /about
+      window.history.pushState({}, 'About page', '/about');
+      render(<App />);
+
+      // Verify about page content is displayed
+      const aboutHeading = screen.getByRole('heading', { name: /about this application/i });
+      expect(aboutHeading).toBeInTheDocument();
+    });
+
+    it('should display tech stack information on the about page', () => {
+      // Set route to /about
+      window.history.pushState({}, 'About page', '/about');
+      render(<App />);
+
+      // Verify tech stack cards are present
+      expect(screen.getByRole('heading', { name: /react 19/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /material ui v7/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /react router v7/i })).toBeInTheDocument();
+    });
+
+    it('should display all content correctly without layout issues on about page', () => {
+      // Set route to /about
+      window.history.pushState({}, 'About page', '/about');
+      const { container } = render(<App />);
+
+      // Verify layout is rendered correctly
+      expect(container).toBeTruthy();
+      // Verify feature card descriptions are present
+      expect(screen.getByText(/built with the latest react 19/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/comprehensive material design 3 component library/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/client-side routing with seamless navigation/i)).toBeInTheDocument();
     });
   });
 });

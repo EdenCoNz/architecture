@@ -6,10 +6,10 @@
  */
 
 import { Box } from '@mui/material';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts';
 import { Header } from './components/layout';
-import { Home, NotFound, ApiTest, Onboarding } from './pages';
+import { NotFound, ApiTest, Onboarding, About } from './pages';
 import './styles/global.css';
 
 function App() {
@@ -43,14 +43,17 @@ function App() {
             }}
           >
             <Routes>
-              {/* Home route */}
-              <Route path="/" element={<Home />} />
+              {/* Onboarding route as default - Feature #14 Story 14.1 */}
+              <Route path="/" element={<Onboarding />} />
+
+              {/* About route - Feature #14 Story 14.4 */}
+              <Route path="/about" element={<About />} />
 
               {/* API Test route - Feature #10 */}
               <Route path="/api-test" element={<ApiTest />} />
 
-              {/* Onboarding route - Feature #11 */}
-              <Route path="/onboarding" element={<Onboarding />} />
+              {/* Legacy onboarding route redirect - Feature #14 Story 14.2 */}
+              <Route path="/onboarding" element={<Navigate to="/" replace />} />
 
               {/* 404 Not Found route - catches all unmatched routes */}
               <Route path="*" element={<NotFound />} />

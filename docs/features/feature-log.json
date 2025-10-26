@@ -456,7 +456,17 @@
       "userStoriesImplemented": "2025-10-24T05:00:00Z",
       "isSummarised": false,
       "totalStories": 9,
-      "completedStories": ["Story-8.1", "Story-8.2", "Story-8.3", "Story-8.4", "Story-8.5", "Story-8.6", "Story-8.7", "Story-8.8", "Story-8.9"],
+      "completedStories": [
+        "Story-8.1",
+        "Story-8.2",
+        "Story-8.3",
+        "Story-8.4",
+        "Story-8.5",
+        "Story-8.6",
+        "Story-8.7",
+        "Story-8.8",
+        "Story-8.9"
+      ],
       "assignedAgents": [
         "devops-engineer"
       ],
@@ -483,7 +493,19 @@
       "userStoriesImplemented": "2025-10-24T20:00:00Z",
       "isSummarised": false,
       "totalStories": 11,
-      "completedStories": ["Story-9.1", "Story-9.2", "Story-9.3", "Story-9.4", "Story-9.5", "Story-9.6", "Story-9.7", "Story-9.8", "Story-9.9", "Story-9.10", "Story-9.11"],
+      "completedStories": [
+        "Story-9.1",
+        "Story-9.2",
+        "Story-9.3",
+        "Story-9.4",
+        "Story-9.5",
+        "Story-9.6",
+        "Story-9.7",
+        "Story-9.8",
+        "Story-9.9",
+        "Story-9.10",
+        "Story-9.11"
+      ],
       "assignedAgents": [
         "devops-engineer"
       ],
@@ -667,7 +689,12 @@
       "userStoriesImplemented": "2025-10-25T10:45:00Z",
       "isSummarised": false,
       "totalStories": 4,
-      "completedStories": ["Story-10.1", "Story-10.2", "Story-10.3", "Story-10.4"],
+      "completedStories": [
+        "Story-10.1",
+        "Story-10.2",
+        "Story-10.3",
+        "Story-10.4"
+      ],
       "assignedAgents": [
         "backend-developer",
         "frontend-developer"
@@ -721,7 +748,20 @@
       "userStoriesImplemented": "2025-10-25T16:30:00Z",
       "isSummarised": false,
       "totalStories": 12,
-      "completedStories": ["Story-11.1", "Story-11.2", "Story-11.3", "Story-11.4", "Story-11.5", "Story-11.6", "Story-11.7", "Story-11.8", "Story-11.9", "Story-11.10", "Story-11.11", "Story-11.12"],
+      "completedStories": [
+        "Story-11.1",
+        "Story-11.2",
+        "Story-11.3",
+        "Story-11.4",
+        "Story-11.5",
+        "Story-11.6",
+        "Story-11.7",
+        "Story-11.8",
+        "Story-11.9",
+        "Story-11.10",
+        "Story-11.11",
+        "Story-11.12"
+      ],
       "assignedAgents": [
         "ui-ux-designer",
         "frontend-developer",
@@ -801,7 +841,19 @@
       "userStoriesImplemented": "2025-10-25T23:00:00Z",
       "isSummarised": false,
       "totalStories": 11,
-      "completedStories": ["Story-12.1", "Story-12.2", "Story-12.3", "Story-12.4", "Story-12.5", "Story-12.6", "Story-12.7", "Story-12.8", "Story-12.9", "Story-12.10", "Story-12.11"],
+      "completedStories": [
+        "Story-12.1",
+        "Story-12.2",
+        "Story-12.3",
+        "Story-12.4",
+        "Story-12.5",
+        "Story-12.6",
+        "Story-12.7",
+        "Story-12.8",
+        "Story-12.9",
+        "Story-12.10",
+        "Story-12.11"
+      ],
       "assignedAgents": [
         "devops-engineer"
       ],
@@ -828,7 +880,23 @@
       "userStoriesImplemented": "2025-10-26T12:00:00Z",
       "isSummarised": false,
       "totalStories": 15,
-      "completedStories": ["Story-13.1", "Story-13.2", "Story-13.3", "Story-13.4", "Story-13.5", "Story-13.6", "Story-13.7", "Story-13.8", "Story-13.9", "Story-13.10", "Story-13.11", "Story-13.12", "Story-13.13", "Story-13.14", "Story-13.15"],
+      "completedStories": [
+        "Story-13.1",
+        "Story-13.2",
+        "Story-13.3",
+        "Story-13.4",
+        "Story-13.5",
+        "Story-13.6",
+        "Story-13.7",
+        "Story-13.8",
+        "Story-13.9",
+        "Story-13.10",
+        "Story-13.11",
+        "Story-13.12",
+        "Story-13.13",
+        "Story-13.14",
+        "Story-13.15"
+      ],
       "assignedAgents": [
         "frontend-developer",
         "backend-developer",
@@ -988,6 +1056,51 @@
             "frontend-developer"
           ],
           "description": "Fix Frontend CI/CD linting failure - ESLint v9 configuration file discovery issue preventing linting execution"
+        }
+      ]
+    },
+    {
+      "featureID": "14",
+      "title": "Make Onboarding Page the Main Page",
+      "description": "Enable new and returning users to immediately access the onboarding and assessment experience when they visit the application's root URL, making profile setup and training program configuration the primary entry point for the application",
+      "createdAt": "2025-10-26T00:00:00Z",
+      "userStoriesCreated": "2025-10-26T19:10:00Z",
+      "isSummarised": false,
+      "totalStories": 5,
+      "completedStories": [
+        "Story-14.1",
+        "Story-14.2",
+        "Story-14.3",
+        "Story-14.4",
+        "Story-14.5"
+      ],
+      "assignedAgents": [
+        "frontend-developer"
+      ],
+      "executionPhases": 4,
+      "parallelPhases": 1,
+      "sequentialPhases": 3,
+      "filesPath": "docs/features/14/user-stories.md",
+      "actions": [],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-26T19:52:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/14/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 224,
+          "timestamp": "2025-10-26T21:15:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/14/issues/224/implementation-log.json",
+          "userStoriesPath": "docs/features/14/issues/224/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix Frontend CI/CD linting failures - Prettier formatting errors and unused variable violations in test files"
         }
       ]
     }
