@@ -1,4 +1,4 @@
-# Docker Compose Unified - Quick Start Guide
+# Docker Compose - Quick Start Guide
 
 **5-Minute Setup for Any Environment**
 
@@ -23,7 +23,7 @@ ENVIRONMENT=production
 
 ```bash
 # Copy template
-cp .env.unified.example .env
+cp .env.example .env
 
 # Edit and set ENVIRONMENT variable
 nano .env
@@ -50,13 +50,13 @@ ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
 
 ```bash
 # Start all services
-docker compose -f docker-compose.unified.yml up -d
+docker compose up -d
 
 # View logs
-docker compose -f docker-compose.unified.yml logs -f
+docker compose logs -f
 
 # Check status
-docker compose -f docker-compose.unified.yml ps
+docker compose ps
 ```
 
 ---
@@ -109,22 +109,22 @@ curl http://localhost/                       # Frontend loads
 
 ```bash
 # Start services
-docker compose -f docker-compose.unified.yml up -d
+docker compose up -d
 
 # Stop services
-docker compose -f docker-compose.unified.yml down
+docker compose down
 
 # View logs
-docker compose -f docker-compose.unified.yml logs -f
+docker compose logs -f
 
 # Restart a service
-docker compose -f docker-compose.unified.yml restart backend
+docker compose restart backend
 
 # Rebuild and restart
-docker compose -f docker-compose.unified.yml up -d --build
+docker compose up -d --build
 
 # Remove everything including volumes (CAUTION!)
-docker compose -f docker-compose.unified.yml down -v
+docker compose down -v
 ```
 
 ---
@@ -139,7 +139,7 @@ nano .env
 ENVIRONMENT=staging  # was: local
 
 # Restart services
-docker compose -f docker-compose.unified.yml restart
+docker compose restart
 ```
 
 ---
@@ -149,10 +149,10 @@ docker compose -f docker-compose.unified.yml restart
 ### Services won't start
 ```bash
 # Check configuration
-docker compose -f docker-compose.unified.yml config
+docker compose config
 
 # View service logs
-docker compose -f docker-compose.unified.yml logs [service-name]
+docker compose logs [service-name]
 ```
 
 ### Port already in use
@@ -161,37 +161,84 @@ docker compose -f docker-compose.unified.yml logs [service-name]
 sudo lsof -i :80
 
 # Or use different project name
-COMPOSE_PROJECT_NAME=app-test docker compose -f docker-compose.unified.yml up -d
+COMPOSE_PROJECT_NAME=app-test docker compose up -d
 ```
 
 ### Need help?
-See `DOCKER_COMPOSE_MIGRATION_GUIDE.md` for detailed troubleshooting.
+See `TROUBLESHOOTING.md` for detailed troubleshooting.
+
+---
+
+## Rollback Procedures
+
+If you encounter issues with the consolidated compose file structure:
+
+### Quick Rollback
+
+The previous configuration has been preserved in a backup branch:
+
+```bash
+# Switch to backup branch
+git checkout backup/pre-docker-simplification-phase1
+
+# Start services using old configuration
+docker compose up -d
+```
+
+### File-Level Restore
+
+Individual files are available in timestamped backup:
+
+```bash
+# List available backups
+ls -la backups/
+
+# Restore from specific backup
+cp backups/docker-config-20251027_071855/<filename> .
+```
+
+### Return to Current Version
+
+```bash
+# Return to main branch
+git checkout main
+
+# Restart services with consolidated configuration
+docker compose up -d
+```
+
+**Note**: The consolidation (Feature #15) removed redundant compose files while maintaining full functionality. The current setup uses:
+- `docker-compose.yml` - Base configuration
+- `compose.override.yml` - Local dev overrides (auto-loaded)
+- `compose.staging.yml` - Staging environment
+- `compose.production.yml` - Production environment
+- `compose.test.yml` - Testing environment
 
 ---
 
 ## What Makes This Different?
 
-**Old Way (5 files):**
+**Simplified Approach:**
 ```bash
-docker compose -f docker-compose.yml -f compose.override.yml up    # Local
-docker compose -f docker-compose.yml -f compose.staging.yml up     # Staging
-docker compose -f docker-compose.yml -f compose.production.yml up  # Production
+# Local development (uses compose.override.yml automatically)
+docker compose up -d
+
+# Staging
+docker compose -f docker-compose.yml -f compose.staging.yml up -d
+
+# Production
+docker compose -f docker-compose.yml -f compose.production.yml up -d
 ```
 
-**New Way (1 file):**
-```bash
-docker compose -f docker-compose.unified.yml up -d   # All environments!
-```
-
-Just change `ENVIRONMENT` in `.env` to switch. That's it!
+The base `docker-compose.yml` works for all environments!
 
 ---
 
 ## Key Features
 
-✅ **One File:** Single docker-compose.unified.yml for everything
+✅ **Simplified:** Base compose file with environment-specific overlays
 ✅ **Consistent Ports:** Same ports across all environments
-✅ **Simple Switching:** Change one variable to switch environments
+✅ **Standard Pattern:** Uses Docker Compose overlay pattern
 ✅ **No Conflicts:** Run multiple environments simultaneously
 ✅ **Fully Validated:** Automated testing ensures it works
 
@@ -199,10 +246,10 @@ Just change `ENVIRONMENT` in `.env` to switch. That's it!
 
 ## Need More Details?
 
-- **Full Guide:** `DOCKER_COMPOSE_MIGRATION_GUIDE.md`
-- **Complete Summary:** `DOCKER_COMPOSE_UNIFIED_SUMMARY.md`
-- **Environment Variables:** `.env.unified.example` (comprehensive docs)
+- **Configuration Reference:** `docs/configuration.md`
+- **Environment Variables:** `.env.example` (comprehensive docs)
 - **Validation:** `./validate-environments.sh [environment]`
+- **README:** Project root README for detailed instructions
 
 ---
 

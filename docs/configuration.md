@@ -253,11 +253,23 @@ REDIS_MAXMEMORY=256mb               # 512mb staging, 1gb prod
 ## Root Orchestration
 
 ### Docker Compose Files
-- `docker-compose.yml` - Base orchestration
-- `compose.override.yml` - Local dev overrides
-- `compose.production.yml` - Production
-- `compose.staging.yml` - Staging
+
+**Consolidated Structure (Feature #15)** - All compose files are located at the project root:
+
+- `docker-compose.yml` - Base orchestration for all services and environments
+- `compose.override.yml` - Local dev overrides (automatically loaded)
+- `compose.production.yml` - Production environment overrides
+- `compose.staging.yml` - Staging environment overrides
 - `compose.test.yml` - Test environment
+
+**Files Removed in Feature #15:**
+- ❌ `docker-compose.unified.yml` - Was duplicate of docker-compose.yml
+- ❌ `backend/docker-compose.yml` - Backend services moved to root
+- ❌ `backend/docker-compose.production.yml` - Production config moved to root
+- ❌ `frontend/docker-compose.yml` - Frontend service moved to root
+- ❌ `frontend/docker-compose.prod.yml` - Production config moved to root
+
+All redundant service-specific compose files have been consolidated into the root compose files for simplified maintenance and consistency.
 
 ### Root Variables
 ```bash

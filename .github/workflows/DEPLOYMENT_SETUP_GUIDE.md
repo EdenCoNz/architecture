@@ -339,7 +339,7 @@ Add to `.github/workflows/backend-ci.yml`:
       service_name: backend
       docker_image_artifact: backend-prod-container-${{ github.sha }}
       docker_image_file: backend-prod.tar
-      docker_compose_file: backend/docker-compose.production.yml
+      docker_compose_file: compose.production.yml  # Updated: Use root compose file (Feature 15 Story 15.5)
       container_name: backend-app
       image_name: backend-prod
       remote_deploy_path: ~/deployments
@@ -368,7 +368,7 @@ Add to `.github/workflows/frontend-ci.yml`:
       service_name: frontend
       docker_image_artifact: frontend-prod-container-${{ github.sha }}
       docker_image_file: frontend-prod.tar
-      docker_compose_file: frontend/docker-compose.prod.yml
+      docker_compose_file: compose.production.yml  # Updated: Use root compose file (Feature 15 Story 15.6)
       container_name: frontend-app
       image_name: frontend-prod
       remote_deploy_path: ~/deployments
@@ -384,7 +384,9 @@ Add to `.github/workflows/frontend-ci.yml`:
 
 ### 3. Create Production Docker Compose Files
 
-**Backend: `backend/docker-compose.production.yml`**
+**Note:** As of Feature 15 (Stories 15.5 and 15.6), backend and frontend services are defined in root-level compose files. Service-specific compose files have been removed.
+
+**Root Production File: `compose.production.yml`**
 
 ```yaml
 services:
@@ -402,12 +404,7 @@ services:
       timeout: 3s
       retries: 3
       start_period: 40s
-```
 
-**Frontend: `frontend/docker-compose.prod.yml`**
-
-```yaml
-services:
   frontend:
     image: frontend-prod:latest
     container_name: frontend-app

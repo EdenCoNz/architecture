@@ -26,14 +26,14 @@ from apps.api.serializers import FrontendConfigSerializer
         "to be used across different environments (development, staging, production) "
         "without rebuilding.\n\n"
         "**Environment Variables:**\n"
-        "- `FRONTEND_API_URL`: Backend API base URL (default: http://localhost:8000)\n"
-        "- `FRONTEND_API_TIMEOUT`: API request timeout in ms (default: 30000)\n"
-        "- `FRONTEND_API_ENABLE_LOGGING`: Enable API logging (default: false)\n"
-        "- `FRONTEND_APP_NAME`: Application name (default: Frontend Application)\n"
-        "- `FRONTEND_APP_TITLE`: Application title (default: Frontend Application)\n"
-        "- `FRONTEND_APP_VERSION`: Application version (default: 1.0.0)\n"
-        "- `FRONTEND_ENABLE_ANALYTICS`: Enable analytics (default: false)\n"
-        "- `FRONTEND_ENABLE_DEBUG`: Enable debug mode (default: false)"
+        "- `FRONTEND_API_URL`: Backend API base URL (default: `http://localhost:8000`)\n"
+        "- `FRONTEND_API_TIMEOUT`: API request timeout in ms (default: `30000`)\n"
+        "- `FRONTEND_API_ENABLE_LOGGING`: Enable API logging (default: `false`)\n"
+        "- `FRONTEND_APP_NAME`: Application name (default: `Frontend Application`)\n"
+        "- `FRONTEND_APP_TITLE`: Application title (default: `Frontend Application`)\n"
+        "- `FRONTEND_APP_VERSION`: Application version (default: `1.0.0`)\n"
+        "- `FRONTEND_ENABLE_ANALYTICS`: Enable analytics (default: `false`)\n"
+        "- `FRONTEND_ENABLE_DEBUG`: Enable debug mode (default: `false`)"
     ),
     responses={200: FrontendConfigSerializer},
     tags=["Configuration"],
@@ -86,10 +86,10 @@ def frontend_config(request):
         environment = "development"
 
     # Build configuration from environment variables
-    # If FRONTEND_API_URL is not set or empty, use default http://localhost for local development
-    # Empty string means "same origin" which works for both localhost and network IPs
-    # This provides sensible defaults for developers who clone the repo
-    frontend_api_url = os.getenv("FRONTEND_API_URL") or "http://localhost"
+    # If FRONTEND_API_URL is not set or empty, use default http://localhost:8000
+    # for local development. This matches the backend's default port configuration
+    # and provides sensible defaults for developers who clone the repo.
+    frontend_api_url = os.getenv("FRONTEND_API_URL") or "http://localhost:8000"
 
     config = {
         "api": {

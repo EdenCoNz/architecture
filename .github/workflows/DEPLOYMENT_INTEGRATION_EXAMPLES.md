@@ -26,7 +26,9 @@ The `deploy-to-ubuntu.yml` reusable workflow handles deployment to an Ubuntu ser
 
 ### Step 1: Create Production Docker Compose File
 
-Create `backend/docker-compose.production.yml`:
+**Note:** As of Feature 15 (Story 15.5), backend services are defined in root-level `compose.production.yml`. Service-specific compose files have been removed.
+
+Create `compose.production.yml` (backend service example):
 
 ```yaml
 services:
@@ -85,7 +87,7 @@ Add this job to `.github/workflows/backend-ci.yml`:
       image_name: backend-prod:${{ github.sha }}
 
       # Docker Compose configuration
-      docker_compose_file: backend/docker-compose.production.yml
+      docker_compose_file: compose.production.yml  # Updated: Use root compose file (Feature 15 Story 15.5)
       container_name: backend-app
 
       # Deployment options
@@ -117,9 +119,11 @@ If you have other jobs that should run after deployment (like smoke tests), upda
 
 ## Frontend Deployment Integration
 
-### Step 1: Create Production Docker Compose File
+### Step 1: Use Root Production Docker Compose File
 
-Create `frontend/docker-compose.prod.yml`:
+**Note:** As of Feature 15 (Story 15.6), frontend service is defined in root `compose.production.yml`. Service-specific compose files have been removed.
+
+The frontend service configuration in `compose.production.yml`:
 
 ```yaml
 services:
@@ -176,7 +180,7 @@ Add this job to `.github/workflows/frontend-ci.yml`:
       image_name: frontend-prod:${{ github.sha }}
 
       # Docker Compose configuration
-      docker_compose_file: frontend/docker-compose.prod.yml
+      docker_compose_file: compose.production.yml  # Updated: Use root compose file (Feature 15 Story 15.6)
       container_name: frontend-app
 
       # Deployment options

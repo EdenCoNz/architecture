@@ -274,8 +274,12 @@ This analysis provides comprehensive comparison of Docker configurations, GitHub
 - `/home/ed/Dev/architecture/.github/workflows/backend-ci.yml` (1,259 lines)
 
 ### Docker Compose Files
-- `/home/ed/Dev/architecture/frontend/docker-compose.yml` (93 lines)
-- `/home/ed/Dev/architecture/backend/docker-compose.yml` (274 lines)
+Service-specific compose files removed in Feature 15 (Stories 15.5 & 15.6).
+All services now defined in root compose files:
+- `/home/ed/Dev/architecture/docker-compose.yml` (base configuration)
+- `/home/ed/Dev/architecture/compose.production.yml` (production overrides)
+- `/home/ed/Dev/architecture/compose.staging.yml` (staging overrides)
+- `/home/ed/Dev/architecture/compose.test.yml` (test environment)
 
 ### Environment Files
 - `/home/ed/Dev/architecture/frontend/.env.docker` (36 lines)

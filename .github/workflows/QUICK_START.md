@@ -89,7 +89,7 @@ Add to `.github/workflows/backend-ci.yml`:
       service_name: backend
       docker_image_artifact: backend-prod-container-${{ github.sha }}
       docker_image_file: backend-prod.tar
-      docker_compose_file: backend/docker-compose.production.yml
+      docker_compose_file: compose.production.yml  # Updated: Use root compose file (Feature 15 Story 15.5)
       container_name: backend-app
       image_name: backend-prod
     secrets: inherit
@@ -108,7 +108,7 @@ Add to `.github/workflows/frontend-ci.yml`:
       service_name: frontend
       docker_image_artifact: frontend-prod-container-${{ github.sha }}
       docker_image_file: frontend-prod.tar
-      docker_compose_file: frontend/docker-compose.prod.yml
+      docker_compose_file: compose.production.yml  # Updated: Use root compose file (Feature 15 Story 15.6)
       container_name: frontend-app
       image_name: frontend-prod
     secrets: inherit
@@ -280,7 +280,7 @@ with:
   service_name: backend
   docker_image_artifact: backend-prod-container-${{ github.sha }}
   docker_image_file: backend-prod.tar
-  docker_compose_file: backend/docker-compose.production.yml
+  docker_compose_file: compose.production.yml  # Updated: Use root compose file (Feature 15 Story 15.5)
   container_name: backend-app
   image_name: backend-prod
 

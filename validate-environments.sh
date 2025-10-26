@@ -1,9 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# Environment Validation Script for Unified Docker Compose
+# Environment Validation Script for Docker Compose
 # =============================================================================
 # This script validates that all three environments (local, staging, production)
-# work correctly with the unified docker-compose.yml configuration.
+# work correctly with the docker-compose.yml configuration.
 #
 # Usage:
 #   ./validate-environments.sh [environment]
@@ -28,8 +28,8 @@ set -u  # Exit on undefined variable
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-COMPOSE_FILE="docker-compose.unified.yml"
-ENV_EXAMPLE=".env.unified.example"
+COMPOSE_FILE="docker-compose.yml"
+ENV_EXAMPLE=".env.example"
 VALIDATION_TIMEOUT=120  # seconds
 HEALTHCHECK_RETRIES=30
 HEALTHCHECK_INTERVAL=5
@@ -606,7 +606,7 @@ print_summary() {
 main() {
     local environment="${1:-all}"
 
-    print_header "Docker Compose Unified Environment Validation"
+    print_header "Docker Compose Environment Validation"
 
     print_info "Validation target: $environment"
     print_info "Compose file: $COMPOSE_FILE"

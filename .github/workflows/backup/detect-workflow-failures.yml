@@ -180,7 +180,12 @@ jobs:
           HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
           HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
 
-          # Write workflow information header
+          # FIRST: Count total failures using jq (fixes bash subshell scoping issue)
+          TOTAL_FAILURES=$(echo "$JOBS_JSON" | jq '[.jobs[] | select(.conclusion == "failure") | .steps[] | select(.conclusion == "failure")] | length')
+
+          echo "Counted $TOTAL_FAILURES total failed job/step combination(s)" >> $GITHUB_STEP_SUMMARY
+
+          # Write workflow information header with correct count
           cat > "$MARKDOWN_FILE" << EOF
           # Workflow Failure Report
 
@@ -194,7 +199,7 @@ jobs:
 
           ## Summary
 
-          This workflow run failed with **PLACEHOLDER job/step failure(s)**.
+          This workflow run failed with **$TOTAL_FAILURES job/step failure(s)**.
 
           ---
 
@@ -202,37 +207,34 @@ jobs:
 
           EOF
 
-          # Count total failures
-          TOTAL_FAILURES=0
-
-          # Process each failed job and extract failure details
-          echo "$JOBS_JSON" | jq -c '.jobs[] | select(.conclusion == "failure")' | while read -r job; do
-            JOB_ID=$(echo "$job" | jq -r '.id')
-            JOB_NAME=$(echo "$job" | jq -r '.name')
-            JOB_URL=$(echo "$job" | jq -r '.html_url')
-
-            # Find all failed steps in this job
-            echo "$job" | jq -c '.steps[] | select(.conclusion == "failure")' | while read -r step; do
-              STEP_NAME=$(echo "$step" | jq -r '.name')
-
-              # Increment failure counter
-              TOTAL_FAILURES=$((TOTAL_FAILURES + 1))
-
-              # Append this failure to the markdown file
+          # Generate failures section with proper numbering using jq
+          # This creates an array of all failures with job name, step name, and job URL
+          # Then numbers them correctly starting from 1
+          echo "$JOBS_JSON" | jq -r '
+            # Create array of all failed job/step combinations
+            [
+              .jobs[] |
+              select(.conclusion == "failure") |
               {
-                echo ""
-                echo "### $TOTAL_FAILURES. $JOB_NAME - $STEP_NAME"
-                echo ""
-                echo "**Job URL**: $JOB_URL"
-                echo ""
-                echo "---"
-                echo ""
-              } >> "$MARKDOWN_FILE"
-            done
-          done
-
-          # Replace the placeholder with actual count
-          sed -i "s/PLACEHOLDER job\/step failure(s)/$TOTAL_FAILURES job\/step failure(s)/" "$MARKDOWN_FILE"
+                job_name: .name,
+                job_url: .html_url,
+                failed_steps: [.steps[] | select(.conclusion == "failure") | .name]
+              } |
+              .failed_steps[] as $step |
+              {
+                job_name: .job_name,
+                job_url: .job_url,
+                step_name: $step
+              }
+            ] |
+            # Number each failure and format as markdown
+            to_entries |
+            map(
+              "\n### " + ((.key + 1) | tostring) + ". " + .value.job_name + " - " + .value.step_name + "\n\n" +
+              "**JobURL**: " + .value.job_url + "\n\n---\n"
+            ) |
+            join("")
+          ' >> "$MARKDOWN_FILE"
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Status**: Created aggregated failure data" >> $GITHUB_STEP_SUMMARY

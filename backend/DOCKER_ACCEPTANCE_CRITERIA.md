@@ -297,12 +297,14 @@ docker compose exec backend python manage.py shell
 
 1. `/backend/Dockerfile` - Multi-stage build with development and production
 2. `/backend/.dockerignore` - Optimized build context exclusions
-3. `/backend/docker-compose.yml` - Service orchestration configuration
+3. ~~`/backend/docker-compose.yml` - Service orchestration configuration~~ **Removed in Feature 15 (Story 15.5)** - Backend services now defined in root compose files
 4. `/backend/.env.docker` - Docker-specific environment variables
 5. `/backend/DOCKER.md` - Comprehensive Docker documentation (500+ lines)
 6. `/backend/docker-dev.sh` - Helper script for common operations
 7. `/backend/README.md` - Updated with Docker setup section
 8. `/backend/DOCKER_ACCEPTANCE_CRITERIA.md` - This validation document
+
+**Note:** Backend container orchestration is now managed from root compose files (`/docker-compose.yml`, `/compose.production.yml`, etc.) as part of Feature 15 Docker Simplification Phase 1.
 
 ---
 
