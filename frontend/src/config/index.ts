@@ -200,9 +200,9 @@ function getEnvironment(): Environment {
  * @throws ConfigValidationError if URL is invalid
  */
 function validateApiUrl(url: string): void {
-  // Allow empty URL - signals to use window.location.origin (same-origin mode)
+  // Reject empty URL - API URL is required
   if (!url) {
-    return;
+    throw new ConfigValidationError('API URL cannot be empty');
   }
 
   try {
@@ -247,7 +247,7 @@ function loadConfig(): AppConfig {
   const isTest = environment === 'test';
 
   // Load API configuration
-  // Empty string is valid - signals to use window.location.origin (same-origin mode)
+  // API URL is required and must be a valid URL
   const apiBaseUrl = getEnv('API_URL', '', false);
   validateApiUrl(apiBaseUrl);
 
