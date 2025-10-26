@@ -15,9 +15,7 @@ ALLOWED_HOSTS = ["*"]
 # Use PostgreSQL for CI/integration tests, SQLite for local unit tests
 # CI sets USE_POSTGRES_FOR_TESTS=true to test with real PostgreSQL
 # Local development can use fast SQLite tests by default
-USE_POSTGRES_FOR_TESTS = (
-    os.environ.get("USE_POSTGRES_FOR_TESTS", "false").lower() == "true"
-)
+USE_POSTGRES_FOR_TESTS = os.environ.get("USE_POSTGRES_FOR_TESTS", "false").lower() == "true"
 
 if USE_POSTGRES_FOR_TESTS:
     # Use PostgreSQL for CI and integration tests
@@ -37,10 +35,7 @@ if USE_POSTGRES_FOR_TESTS:
             "PORT": get_config("DB_PORT", default="5432"),
             "ATOMIC_REQUESTS": True,  # Each test runs in a transaction
             "CONN_MAX_AGE": 0,  # Disable connection pooling in tests for isolation
-            "OPTIONS": {
-                # Additional PostgreSQL-specific options for test isolation
-                "isolation_level": None,  # Let Django manage transaction isolation
-            },
+            # No custom OPTIONS needed - Django manages transaction isolation automatically
             "TEST": {  # type: ignore[dict-item]
                 # Django will create test_<DB_NAME> automatically
                 # Ensure test database has a predictable name

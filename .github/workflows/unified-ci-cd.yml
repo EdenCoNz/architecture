@@ -115,14 +115,37 @@ jobs:
           # Start dependencies
           docker compose up -d db redis
 
-          # Wait for dependencies
+          # Wait for PostgreSQL to be ready with enhanced validation
+          echo "Waiting for PostgreSQL to be ready..." >> $GITHUB_STEP_SUMMARY
           timeout 60 bash -c 'until docker compose exec -T db pg_isready -U postgres; do sleep 2; done'
+
+          # Verify database can execute queries (not just accept connections)
+          echo "Verifying database can execute queries..." >> $GITHUB_STEP_SUMMARY
+          timeout 30 bash -c 'until docker compose exec -T db psql -U postgres -c "SELECT 1" > /dev/null 2>&1; do sleep 2; done'
+
+          # Additional stabilization period for connection pooling initialization
+          echo "Database stabilization period..." >> $GITHUB_STEP_SUMMARY
+          sleep 5
+
+          # Wait for Redis to be ready
+          echo "Waiting for Redis to be ready..." >> $GITHUB_STEP_SUMMARY
           timeout 60 bash -c 'until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 2; done'
+
+          # Verify services are healthy before running tests
+          echo "Verifying all services are healthy..." >> $GITHUB_STEP_SUMMARY
+          docker compose ps
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           # Run backend tests
           docker compose run --rm \
             -e DJANGO_SETTINGS_MODULE=config.settings.test \
             -e SECRET_KEY=test-secret-key \
+            -e USE_POSTGRES_FOR_TESTS=true \
+            -e DB_HOST=db \
+            -e DB_PORT=5432 \
+            -e DB_NAME=backend_db \
+            -e DB_USER=postgres \
+            -e DB_PASSWORD=postgres \
             backend \
             pytest --cov=apps \
               --cov-report=xml \
