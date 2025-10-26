@@ -120,7 +120,7 @@ function getEnv(key: string, defaultValue?: string, required = false): string {
     );
   }
 
-  return value !== undefined ? value : (defaultValue || '');
+  return value !== undefined ? value : defaultValue || '';
 }
 
 /**
