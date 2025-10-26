@@ -151,12 +151,15 @@ Execute `/implement fix {issue_number}` and wait for completion. Do not interfer
    - Completed: "✅ All {totalStories} fix stories finished"
    - Partial: "⚠️ {completed}/{total} stories finished"
 
+CRITICAL: If all stories are completed from the report, run Step 8
 ### Step 8: Commit and Push
 
-1. **Check**: `git status --porcelain` (if no changes, SKIP to Step 9)
+
+
+1. **Check**: `git status --porcelain`
 2. **Push**: `/push "Fix issue #{issue_number}: {issue_title}"`
 3. **Monitor**: Wait for completion, capture commit hash
-4. **Handle failures**: Follow /push error guidance. If failed, SKIP Step 9 (cannot close issue)
+4. **Handle failures**: Follow /push error guidance.
 
 ## Report
 
