@@ -195,7 +195,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Run frontend tests
-          docker compose run --rm frontend npm run test:unit
+          docker compose run --rm frontend npm run test:run
 
           echo "✅ Frontend tests passed" >> $GITHUB_STEP_SUMMARY
 
