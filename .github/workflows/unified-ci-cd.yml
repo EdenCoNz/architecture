@@ -1,0 +1,595 @@
+name: Unified CI/CD Pipeline
+
+# ==============================================================================
+# Unified CI/CD Pipeline - Single Workflow for Complete Application Stack
+# ==============================================================================
+#
+# Pipeline Stages:
+#   1. Build and Test - Build complete stack, run all tests except E2E
+#   2. Deploy to Staging - Deploy build to staging server
+#   3. E2E Testing - Run E2E tests against staging environment
+#   4. Deploy to Production - Deploy to production after E2E validation
+#
+# Features:
+#   - Single docker-compose build for entire application
+#   - Sequential deployment with quality gates
+#   - E2E validation before production deployment
+#   - Automatic failure detection and issue creation
+#   - Container cleanup protocol before testing
+#
+# ==============================================================================
+
+on:
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'nginx/**'
+      - 'docker-compose.yml'
+      - 'compose.*.yml'
+      - '.github/workflows/unified-ci-cd.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Explicit permissions (least privilege)
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  issues: write
+  security-events: write
+  packages: write
+
+# Prevent concurrent runs for same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # STAGE 1: BUILD AND TEST
+  # ============================================================================
+  # Build the complete Docker Compose stack and run all tests except E2E
+  # This ensures the application builds correctly and passes all unit/integration tests
+  # ============================================================================
+
+  build-and-test:
+    name: Build and Test Complete Stack
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ----------------------------------------------------------------
+      # Container Cleanup Protocol (MANDATORY)
+      # ----------------------------------------------------------------
+      - name: Clean up existing containers
+        run: |
+          echo "## Container Cleanup" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Stop and remove any existing containers
+          docker compose down -v --remove-orphans 2>/dev/null || true
+
+          # Verify clean state
+          RUNNING_CONTAINERS=$(docker ps -q | wc -l)
+          echo "Running containers after cleanup: $RUNNING_CONTAINERS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
+      # Build Complete Application Stack
+      # ----------------------------------------------------------------
+      - name: Build complete application stack
+        run: |
+          echo "## Building Complete Application Stack" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Build all services using docker-compose
+          docker compose build \
+            --build-arg BUILDKIT_INLINE_CACHE=1
+
+          echo "✅ Complete stack built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Show image sizes
+          echo "### Container Images" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "(backend-dev|frontend-dev|SIZE)"
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
+      # Backend Tests (Unit + Integration)
+      # ----------------------------------------------------------------
+      - name: Run backend tests
+        run: |
+          echo "## Backend Testing" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Start dependencies
+          docker compose up -d db redis
+
+          # Wait for dependencies
+          timeout 60 bash -c 'until docker compose exec -T db pg_isready -U postgres; do sleep 2; done'
+          timeout 60 bash -c 'until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 2; done'
+
+          # Run backend tests
+          docker compose run --rm \
+            -e DJANGO_SETTINGS_MODULE=config.settings.test \
+            -e SECRET_KEY=test-secret-key \
+            backend \
+            pytest --cov=apps \
+              --cov-report=xml \
+              --cov-report=term-missing \
+              --junitxml=pytest-report.xml \
+              -n auto
+
+          echo "✅ Backend tests passed" >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
+      # Frontend Tests (Unit + Integration)
+      # ----------------------------------------------------------------
+      - name: Run frontend tests
+        run: |
+          echo "## Frontend Testing" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Run frontend tests
+          docker compose run --rm frontend npm run test:unit
+
+          echo "✅ Frontend tests passed" >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
+      # Linting and Type Checking
+      # ----------------------------------------------------------------
+      - name: Run linting and type checks
+        run: |
+          echo "## Code Quality Checks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Backend linting
+          docker compose run --rm backend bash -c "black --check . && isort --check-only . && flake8"
+          echo "✅ Backend linting passed" >> $GITHUB_STEP_SUMMARY
+
+          # Frontend linting
+          docker compose run --rm frontend npm run lint
+          echo "✅ Frontend linting passed" >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
+      # Save Built Images as Artifacts
+      # ----------------------------------------------------------------
+      - name: Export container images
+        run: |
+          echo "## Exporting Container Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          mkdir -p /tmp/docker-artifacts
+
+          # Save backend image
+          docker save backend-dev:latest | gzip > /tmp/docker-artifacts/backend.tar.gz
+
+          # Save frontend image
+          docker save frontend-dev:latest | gzip > /tmp/docker-artifacts/frontend.tar.gz
+
+          # Save docker-compose configuration
+          cp docker-compose.yml /tmp/docker-artifacts/
+          cp compose.staging.yml /tmp/docker-artifacts/
+          cp compose.production.yml /tmp/docker-artifacts/
+
+          echo "✅ Container images exported" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-build-${{ github.sha }}
+          path: /tmp/docker-artifacts/
+          retention-days: 7
+          if-no-files-found: error
+
+      # ----------------------------------------------------------------
+      # Cleanup
+      # ----------------------------------------------------------------
+      - name: Cleanup after build
+        if: always()
+        run: |
+          docker compose down -v --remove-orphans
+
+  # ============================================================================
+  # STAGE 2: DEPLOY TO STAGING
+  # ============================================================================
+  # Deploy the successfully built and tested application to staging environment
+  # Only runs if build-and-test succeeds
+  # ============================================================================
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [build-and-test]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    # Only deploy from main branch
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: Staging
+      url: https://staging.yourdomain.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-build-${{ github.sha }}
+          path: /tmp/docker-artifacts
+
+      # ----------------------------------------------------------------
+      # Connect to Staging Server via Tailscale
+      # ----------------------------------------------------------------
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Setup SSH for staging
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.STAGING_SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      # ----------------------------------------------------------------
+      # Deploy to Staging Server
+      # ----------------------------------------------------------------
+      - name: Deploy to staging server
+        run: |
+          echo "## Deploying to Staging" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          DEPLOY_DIR="/home/${{ secrets.STAGING_SERVER_USER }}/deployments/app-staging"
+
+          # Create deployment directory
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_HOST }} \
+            "mkdir -p $DEPLOY_DIR"
+
+          # Transfer build artifacts
+          scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/* \
+            ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_HOST }}:$DEPLOY_DIR/
+
+          # Deploy on staging server
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_HOST }} << 'EOF'
+            cd $DEPLOY_DIR
+
+            # Stop existing containers
+            docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans || true
+
+            # Load new images
+            gunzip -c backend.tar.gz | docker load
+            gunzip -c frontend.tar.gz | docker load
+
+            # Start services
+            docker compose -f docker-compose.yml -f compose.staging.yml up -d
+
+            # Wait for health checks
+            sleep 30
+
+            # Verify deployment
+            docker compose -f docker-compose.yml -f compose.staging.yml ps
+          EOF
+
+          echo "✅ Staging deployment completed" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify staging deployment
+        run: |
+          echo "## Verifying Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for services to be fully ready
+          sleep 10
+
+          # Check staging health endpoint via Tailscale
+          HEALTH_CHECK=$(curl -f -s ${{ secrets.STAGING_SERVER_HOST }}/api/v1/health/ || echo "failed")
+
+          if [[ "$HEALTH_CHECK" != "failed" ]]; then
+            echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Staging environment health check failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  # ============================================================================
+  # STAGE 3: E2E TESTING
+  # ============================================================================
+  # Run end-to-end tests against the staging environment
+  # Only runs if deploy-staging succeeds
+  # ============================================================================
+
+  e2e-testing:
+    name: E2E Tests Against Staging
+    needs: [deploy-staging]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ----------------------------------------------------------------
+      # Connect to Staging via Tailscale
+      # ----------------------------------------------------------------
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # ----------------------------------------------------------------
+      # Run E2E Tests Against Staging
+      # ----------------------------------------------------------------
+      - name: Run E2E tests against staging
+        id: e2e_tests
+        run: |
+          echo "## E2E Testing Against Staging" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Create test configuration pointing to staging
+          cat > .env.e2e << EOF
+          PLAYWRIGHT_BASE_URL=http://${{ secrets.STAGING_SERVER_HOST }}
+          PLAYWRIGHT_HEADLESS=true
+          CI=true
+          EOF
+
+          # Build test runner
+          docker compose -f compose.test.yml build test-runner
+
+          # Run E2E tests
+          mkdir -p testing/reports
+
+          docker compose -f compose.test.yml run --rm \
+            --env-file .env.e2e \
+            test-runner \
+            bash -c "cd /app/testing/e2e && npx playwright test --reporter=html,json,list" \
+            || echo "e2e_failed=true" >> $GITHUB_OUTPUT
+
+          # Generate summary
+          if [ "${{ steps.e2e_tests.outputs.e2e_failed }}" != "true" ]; then
+            echo "✅ E2E tests passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ E2E tests failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.sha }}
+          path: |
+            testing/e2e/playwright-report/
+            testing/e2e/test-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail if E2E tests failed
+        if: steps.e2e_tests.outputs.e2e_failed == 'true'
+        run: |
+          echo "❌ E2E tests failed - blocking production deployment"
+          exit 1
+
+  # ============================================================================
+  # STAGE 4: DEPLOY TO PRODUCTION
+  # ============================================================================
+  # Deploy to production environment
+  # ONLY runs if all previous stages succeed (build, staging deploy, E2E tests)
+  # ============================================================================
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [build-and-test, deploy-staging, e2e-testing]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    # Only deploy to production from main branch after all stages pass
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: Production
+      url: https://yourdomain.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-build-${{ github.sha }}
+          path: /tmp/docker-artifacts
+
+      # ----------------------------------------------------------------
+      # Connect to Production Server via Tailscale
+      # ----------------------------------------------------------------
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Setup SSH for production
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.PRODUCTION_SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      # ----------------------------------------------------------------
+      # Deploy to Production Server
+      # ----------------------------------------------------------------
+      - name: Deploy to production server
+        run: |
+          echo "## Deploying to Production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          DEPLOY_DIR="/home/${{ secrets.PRODUCTION_SERVER_USER }}/deployments/app-production"
+
+          # Create deployment directory
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.PRODUCTION_SERVER_USER }}@${{ secrets.PRODUCTION_SERVER_HOST }} \
+            "mkdir -p $DEPLOY_DIR"
+
+          # Transfer build artifacts
+          scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/* \
+            ${{ secrets.PRODUCTION_SERVER_USER }}@${{ secrets.PRODUCTION_SERVER_HOST }}:$DEPLOY_DIR/
+
+          # Deploy on production server
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.PRODUCTION_SERVER_USER }}@${{ secrets.PRODUCTION_SERVER_HOST }} << 'EOF'
+            cd $DEPLOY_DIR
+
+            # Stop existing containers
+            docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans || true
+
+            # Load new images
+            gunzip -c backend.tar.gz | docker load
+            gunzip -c frontend.tar.gz | docker load
+
+            # Start services
+            docker compose -f docker-compose.yml -f compose.production.yml up -d
+
+            # Wait for health checks
+            sleep 30
+
+            # Verify deployment
+            docker compose -f docker-compose.yml -f compose.production.yml ps
+          EOF
+
+          echo "✅ Production deployment completed" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify production deployment
+        run: |
+          echo "## Verifying Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Wait for services to be fully ready
+          sleep 10
+
+          # Check production health endpoint
+          HEALTH_CHECK=$(curl -f -s ${{ secrets.PRODUCTION_SERVER_HOST }}/api/v1/health/ || echo "failed")
+
+          if [[ "$HEALTH_CHECK" != "failed" ]]; then
+            echo "✅ Production environment is healthy" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Production environment health check failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Production deployment summary
+        if: success()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Application successfully deployed to production**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed At**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # FAILURE DETECTION AND ISSUE CREATION
+  # ============================================================================
+  # Automatically detect workflow failures and create GitHub issues
+  # Runs if any previous job fails
+  # ============================================================================
+
+  detect-workflow-failures:
+    name: Detect Workflow Failures
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    if: failure() || cancelled()
+    needs: [build-and-test, deploy-staging, e2e-testing, deploy-production]
+    permissions:
+      issues: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create failure tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "## Workflow Failure Detected" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Determine which stage failed
+          FAILED_STAGE="Unknown"
+          if [ "${{ needs.build-and-test.result }}" = "failure" ]; then
+            FAILED_STAGE="Build and Test"
+          elif [ "${{ needs.deploy-staging.result }}" = "failure" ]; then
+            FAILED_STAGE="Deploy to Staging"
+          elif [ "${{ needs.e2e-testing.result }}" = "failure" ]; then
+            FAILED_STAGE="E2E Testing"
+          elif [ "${{ needs.deploy-production.result }}" = "failure" ]; then
+            FAILED_STAGE="Deploy to Production"
+          fi
+
+          # Create issue title
+          ISSUE_TITLE="CI/CD Pipeline Failed: $FAILED_STAGE - Run #${{ github.run_number }}"
+
+          # Create issue body
+          cat > /tmp/issue_body.md << EOF
+          # CI/CD Pipeline Failure
+
+          ## Failure Information
+
+          - **Failed Stage**: $FAILED_STAGE
+          - **Workflow**: Unified CI/CD Pipeline
+          - **Run Number**: ${{ github.run_number }}
+          - **Branch**: ${{ github.ref_name }}
+          - **Commit**: ${{ github.sha }}
+          - **Run URL**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ## Pipeline Status
+
+          - Build and Test: ${{ needs.build-and-test.result }}
+          - Deploy to Staging: ${{ needs.deploy-staging.result }}
+          - E2E Testing: ${{ needs.e2e-testing.result }}
+          - Deploy to Production: ${{ needs.deploy-production.result }}
+
+          ## Next Steps
+
+          1. Review the workflow logs at the run URL above
+          2. Identify the root cause of the failure
+          3. Fix the issue and commit with "Fix issue #N" to auto-close this issue
+
+          ---
+
+          Created by: Unified CI/CD Pipeline
+          EOF
+
+          # Create the issue
+          ISSUE_URL=$(gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body-file /tmp/issue_body.md \
+            --label "ci-failure,automated")
+
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
+
+          echo "✅ Created issue #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue URL**: $ISSUE_URL" >> $GITHUB_STEP_SUMMARY
