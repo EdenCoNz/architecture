@@ -206,8 +206,10 @@ services:
     # Override specific environment variables
     environment:
       # Django settings
+      SECRET_KEY: "django-insecure-docker-development-key-replace-in-production-with-secure-key"
       DJANGO_SETTINGS_MODULE: config.settings.development
       DEBUG: "True"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,backend,0.0.0.0"
 
       # Database connection (use service name as host)
       DB_HOST: db
@@ -227,6 +229,14 @@ services:
 
       # Development server settings
       PYTHONUNBUFFERED: "1"
+
+      # Frontend runtime configuration
+      FRONTEND_API_URL: "http://localhost"
+      FRONTEND_APP_NAME: "Training Application"
+      FRONTEND_APP_VERSION: "1.0.0-local"
+      FRONTEND_ENABLE_DEBUG: "true"
+      FRONTEND_ENABLE_ANALYTICS: "false"
+      FRONTEND_API_ENABLE_LOGGING: "true"
 
     volumes:
       # Mount source code for live reloading
@@ -311,8 +321,8 @@ services:
     # Override specific environment variables
     environment:
       - NODE_ENV=development
-      # API URL points to backend service
-      - VITE_API_URL=http://localhost:8000
+      # API URL points to proxy (which routes to backend)
+      - VITE_API_URL=http://localhost/api/v1
 
     volumes:
       # Bind mount source code for live editing

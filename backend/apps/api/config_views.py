@@ -86,9 +86,10 @@ def frontend_config(request):
         environment = "development"
 
     # Build configuration from environment variables
-    # If FRONTEND_API_URL is not set, use default localhost:8000 for local development
+    # If FRONTEND_API_URL is not set or empty, use default http://localhost for local development
+    # Empty string means "same origin" which works for both localhost and network IPs
     # This provides sensible defaults for developers who clone the repo
-    frontend_api_url = os.getenv("FRONTEND_API_URL", "http://localhost:8000")
+    frontend_api_url = os.getenv("FRONTEND_API_URL") or "http://localhost"
 
     config = {
         "api": {
