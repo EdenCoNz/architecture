@@ -9,7 +9,7 @@ import { Box } from '@mui/material';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts';
 import { Header } from './components/layout';
-import { Home, NotFound, ApiTest, Onboarding, About } from './pages';
+import { NotFound, ApiTest, Onboarding, About } from './pages';
 import './styles/global.css';
 
 function App() {

@@ -57,7 +57,9 @@ describe('App Component - Light Theme Default', () => {
     it('should render onboarding page content with light theme typography', () => {
       render(<App />);
       // Check if onboarding page content is rendered at root URL
-      const welcomeHeading = screen.getByRole('heading', { name: /welcome to your training journey/i });
+      const welcomeHeading = screen.getByRole('heading', {
+        name: /welcome to your training journey/i,
+      });
       expect(welcomeHeading).toBeInTheDocument();
     });
 
@@ -121,7 +123,9 @@ describe('App Component - Light Theme Default', () => {
       render(<App />);
       // Verify Onboarding component is rendered at root URL
       // Look for characteristic onboarding elements
-      const onboardingHeading = screen.getByRole('heading', { name: /welcome to your training journey/i });
+      const onboardingHeading = screen.getByRole('heading', {
+        name: /welcome to your training journey/i,
+      });
       expect(onboardingHeading).toBeInTheDocument();
     });
 
@@ -164,7 +168,9 @@ describe('App Component - Light Theme Default', () => {
       render(<App />);
 
       // Verify onboarding content is displayed
-      const onboardingHeading = screen.getByRole('heading', { name: /welcome to your training journey/i });
+      const onboardingHeading = screen.getByRole('heading', {
+        name: /welcome to your training journey/i,
+      });
       expect(onboardingHeading).toBeInTheDocument();
     });
 
@@ -212,7 +218,9 @@ describe('App Component - Light Theme Default', () => {
       expect(container).toBeTruthy();
       // Verify feature card descriptions are present
       expect(screen.getByText(/built with the latest react 19/i)).toBeInTheDocument();
-      expect(screen.getByText(/comprehensive material design 3 component library/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/comprehensive material design 3 component library/i)
+      ).toBeInTheDocument();
       expect(screen.getByText(/client-side routing with seamless navigation/i)).toBeInTheDocument();
     });
   });

@@ -304,7 +304,7 @@ describe('Header Component', () => {
     });
 
     it('should render navigation links that support active state highlighting', () => {
-      const { container } = renderHeader();
+      renderHeader();
 
       // Verify links are rendered with React Router Link component
       const homeLink = screen.getByRole('link', { name: /home/i });

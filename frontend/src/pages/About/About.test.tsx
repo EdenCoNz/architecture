@@ -27,9 +27,7 @@ describe('About Page - Story 14.4', () => {
   describe('Page Structure', () => {
     it('should render the about page without errors', () => {
       renderAbout();
-      expect(
-        screen.getByRole('heading', { name: /about this application/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /about this application/i })).toBeInTheDocument();
     });
 
     it('should render all hero section elements', () => {
@@ -37,9 +35,7 @@ describe('About Page - Story 14.4', () => {
       // Info icon should be present
       expect(screen.getByTestId('InfoIcon')).toBeInTheDocument();
       // Heading should be present
-      expect(
-        screen.getByRole('heading', { name: /about this application/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /about this application/i })).toBeInTheDocument();
       // Subtitle should be present
       expect(
         screen.getByText(/built with modern web technologies for optimal performance/i)
