@@ -1103,6 +1103,44 @@
           "description": "Fix Frontend CI/CD linting failures - Prettier formatting errors and unused variable violations in test files"
         }
       ]
+    },
+    {
+      "featureID": "15",
+      "title": "Phase 1: Consolidate Docker Compose Files",
+      "description": "Enable developers and operators to manage container orchestration through a simplified, non-redundant configuration structure by eliminating duplicate compose files across the repository while maintaining full functionality for all deployment environments (local, staging, production, testing)",
+      "createdAt": "2025-10-27T00:00:00Z",
+      "userStoriesCreated": "2025-10-27T00:00:00Z",
+      "userStoriesImplemented": "2025-10-27T08:30:00Z",
+      "isSummarised": false,
+      "totalStories": 10,
+      "completedStories": [
+        "Story-15.1",
+        "Story-15.2",
+        "Story-15.3",
+        "Story-15.4",
+        "Story-15.5",
+        "Story-15.6",
+        "Story-15.7",
+        "Story-15.8",
+        "Story-15.9",
+        "Story-15.10"
+      ],
+      "assignedAgents": [
+        "devops-engineer"
+      ],
+      "executionPhases": 4,
+      "parallelPhases": 0,
+      "sequentialPhases": 4,
+      "filesPath": "docs/features/15/user-stories.md",
+      "actions": [],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-27T08:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/15/implementation-log.json"
+        }
+      ]
     }
   ]
 }

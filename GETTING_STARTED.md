@@ -876,11 +876,66 @@ docker volume prune
 
 ---
 
+## Compose File Structure (Feature #15)
+
+After the compose file consolidation (Feature #15), the repository uses a simplified structure:
+
+### Available Compose Files
+
+**Root directory only** - All compose files are now located at the project root:
+
+```
+architecture/
+├── docker-compose.yml          # Base service definitions for all environments
+├── compose.override.yml        # Local dev overrides (automatically loaded)
+├── compose.staging.yml         # Staging environment overrides
+├── compose.production.yml      # Production environment overrides
+└── compose.test.yml            # Testing environment configuration
+```
+
+### Purpose of Each File
+
+| File | Purpose | Usage |
+|------|---------|-------|
+| `docker-compose.yml` | Base configuration for all services | Always used as base |
+| `compose.override.yml` | Local development enhancements | Auto-loaded in local dev |
+| `compose.staging.yml` | Staging-specific settings | `-f docker-compose.yml -f compose.staging.yml` |
+| `compose.production.yml` | Production security and performance | `-f docker-compose.yml -f compose.production.yml` |
+| `compose.test.yml` | Testing configuration | `-f compose.test.yml` |
+
+### What Was Removed
+
+The following redundant files were removed in Feature #15 (available in `backup/pre-docker-simplification-phase1` branch):
+- ❌ `docker-compose.unified.yml` - Duplicate of docker-compose.yml
+- ❌ `backend/docker-compose.yml` - Backend services now in root
+- ❌ `backend/docker-compose.production.yml` - Production config now in root
+- ❌ `frontend/docker-compose.yml` - Frontend service now in root
+- ❌ `frontend/docker-compose.prod.yml` - Production config now in root
+
+### Rollback Procedures
+
+If you need to restore the previous configuration:
+
+```bash
+# Switch to backup branch with old configuration
+git checkout backup/pre-docker-simplification-phase1
+
+# Or restore specific files from backup directory
+cp backups/docker-config-20251027_071855/<filename> .
+```
+
+**Backup branch**: `backup/pre-docker-simplification-phase1`
+**Backup directory**: `backups/docker-config-20251027_071855/`
+
+---
+
 ## Next Steps
 
 ### Documentation Resources
 
 - **Full Troubleshooting Guide**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Quick Start Guide**: [QUICK_START.md](QUICK_START.md)
+- **Docker Simplification Details**: [docs/docker-simplification.md](docs/docker-simplification.md)
 - **Environment Configuration**: [docs/features/12/ENVIRONMENT_CONFIG.md](docs/features/12/ENVIRONMENT_CONFIG.md)
 - **Development Environment Details**: [docs/features/12/story-12.7-quick-reference.md](docs/features/12/story-12.7-quick-reference.md)
 - **Production Optimizations**: [docs/features/12/production-optimizations.md](docs/features/12/production-optimizations.md)

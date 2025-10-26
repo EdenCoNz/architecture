@@ -195,8 +195,10 @@ All configuration files:
 - **Backend Dockerfile**: `/home/ed/Dev/architecture/backend/Dockerfile`
 - **Frontend Workflow**: `/home/ed/Dev/architecture/.github/workflows/frontend-ci.yml` (1,808 lines)
 - **Backend Workflow**: `/home/ed/Dev/architecture/.github/workflows/backend-ci.yml` (1,259 lines)
-- **Frontend Compose**: `/home/ed/Dev/architecture/frontend/docker-compose.yml`
-- **Backend Compose**: `/home/ed/Dev/architecture/backend/docker-compose.yml`
+- **Frontend Compose**: Defined in root `docker-compose.yml` and `compose.production.yml`
+- **Backend Compose**: Defined in root `docker-compose.yml` and `compose.production.yml`
+
+**Note:** Service-specific compose files removed in Feature 15 (Stories 15.5 & 15.6) - all orchestration now managed from root compose files.
 
 Detailed analysis:
 - **Full Comparison**: `/home/ed/Dev/architecture/DOCKER_ARCHITECTURE_COMPARISON.md`

@@ -33,8 +33,9 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DOCKER_COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
-BACKEND_COMPOSE="$PROJECT_ROOT/backend/docker-compose.yml"
-FRONTEND_COMPOSE="$PROJECT_ROOT/frontend/docker-compose.yml"
+# Backend and frontend services are defined in root compose files
+# BACKEND_COMPOSE and FRONTEND_COMPOSE variables removed as part of Feature 15 (Story 15.5 & 15.6)
+# All services now managed from root compose files
 
 # Default settings
 VALIDATE_BACKEND=true
