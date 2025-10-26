@@ -154,9 +154,12 @@ cp .env.local.example .env.local
 ### 5. Access the Application
 
 Open your browser and navigate to:
-- **Application**: http://localhost/
+- **Application** (Onboarding): http://localhost/
+- **About Page**: http://localhost/about
 - **API Documentation**: http://localhost/api/
 - **Django Admin**: http://localhost/admin/
+
+**Note**: The application root URL displays the onboarding and assessment interface. This is the primary entry point for new users to set up their profile and training preferences.
 
 ---
 
@@ -324,7 +327,9 @@ The reverse proxy routes requests based on URL paths:
 
 | URL Path | Destination | Purpose |
 |----------|------------|---------|
-| `/` | Frontend | React SPA application |
+| `/` | Frontend | Onboarding and assessment interface (primary entry point) |
+| `/about` | Frontend | Application information and tech stack details |
+| `/api-test` | Frontend | API connectivity testing page |
 | `/api/*` | Backend | REST API endpoints |
 | `/admin/*` | Backend | Django admin interface |
 | `/static/*` | Backend | Django static files (CSS, JS) |
@@ -332,6 +337,8 @@ The reverse proxy routes requests based on URL paths:
 | `/health` | Proxy | Reverse proxy health check |
 | `/@vite/*` | Frontend | Vite development assets |
 | `/ws` | Frontend | WebSocket for hot module replacement |
+
+**Note on Routing (Feature #14)**: The root URL (`/`) displays the onboarding page as the main application entry point. Previous informational content is available at `/about`. The legacy `/onboarding` route automatically redirects to `/` for backward compatibility.
 
 ### Network Architecture
 

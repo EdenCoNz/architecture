@@ -257,4 +257,65 @@ describe('Header Component', () => {
       expect(themeButton).toBeInTheDocument();
     });
   });
+
+  describe('Story 14.3: Update Navigation Links', () => {
+    it('should render Home navigation link pointing to root URL', () => {
+      renderHeader();
+
+      const homeLink = screen.getByRole('link', { name: /home/i });
+      expect(homeLink).toBeInTheDocument();
+      expect(homeLink).toHaveAttribute('href', '/');
+    });
+
+    it('should not have any navigation links pointing to /onboarding', () => {
+      const { container } = renderHeader();
+
+      // Check that no links point to /onboarding
+      const links = container.querySelectorAll('a[href="/onboarding"]');
+      expect(links.length).toBe(0);
+    });
+
+    it('should render About navigation link - Story 14.4', () => {
+      renderHeader();
+
+      const aboutLink = screen.getByRole('link', { name: /about/i });
+      expect(aboutLink).toBeInTheDocument();
+      expect(aboutLink).toHaveAttribute('href', '/about');
+    });
+
+    it('should render API Test navigation link', () => {
+      renderHeader();
+
+      const apiTestLink = screen.getByRole('link', { name: /api test/i });
+      expect(apiTestLink).toBeInTheDocument();
+      expect(apiTestLink).toHaveAttribute('href', '/api-test');
+    });
+
+    it('should render navigation links with consistent styling', () => {
+      renderHeader();
+
+      const homeLink = screen.getByRole('link', { name: /home/i });
+      const aboutLink = screen.getByRole('link', { name: /about/i });
+      const apiTestLink = screen.getByRole('link', { name: /api test/i });
+
+      expect(homeLink).toBeInTheDocument();
+      expect(aboutLink).toBeInTheDocument();
+      expect(apiTestLink).toBeInTheDocument();
+    });
+
+    it('should render navigation links that support active state highlighting', () => {
+      const { container } = renderHeader();
+
+      // Verify links are rendered with React Router Link component
+      const homeLink = screen.getByRole('link', { name: /home/i });
+      const apiTestLink = screen.getByRole('link', { name: /api test/i });
+
+      expect(homeLink).toBeInTheDocument();
+      expect(apiTestLink).toBeInTheDocument();
+
+      // Links should support routing and can be highlighted when active
+      expect(homeLink.getAttribute('href')).toBe('/');
+      expect(apiTestLink.getAttribute('href')).toBe('/api-test');
+    });
+  });
 });

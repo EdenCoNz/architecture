@@ -9,6 +9,8 @@
 import { AppBar, Toolbar, Typography, IconButton, Box, Button } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import WifiIcon from '@mui/icons-material/Wifi';
+import HomeIcon from '@mui/icons-material/Home';
+import InfoIcon from '@mui/icons-material/Info';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../common';
 import { useTheme } from '../../contexts';
@@ -51,6 +53,30 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
 
         {/* Global actions */}
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          {/* Home navigation link - Feature #14 Story 14.3 */}
+          <Button
+            component={Link}
+            to="/"
+            color="inherit"
+            startIcon={<HomeIcon />}
+            sx={{
+              display: { xs: 'none', sm: 'flex' },
+            }}
+          >
+            Home
+          </Button>
+          {/* About navigation link - Feature #14 Story 14.4 */}
+          <Button
+            component={Link}
+            to="/about"
+            color="inherit"
+            startIcon={<InfoIcon />}
+            sx={{
+              display: { xs: 'none', sm: 'flex' },
+            }}
+          >
+            About
+          </Button>
           {/* API Test navigation link */}
           <Button
             component={Link}

@@ -6,6 +6,8 @@
 
 This directory contains end-to-end tests for the onboarding assessment form workflow. The tests validate that new users can successfully complete the onboarding process, including multi-step navigation, form validation, and data persistence.
 
+**Note on Routing (Feature #14)**: As of Feature #14, the onboarding form is now the primary entry point of the application, displayed at the root URL (`/`). The legacy `/onboarding` route redirects to `/` for backward compatibility.
+
 ## Test Coverage
 
 ### Test File: `onboarding-form.spec.ts`
@@ -29,7 +31,7 @@ Tests that validate form validation and error handling:
 #### 3. Form Submission and Progression
 Tests that validate form submission behavior:
 - ✅ Form submits successfully with all valid data
-- ✅ Redirect to home page after successful submission
+- ✅ Successful submission handling (form completion workflow)
 - ✅ Submit button disables during submission
 - ✅ Loading state displays during submission
 - ✅ Form cannot be resubmitted after completion

@@ -278,7 +278,9 @@ frontend/
 │   │   ├── forms/           # Form components (Input, Select)
 │   │   └── feedback/        # Feedback components (Toast, Alert)
 │   ├── pages/               # Route-level page components
-│   │   ├── Home/            # Home page
+│   │   ├── Onboarding/      # Onboarding and assessment page (default route)
+│   │   ├── About/           # About page (tech stack information)
+│   │   ├── ApiTest/         # API connectivity testing page
 │   │   └── NotFound/        # 404 page
 │   ├── features/            # Feature-based modules (optional)
 │   ├── hooks/               # Custom React hooks
@@ -291,7 +293,7 @@ frontend/
 │   ├── styles/              # Global CSS (minimal)
 │   ├── types/               # TypeScript type definitions
 │   ├── constants/           # Application constants
-│   ├── App.tsx              # Root component
+│   ├── App.tsx              # Root component with routing configuration
 │   └── main.tsx             # Application entry point
 ├── tests/                    # Test files
 │   ├── unit/                # Unit tests
@@ -309,6 +311,11 @@ frontend/
 ├── .prettierrc              # Prettier configuration
 └── README.md                # This file
 ```
+
+**Note on Routing Structure (Feature #14)**:
+- The root URL (`/`) displays the onboarding and assessment interface
+- Previous informational content is available at `/about`
+- The legacy `/onboarding` route redirects to `/` for backward compatibility
 
 For detailed structure documentation, see [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md).
 
