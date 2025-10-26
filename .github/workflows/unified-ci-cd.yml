@@ -86,15 +86,46 @@ jobs:
       # ----------------------------------------------------------------
       # Build Complete Application Stack
       # ----------------------------------------------------------------
-      - name: Build complete application stack
+      # Uses GitHub Actions cache backend for efficient layer caching
+      # Multi-level cache fallback strategy:
+      # 1. Branch-specific cache (current feature work)
+      # 2. Main branch cache (shared layers)
+      # 3. General cache (cross-branch fallback)
+      # ----------------------------------------------------------------
+      - name: Build backend container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: development
+          push: false
+          load: true
+          tags: backend-dev:latest
+          cache-from: |
+            type=gha,scope=backend-dev-${{ github.ref_name }}
+            type=gha,scope=backend-dev-main
+            type=gha,scope=backend-dev
+          cache-to: type=gha,mode=max,scope=backend-dev-${{ github.ref_name }}
+
+      - name: Build frontend container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          target: development
+          push: false
+          load: true
+          tags: frontend-dev:latest
+          cache-from: |
+            type=gha,scope=frontend-dev-${{ github.ref_name }}
+            type=gha,scope=frontend-dev-main
+            type=gha,scope=frontend-dev
+          cache-to: type=gha,mode=max,scope=frontend-dev-${{ github.ref_name }}
+
+      - name: Build complete application stack summary
         run: |
           echo "## Building Complete Application Stack" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Build all services using docker-compose
-          docker compose build \
-            --build-arg BUILDKIT_INLINE_CACHE=1
-
           echo "✅ Complete stack built successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -138,7 +169,7 @@ jobs:
 
           # Run backend tests
           docker compose run --rm \
-            -e DJANGO_SETTINGS_MODULE=config.settings.test \
+            -e DJANGO_SETTINGS_MODULE=config.settings.testing \
             -e SECRET_KEY=test-secret-key \
             -e USE_POSTGRES_FOR_TESTS=true \
             -e DB_HOST=db \

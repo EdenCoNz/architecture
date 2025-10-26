@@ -82,7 +82,7 @@ jobs:
           TEST_REDIS_PORT=6379
 
           # Django Test Configuration
-          DJANGO_SETTINGS_MODULE=config.settings.test
+          DJANGO_SETTINGS_MODULE=config.settings.testing
           DEBUG=False
           SECRET_KEY=test-secret-key-for-e2e-testing-only
 
