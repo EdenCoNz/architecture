@@ -923,6 +923,19 @@
             "devops-engineer"
           ],
           "description": "Fix CI/CD Pipeline Failed - Missing NPM script configuration in workflow (test:unit vs test:run)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 217,
+          "timestamp": "2025-10-26T03:54:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/13/issues/217/implementation-log.json",
+          "userStoriesPath": "docs/features/13/issues/217/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "devops-engineer"
+          ],
+          "description": "Fix CI/CD Pipeline Failed - Missing test directory mount in Docker container configuration"
         }
       ]
     }

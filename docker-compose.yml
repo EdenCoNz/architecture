@@ -318,6 +318,7 @@ services:
       # Bind mount source code for live editing
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+      - ./frontend/tests:/app/tests
       - ./frontend/index.html:/app/index.html
       - ./frontend/vite.config.ts:/app/vite.config.ts
       - ./frontend/tsconfig.json:/app/tsconfig.json
