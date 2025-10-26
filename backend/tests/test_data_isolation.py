@@ -52,9 +52,7 @@ class TestDatabaseIsolation:
         # Check we're using test database
         # Accept :memory:, file:memory, or databases with "test" in name
         is_test_db = (
-            "test" in db_name.lower()
-            or db_name == ":memory:"
-            or "memory" in db_name.lower()
+            "test" in db_name.lower() or db_name == ":memory:" or "memory" in db_name.lower()
         )
 
         assert is_test_db, (
@@ -70,9 +68,7 @@ class TestDatabaseIsolation:
         """
         # Database should be completely empty at start
         assert User.objects.count() == 0, "Database should start with no users"
-        assert (
-            Assessment.objects.count() == 0
-        ), "Database should start with no assessments"
+        assert Assessment.objects.count() == 0, "Database should start with no assessments"
 
     def test_test_data_is_isolated_between_tests_first(self, isolated_db):
         """
@@ -142,9 +138,7 @@ class TestDatabaseIsolation:
         Acceptance Criteria: AC3 - Each test has clean data state
         """
         # Should start clean despite previous test creating 5 users
-        assert (
-            User.objects.count() == 0
-        ), "Users from previous batch test are still present!"
+        assert User.objects.count() == 0, "Users from previous batch test are still present!"
         assert (
             Assessment.objects.count() == 0
         ), "Assessments from previous batch test are still present!"
@@ -252,18 +246,25 @@ class TestDatabaseConfiguration:
             settings.DATABASES["default"]["ATOMIC_REQUESTS"] is True
         ), "ATOMIC_REQUESTS must be True for proper test isolation"
 
-    def test_connection_pooling_disabled_for_tests(self, db, settings):
+    def test_connection_pooling_enabled_for_tests(self, db, settings):
         """
-        Verify connection pooling is disabled in tests.
+        Verify connection pooling is enabled in tests (Issue #215).
 
-        Connection pooling can interfere with test isolation.
+        Connection pooling is enabled in all environments for performance consistency.
+        Test isolation is maintained through ATOMIC_REQUESTS and pytest-django's
+        transaction rollback mechanism.
 
         Acceptance Criteria: AC3 - Clean data state for each test
+
+        Note: As of Issue #215, connection pooling is enabled in all environments
+        (including testing) for performance consistency. Django's ATOMIC_REQUESTS
+        and pytest-django's transaction rollback mechanism ensure test isolation
+        is maintained even with connection pooling enabled.
         """
-        conn_max_age = settings.DATABASES["default"].get("CONN_MAX_AGE", 600)
+        conn_max_age = settings.DATABASES["default"].get("CONN_MAX_AGE", 0)
         assert (
-            conn_max_age == 0
-        ), f"CONN_MAX_AGE should be 0 in tests for isolation, got {conn_max_age}"
+            conn_max_age == 600
+        ), f"CONN_MAX_AGE should be 600 for connection pooling (Issue #215), got {conn_max_age}"
 
     def test_test_database_settings_configured(self, db, settings):
         """
@@ -316,9 +317,7 @@ class TestDataBuilderIsolation:
         """
         # Previous test created 4 users and 4 assessments
         # They should not be visible here
-        assert (
-            User.objects.count() == 0
-        ), "Users from previous scenario test still exist!"
+        assert User.objects.count() == 0, "Users from previous scenario test still exist!"
         assert (
             Assessment.objects.count() == 0
         ), "Assessments from previous scenario test still exist!"
@@ -465,9 +464,7 @@ class TestAcceptanceCriteria:
 
         # Verify using test database (memory or with test in name)
         is_test_db = (
-            "test" in db_name.lower()
-            or db_name == ":memory:"
-            or "memory" in db_name.lower()
+            "test" in db_name.lower() or db_name == ":memory:" or "memory" in db_name.lower()
         )
         assert is_test_db
 
@@ -519,9 +516,7 @@ class TestAcceptanceCriteria:
         # Verify we're NOT using production/development database
         db_name = connection.settings_dict["NAME"]
         is_test_db = (
-            "test" in db_name.lower()
-            or db_name == ":memory:"
-            or "memory" in db_name.lower()
+            "test" in db_name.lower() or db_name == ":memory:" or "memory" in db_name.lower()
         )
         assert is_test_db, "Test is using production/development database!"
 

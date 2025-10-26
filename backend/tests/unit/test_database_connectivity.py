@@ -210,18 +210,29 @@ class TestEnvironmentConfiguration:
 
     def test_database_settings_loaded_from_environment(self):
         """Test that database settings are loaded from environment variables."""
+        import os
+
         from django.conf import settings
 
         db_config = settings.DATABASES["default"]
 
-        # Should be using environment variables (via python-decouple)
-        assert db_config["ENGINE"] == "django.db.backends.postgresql"
-        assert "NAME" in db_config
-        assert "USER" in db_config
-        assert "HOST" in db_config
-        assert "PORT" in db_config
+        # In testing environment, we may use SQLite or PostgreSQL
+        # depending on USE_POSTGRES_FOR_TESTS setting
+        use_postgres = os.environ.get("USE_POSTGRES_FOR_TESTS", "false").lower() == "true"
 
-        # Should have connection pooling
+        if use_postgres:
+            # When using PostgreSQL, should be using environment variables (via python-decouple)
+            assert db_config["ENGINE"] == "django.db.backends.postgresql"
+            assert "NAME" in db_config
+            assert "USER" in db_config
+            assert "HOST" in db_config
+            assert "PORT" in db_config
+        else:
+            # When using SQLite for fast unit tests
+            assert db_config["ENGINE"] == "django.db.backends.sqlite3"
+            assert "NAME" in db_config
+
+        # Should have connection pooling regardless of database backend
         assert db_config.get("CONN_MAX_AGE", 0) == 600
         assert db_config.get("ATOMIC_REQUESTS") is True
 
