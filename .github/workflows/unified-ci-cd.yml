@@ -583,11 +583,14 @@ jobs:
           Created by: Unified CI/CD Pipeline
           EOF
 
-          # Create the issue
+          # Create the issue with available labels
+          # Note: Only use labels that exist in the repository
           ISSUE_URL=$(gh issue create \
             --title "$ISSUE_TITLE" \
             --body-file /tmp/issue_body.md \
-            --label "ci-failure,automated")
+            --label "bug" || gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body-file /tmp/issue_body.md)
 
           ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
 
