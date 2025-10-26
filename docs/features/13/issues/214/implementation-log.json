@@ -1,0 +1,99 @@
+[
+  {
+    "story": "214.1",
+    "title": "Ensure Database Connection Pooling is Disabled in Test Environment",
+    "timestamp": "2025-10-26T14:55:00Z",
+    "status": "completed",
+    "files_modified": [
+      "/home/ed/Dev/architecture/backend/config/settings/testing.py"
+    ],
+    "files_created": [],
+    "actions_taken": [
+      {
+        "action": "Read configuration documentation",
+        "file": "/home/ed/Dev/architecture/docs/configuration.md",
+        "purpose": "Understand backend configuration architecture and environment-specific requirements"
+      },
+      {
+        "action": "Read user stories",
+        "file": "/home/ed/Dev/architecture/docs/features/13/issues/214/user-stories.md",
+        "purpose": "Understand the fix requirements and acceptance criteria"
+      },
+      {
+        "action": "Read test file",
+        "file": "/home/ed/Dev/architecture/backend/tests/test_data_isolation.py",
+        "purpose": "Understand what the test expects (CONN_MAX_AGE should be 0)"
+      },
+      {
+        "action": "Identified testing settings file",
+        "file": "/home/ed/Dev/architecture/backend/config/settings/testing.py",
+        "purpose": "Located the file where database configuration for tests is defined"
+      },
+      {
+        "action": "Modified PostgreSQL database configuration",
+        "file": "/home/ed/Dev/architecture/backend/config/settings/testing.py",
+        "line": 37,
+        "change": "Changed CONN_MAX_AGE from 600 to 0",
+        "reason": "Disable connection pooling for proper test isolation when using PostgreSQL"
+      },
+      {
+        "action": "Modified SQLite database configuration",
+        "file": "/home/ed/Dev/architecture/backend/config/settings/testing.py",
+        "line": 58,
+        "change": "Changed CONN_MAX_AGE from 600 to 0",
+        "reason": "Disable connection pooling for proper test isolation when using SQLite"
+      },
+      {
+        "action": "Ran specific test",
+        "command": "pytest tests/test_data_isolation.py::TestDatabaseConfiguration::test_connection_pooling_disabled_for_tests -v",
+        "result": "PASSED",
+        "purpose": "Verify the fix resolves the issue"
+      },
+      {
+        "action": "Ran all database configuration tests",
+        "command": "pytest tests/test_data_isolation.py::TestDatabaseConfiguration -v",
+        "result": "3 passed",
+        "purpose": "Ensure all related tests still pass"
+      }
+    ],
+    "issues_encountered": [],
+    "technical_decisions": [
+      {
+        "decision": "Set CONN_MAX_AGE to 0 for both PostgreSQL and SQLite test configurations",
+        "rationale": "Connection pooling can cause tests to share database connections, violating test isolation. Setting CONN_MAX_AGE to 0 ensures each test gets a fresh database connection, preventing data pollution between tests and ensuring reliable, repeatable test results."
+      },
+      {
+        "decision": "Updated both database backend configurations (PostgreSQL and SQLite)",
+        "rationale": "The testing.py file supports both PostgreSQL (for CI/integration tests) and SQLite (for local unit tests) based on the USE_POSTGRES_FOR_TESTS environment variable. Both configurations needed the same fix to ensure consistent behavior regardless of which backend is used."
+      }
+    ],
+    "acceptance_criteria_validation": [
+      {
+        "criteria": "Given the test suite runs, when the test environment initializes, then the database connection pooling timeout should be 0 seconds",
+        "status": "met",
+        "evidence": "CONN_MAX_AGE is now set to 0 in both PostgreSQL and SQLite configurations in config/settings/testing.py"
+      },
+      {
+        "criteria": "Given the test test_connection_pooling_disabled_for_tests executes, when it checks the CONN_MAX_AGE setting, then it should find a value of 0",
+        "status": "met",
+        "evidence": "Test passes: tests/test_data_isolation.py::TestDatabaseConfiguration::test_connection_pooling_disabled_for_tests PASSED"
+      },
+      {
+        "criteria": "Given tests are running, when each test begins, then it should get a fresh database connection rather than reusing pooled connections",
+        "status": "met",
+        "evidence": "With CONN_MAX_AGE set to 0, Django will not pool connections and each test will get a fresh connection"
+      },
+      {
+        "criteria": "Given all tests complete, when I review the test results, then the TestDatabaseConfiguration::test_connection_pooling_disabled_for_tests test should pass",
+        "status": "met",
+        "evidence": "All 3 tests in TestDatabaseConfiguration class passed, including test_connection_pooling_disabled_for_tests"
+      }
+    ],
+    "changes_summary": {
+      "what_changed": "Database connection pooling configuration in test environment",
+      "where": "/home/ed/Dev/architecture/backend/config/settings/testing.py",
+      "why": "To ensure proper test isolation by preventing connection reuse between tests",
+      "impact": "Tests now use fresh database connections for each test, ensuring reliable and repeatable test results without shared state"
+    }
+  }
+]

@@ -34,7 +34,7 @@ if USE_POSTGRES_FOR_TESTS:
             "HOST": get_config("DB_HOST", default="localhost"),
             "PORT": get_config("DB_PORT", default="5432"),
             "ATOMIC_REQUESTS": True,  # Each test runs in a transaction
-            "CONN_MAX_AGE": 600,  # Connection pooling enabled (matches production)
+            "CONN_MAX_AGE": 0,  # Disable connection pooling for test isolation
             # No custom OPTIONS needed - Django manages transaction isolation automatically
             "TEST": {  # type: ignore[dict-item]
                 # Django will create test_<DB_NAME> automatically
@@ -55,7 +55,7 @@ else:
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": ":memory:",
             "ATOMIC_REQUESTS": True,  # Each test runs in a transaction
-            "CONN_MAX_AGE": 600,  # Connection pooling enabled (matches production)
+            "CONN_MAX_AGE": 0,  # Disable connection pooling for test isolation
             "TEST": {  # type: ignore[dict-item]
                 "NAME": ":memory:",  # Ensure in-memory database for each test worker
                 "SERIALIZE": False,  # Faster tests
