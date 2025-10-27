@@ -90,7 +90,27 @@ ENV VITE_API_URL=$VITE_API_URL \
 RUN --mount=type=cache,target=/root/.npm \
     npm ci
 
+# ============================================================================
+# Version-Based Cache Invalidation (Story 16.3)
+# ============================================================================
+# Extract version from package.json and use it to invalidate Docker cache
+# when version changes. This ensures fresh builds for new releases while
+# maximizing cache reuse for unchanged versions.
+#
+# When the version in package.json changes from "1.0.0" to "1.0.1", this
+# layer will be invalidated, triggering a rebuild of all subsequent layers
+# including the application build.
+#
+# Note: This is placed AFTER npm ci to avoid re-downloading dependencies
+# when only the version changes. The COPY command still allows code changes
+# to trigger appropriate cache invalidation independent of version.
+# ============================================================================
+RUN APP_VERSION=$(node -p "require('./package.json').version") && \
+    echo "Building frontend version: $APP_VERSION" && \
+    echo "$APP_VERSION" > /tmp/app-version.txt
+
 # Copy application source
+# Code changes will still trigger cache invalidation independent of version
 COPY . .
 
 # Build application for production
@@ -110,6 +130,44 @@ RUN apk upgrade --no-cache libxml2
 
 # Copy built static assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
+
+# ============================================================================
+# Container Metadata Labels (Story 16.3 & 16.8)
+# ============================================================================
+# Add OCI-compliant labels to container image for version tracking and
+# identification. These labels can be inspected using:
+#   docker inspect <image> --format='{{json .Config.Labels}}'
+#   docker images --filter "label=app.version=1.0.0"
+#
+# Labels follow Open Container Initiative (OCI) annotation conventions:
+# https://github.com/opencontainers/image-spec/blob/main/annotations.md
+# ============================================================================
+# Copy version file from builder for use in labels
+COPY --from=builder /tmp/app-version.txt /tmp/app-version.txt
+
+# Set labels with version information
+RUN APP_VERSION=$(cat /tmp/app-version.txt) && \
+    echo "# Container Version Labels" > /etc/nginx/conf.d/version-labels.conf && \
+    echo "# app.version=$APP_VERSION" >> /etc/nginx/conf.d/version-labels.conf && \
+    echo "# app.component=frontend" >> /etc/nginx/conf.d/version-labels.conf && \
+    rm /tmp/app-version.txt
+
+# Define build arguments for label metadata
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+
+# Apply OCI labels
+LABEL org.opencontainers.image.title="Frontend Application" \
+      org.opencontainers.image.description="React + Vite frontend application served by nginx" \
+      org.opencontainers.image.version="${VERSION:-1.0.0}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.vendor="Architecture Project" \
+      org.opencontainers.image.authors="Architecture Team" \
+      app.version="${VERSION:-1.0.0}" \
+      app.component="frontend" \
+      app.type="web-application"
 
 # Create custom nginx configuration for SPA routing with optimizations
 RUN echo 'server { \

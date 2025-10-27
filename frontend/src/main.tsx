@@ -3,12 +3,14 @@
  *
  * Bootstraps the React application with proper providers and strict mode.
  * Loads runtime configuration from the backend before rendering the app.
+ * Exposes version information for support and troubleshooting.
  */
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { loadRuntimeConfig } from './config/runtimeConfig';
+import { initializeVersionInfo } from './utils/version';
 
 const root = document.getElementById('root');
 
@@ -28,7 +30,12 @@ root.innerHTML = `
 
 // Load runtime configuration and then render app
 loadRuntimeConfig()
-  .then(() => {
+  .then((config) => {
+    // Initialize version information for troubleshooting and support
+    // This logs version to console and exposes it via window object
+    // Feature #16 Story 16.6: Expose Frontend Version at Runtime
+    initializeVersionInfo(config.environment);
+
     // Render the application
     createRoot(root).render(
       <StrictMode>

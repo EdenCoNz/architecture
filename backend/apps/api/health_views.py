@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.database import DatabaseHealthCheck
+from config import __version__
 from config.env_config import get_environment
 
 # Track server start time for uptime calculation
@@ -33,10 +34,11 @@ def get_version_info() -> Dict[str, str]:
     Get version information for the API.
 
     Returns:
-        Dictionary containing version information
+        Dictionary containing version information including the
+        application version from config package
     """
     return {
-        "version": "1.0.0",  # Application version
+        "version": __version__,  # Application version from config package
         "api_version": "v1",
         "django_version": platform.python_version(),
         "python_version": platform.python_version(),
