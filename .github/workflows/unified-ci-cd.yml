@@ -68,6 +68,37 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # ----------------------------------------------------------------
+      # Container Registry Configuration
+      # ----------------------------------------------------------------
+      # Default: GitHub Container Registry (ghcr.io)
+      # Can be overridden via CONTAINER_REGISTRY environment variable
+      # ----------------------------------------------------------------
+      - name: Configure container registry
+        id: registry
+        run: |
+          REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
+          REGISTRY_PATH="${REGISTRY}/${{ github.repository_owner }}"
+
+          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
+          echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
+
+          echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry Path**: ${REGISTRY_PATH}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
+      # Authenticate to Container Registry (for pushing images)
+      # ----------------------------------------------------------------
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.registry.outputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ----------------------------------------------------------------
       # Container Cleanup Protocol (MANDATORY)
       # ----------------------------------------------------------------
       - name: Clean up existing containers
@@ -101,7 +132,7 @@ jobs:
           echo "version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
           echo "Backend version: $BACKEND_VERSION" >> $GITHUB_STEP_SUMMARY
 
-      - name: Build backend container
+      - name: Build backend development container
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -129,7 +160,7 @@ jobs:
           echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
           echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
 
-      - name: Build frontend container
+      - name: Build frontend development container
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -242,23 +273,24 @@ jobs:
           echo "✅ Frontend linting passed" >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
-      # Build Production Images for Deployment
+      # Build and Push Production Images to Registry
       # ----------------------------------------------------------------
-      # After tests pass, build production-optimized images for staging/production
+      # After tests pass, build production-optimized images and push to registry
       # These images use the production Dockerfile target with optimizations
+      # Images are pushed to registry for direct pulling by deployment servers
       # ----------------------------------------------------------------
-      - name: Build backend production container
+      - name: Build and push backend production container
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile
           target: production
-          push: false
-          load: true
+          push: true
           tags: |
-            backend-prod:${{ steps.backend_version.outputs.version }}
-            backend-prod:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
-            backend-prod:latest
+            ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
+            ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
+            ${{ steps.registry.outputs.registry_path }}/backend:latest
+            ${{ steps.registry.outputs.registry_path }}/backend:${{ github.ref_name }}
           build-args: |
             APP_VERSION=${{ steps.backend_version.outputs.version }}
           cache-from: |
@@ -268,19 +300,24 @@ jobs:
             type=gha,scope=backend-prod-main
             type=gha,scope=backend-prod
           cache-to: type=gha,mode=max,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.backend_version.outputs.version }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
-      - name: Build frontend production container
+      - name: Build and push frontend production container
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
           target: production
-          push: false
-          load: true
+          push: true
           tags: |
-            frontend-prod:${{ steps.frontend_version.outputs.version }}
-            frontend-prod:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
-            frontend-prod:latest
+            ${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}
+            ${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
+            ${{ steps.registry.outputs.registry_path }}/frontend:latest
+            ${{ steps.registry.outputs.registry_path }}/frontend:${{ github.ref_name }}
           build-args: |
             VERSION=${{ steps.frontend_version.outputs.version }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
@@ -292,48 +329,41 @@ jobs:
             type=gha,scope=frontend-prod-main
             type=gha,scope=frontend-prod
           cache-to: type=gha,mode=max,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.frontend_version.outputs.version }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
       - name: Build production images summary
         run: |
-          echo "## Production Images Built" >> $GITHUB_STEP_SUMMARY
+          echo "## Production Images Published to Registry" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Production images built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Production images built and pushed to registry" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Show image sizes comparison
-          echo "### Container Images Comparison" >> $GITHUB_STEP_SUMMARY
+          # Show published image details
+          echo "### Published Images" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "(backend-|frontend-|SIZE)"
+          echo "Backend:  ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}"
+          echo "Frontend: ${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}"
           echo '```' >> $GITHUB_STEP_SUMMARY
-
-      # ----------------------------------------------------------------
-      # Save Built Images as Artifacts
-      # ----------------------------------------------------------------
-      - name: Export container images
-        run: |
-          echo "## Exporting Container Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          mkdir -p /tmp/docker-artifacts
-
-          # Save production images (for staging/production deployment)
-          docker save backend-prod:latest | gzip > /tmp/docker-artifacts/backend.tar.gz
-          docker save frontend-prod:latest | gzip > /tmp/docker-artifacts/frontend.tar.gz
-
-          # Save docker-compose configuration
-          cp docker-compose.yml /tmp/docker-artifacts/
-          cp compose.staging.yml /tmp/docker-artifacts/
-          cp compose.production.yml /tmp/docker-artifacts/
-
-          echo "✅ Container images exported" >> $GITHUB_STEP_SUMMARY
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-build-${{ github.sha }}
-          path: /tmp/docker-artifacts/
-          retention-days: 7
-          if-no-files-found: error
+          # Show all tags published
+          echo "### Published Tags" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.backend_version.outputs.version }}\` (version)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.backend_version.outputs.version }}-${{ github.sha }}\` (version+sha)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`latest\` (latest)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ github.ref_name }}\` (branch)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.frontend_version.outputs.version }}\` (version)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.frontend_version.outputs.version }}-${{ github.sha }}\` (version+sha)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`latest\` (latest)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ github.ref_name }}\` (branch)" >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
       # Cleanup
@@ -380,11 +410,21 @@ jobs:
           echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
           echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-build-${{ github.sha }}
-          path: /tmp/docker-artifacts
+      # ----------------------------------------------------------------
+      # Configure Registry for Deployment
+      # ----------------------------------------------------------------
+      - name: Configure container registry
+        id: registry
+        run: |
+          REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
+          REGISTRY_PATH="${REGISTRY}/${{ github.repository_owner }}"
+
+          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
+          echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
+
+          echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
       # Connect to Staging Server via Tailscale
@@ -397,32 +437,41 @@ jobs:
           tags: tag:ci
 
       - name: Setup SSH for staging
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${SERVER_HOST} >> ~/.ssh/known_hosts
 
       # ----------------------------------------------------------------
       # Deploy to Staging Server
       # ----------------------------------------------------------------
       - name: Deploy to staging server
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY: ${{ steps.registry.outputs.registry }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           echo "## Deploying to Staging" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          DEPLOY_DIR="/home/${{ secrets.SERVER_USER }}/deployments/app-staging"
+          DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-staging"
+          REGISTRY_PATH="${{ steps.registry.outputs.registry_path }}"
 
           # Create environment files locally before transfer
-          mkdir -p /tmp/docker-artifacts/backend /tmp/docker-artifacts/frontend
+          mkdir -p /tmp/deployment/backend /tmp/deployment/frontend
 
           # Create backend .env.docker (required by base docker-compose.yml)
-          # Docker Compose merges env_file arrays, so we need both .env.docker and .env.staging
-          cat > /tmp/docker-artifacts/backend/.env.docker << 'ENV_EOF'
+          cat > /tmp/deployment/backend/.env.docker << 'ENV_EOF'
           # Backend Docker Environment Configuration (Staging)
-          # This file is loaded by base docker-compose.yml
-          # Settings are overridden by compose.staging.yml and .env.staging
           DJANGO_SETTINGS_MODULE=config.settings.staging
           DEBUG=False
           LOG_LEVEL=INFO
@@ -430,81 +479,81 @@ jobs:
           ENV_EOF
 
           # Create backend .env.staging (loaded by compose.staging.yml)
-          cat > /tmp/docker-artifacts/backend/.env.staging << 'ENV_EOF'
+          cat > /tmp/deployment/backend/.env.staging << 'ENV_EOF'
           # Backend Staging Environment Configuration
           # Additional staging-specific settings
           ENV_EOF
 
           # Create frontend .env.docker (required by base docker-compose.yml)
-          cat > /tmp/docker-artifacts/frontend/.env.docker << 'ENV_EOF'
+          cat > /tmp/deployment/frontend/.env.docker << 'ENV_EOF'
           # Frontend Docker Environment Configuration (Staging)
           NODE_ENV=production
           ENVIRONMENT=staging
           ENV_EOF
 
           # Create frontend .env.staging (loaded by compose.staging.yml)
-          cat > /tmp/docker-artifacts/frontend/.env.staging << 'ENV_EOF'
+          cat > /tmp/deployment/frontend/.env.staging << 'ENV_EOF'
           # Frontend Staging Environment Configuration
           # Additional staging-specific settings
           ENV_EOF
 
           # Create root-level .env file for docker-compose variable substitution
-          cat > /tmp/docker-artifacts/.env << 'ENV_EOF'
+          cat > /tmp/deployment/.env << ENV_EOF
           # Docker Compose Environment Variables (Staging)
-          # These are used for variable substitution in docker-compose.yml files
+          # Container registry configuration
+          CONTAINER_REGISTRY=${{ steps.registry.outputs.registry }}
 
-          # Application versions (extracted from source files)
+          # Application versions
           BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
           FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
+
+          # Full image paths with registry
+          BACKEND_IMAGE=${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}
+          FRONTEND_IMAGE=${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}
 
           # Database configuration
           DB_NAME=backend_staging_db
           DB_USER=backend_staging_user
-          DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+          DB_PASSWORD="${DB_PASSWORD}"
 
           # Redis configuration
-          REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
-
-          # Backend image (using versioned production image)
-          BACKEND_IMAGE=backend-prod:${{ steps.backend_version.outputs.version }}
-
-          # Frontend image (using versioned production image)
-          FRONTEND_IMAGE=frontend-prod:${{ steps.frontend_version.outputs.version }}
+          REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
           # Create deployment directory structure
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "mkdir -p $DEPLOY_DIR/backend $DEPLOY_DIR/frontend"
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend"
 
-          # Transfer build artifacts
+          # Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/*.tar.gz \
-            /tmp/docker-artifacts/*.yml \
-            /tmp/docker-artifacts/.env \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
+            docker-compose.yml compose.staging.yml \
+            /tmp/deployment/.env \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
 
-          # Transfer environment files (both .env.docker and .env.staging)
+          # Transfer environment files
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/backend/.env.docker \
-            /tmp/docker-artifacts/backend/.env.staging \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/backend/
+            /tmp/deployment/backend/.env.docker \
+            /tmp/deployment/backend/.env.staging \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/backend/
 
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/frontend/.env.docker \
-            /tmp/docker-artifacts/frontend/.env.staging \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/frontend/
+            /tmp/deployment/frontend/.env.docker \
+            /tmp/deployment/frontend/.env.staging \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
-          # Deploy on staging server with health verification
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Deploy on staging server with registry authentication
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
-            cd /home/${{ secrets.SERVER_USER }}/deployments/app-staging
+            cd /home/${SERVER_USER}/deployments/app-staging
 
             echo "Stopping existing containers..."
             docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans || true
 
-            echo "Loading new images..."
-            gunzip -c backend.tar.gz | docker load
-            gunzip -c frontend.tar.gz | docker load
+            echo "Logging in to container registry..."
+            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+
+            echo "Pulling latest images from registry..."
+            docker compose -f docker-compose.yml -f compose.staging.yml pull
 
             echo "Starting services..."
             docker compose -f docker-compose.yml -f compose.staging.yml up -d
@@ -548,6 +597,8 @@ jobs:
           echo "✅ Staging deployment completed" >> $GITHUB_STEP_SUMMARY
 
       - name: Verify staging deployment
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           echo "## Verifying Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -555,7 +606,7 @@ jobs:
           # Health check with retry logic and better error handling
           MAX_RETRIES=12
           RETRY_DELAY=5
-          HEALTH_URL="http://${{ secrets.SERVER_HOST }}/api/v1/status/"
+          HEALTH_URL="http://${SERVER_HOST}/api/v1/status/"
 
           echo "Waiting for staging environment to be ready..." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -640,13 +691,15 @@ jobs:
       # ----------------------------------------------------------------
       - name: Run E2E tests against staging
         id: e2e_tests
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           echo "## E2E Testing Against Staging" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Create test configuration pointing to staging
           cat > .env.e2e << EOF
-          PLAYWRIGHT_BASE_URL=http://${{ secrets.SERVER_HOST }}
+          PLAYWRIGHT_BASE_URL=http://${SERVER_HOST}
           PLAYWRIGHT_HEADLESS=true
           CI=true
           EOF
@@ -724,11 +777,21 @@ jobs:
           echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
           echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-build-${{ github.sha }}
-          path: /tmp/docker-artifacts
+      # ----------------------------------------------------------------
+      # Configure Registry for Deployment
+      # ----------------------------------------------------------------
+      - name: Configure container registry
+        id: registry
+        run: |
+          REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
+          REGISTRY_PATH="${REGISTRY}/${{ github.repository_owner }}"
+
+          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
+          echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
+
+          echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
       # Connect to Production Server via Tailscale
@@ -741,32 +804,41 @@ jobs:
           tags: tag:ci
 
       - name: Setup SSH for production
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${SERVER_HOST} >> ~/.ssh/known_hosts
 
       # ----------------------------------------------------------------
       # Deploy to Production Server
       # ----------------------------------------------------------------
       - name: Deploy to production server
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY: ${{ steps.registry.outputs.registry }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           echo "## Deploying to Production" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          DEPLOY_DIR="/home/${{ secrets.SERVER_USER }}/deployments/app-production"
+          DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-production"
+          REGISTRY_PATH="${{ steps.registry.outputs.registry_path }}"
 
           # Create environment files locally before transfer
-          mkdir -p /tmp/docker-artifacts/backend /tmp/docker-artifacts/frontend
+          mkdir -p /tmp/deployment/backend /tmp/deployment/frontend
 
           # Create backend .env.docker (required by base docker-compose.yml)
-          # Docker Compose merges env_file arrays, so we need both .env.docker and .env.production
-          cat > /tmp/docker-artifacts/backend/.env.docker << 'ENV_EOF'
+          cat > /tmp/deployment/backend/.env.docker << 'ENV_EOF'
           # Backend Docker Environment Configuration (Production)
-          # This file is loaded by base docker-compose.yml
-          # Settings are overridden by compose.production.yml and .env.production
           DJANGO_SETTINGS_MODULE=config.settings.production
           DEBUG=False
           LOG_LEVEL=WARNING
@@ -774,81 +846,81 @@ jobs:
           ENV_EOF
 
           # Create backend .env.production (loaded by compose.production.yml)
-          cat > /tmp/docker-artifacts/backend/.env.production << 'ENV_EOF'
+          cat > /tmp/deployment/backend/.env.production << 'ENV_EOF'
           # Backend Production Environment Configuration
           # Additional production-specific settings
           ENV_EOF
 
           # Create frontend .env.docker (required by base docker-compose.yml)
-          cat > /tmp/docker-artifacts/frontend/.env.docker << 'ENV_EOF'
+          cat > /tmp/deployment/frontend/.env.docker << 'ENV_EOF'
           # Frontend Docker Environment Configuration (Production)
           NODE_ENV=production
           ENVIRONMENT=production
           ENV_EOF
 
           # Create frontend .env.production (loaded by compose.production.yml)
-          cat > /tmp/docker-artifacts/frontend/.env.production << 'ENV_EOF'
+          cat > /tmp/deployment/frontend/.env.production << 'ENV_EOF'
           # Frontend Production Environment Configuration
           # Additional production-specific settings
           ENV_EOF
 
           # Create root-level .env file for docker-compose variable substitution
-          cat > /tmp/docker-artifacts/.env << 'ENV_EOF'
+          cat > /tmp/deployment/.env << ENV_EOF
           # Docker Compose Environment Variables (Production)
-          # These are used for variable substitution in docker-compose.yml files
+          # Container registry configuration
+          CONTAINER_REGISTRY=${{ steps.registry.outputs.registry }}
 
-          # Application versions (extracted from source files)
+          # Application versions
           BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
           FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
+
+          # Full image paths with registry
+          BACKEND_IMAGE=${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}
+          FRONTEND_IMAGE=${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}
 
           # Database configuration
           DB_NAME=backend_production_db
           DB_USER=backend_production_user
-          DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+          DB_PASSWORD="${DB_PASSWORD}"
 
           # Redis configuration
-          REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
-
-          # Backend image (using versioned production image)
-          BACKEND_IMAGE=backend-prod:${{ steps.backend_version.outputs.version }}
-
-          # Frontend image (using versioned production image)
-          FRONTEND_IMAGE=frontend-prod:${{ steps.frontend_version.outputs.version }}
+          REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
           # Create deployment directory structure
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "mkdir -p $DEPLOY_DIR/backend $DEPLOY_DIR/frontend"
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend"
 
-          # Transfer build artifacts
+          # Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/*.tar.gz \
-            /tmp/docker-artifacts/*.yml \
-            /tmp/docker-artifacts/.env \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
+            docker-compose.yml compose.production.yml \
+            /tmp/deployment/.env \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
 
-          # Transfer environment files (both .env.docker and .env.production)
+          # Transfer environment files
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/backend/.env.docker \
-            /tmp/docker-artifacts/backend/.env.production \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/backend/
+            /tmp/deployment/backend/.env.docker \
+            /tmp/deployment/backend/.env.production \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/backend/
 
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/frontend/.env.docker \
-            /tmp/docker-artifacts/frontend/.env.production \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/frontend/
+            /tmp/deployment/frontend/.env.docker \
+            /tmp/deployment/frontend/.env.production \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
-          # Deploy on production server with health verification
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Deploy on production server with registry authentication
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
-            cd /home/${{ secrets.SERVER_USER }}/deployments/app-production
+            cd /home/${SERVER_USER}/deployments/app-production
 
             echo "Stopping existing containers..."
             docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans || true
 
-            echo "Loading new images..."
-            gunzip -c backend.tar.gz | docker load
-            gunzip -c frontend.tar.gz | docker load
+            echo "Logging in to container registry..."
+            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+
+            echo "Pulling latest images from registry..."
+            docker compose -f docker-compose.yml -f compose.production.yml pull
 
             echo "Starting services..."
             docker compose -f docker-compose.yml -f compose.production.yml up -d
@@ -892,6 +964,8 @@ jobs:
           echo "✅ Production deployment completed" >> $GITHUB_STEP_SUMMARY
 
       - name: Verify production deployment
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           echo "## Verifying Production Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -899,7 +973,7 @@ jobs:
           # Health check with retry logic and better error handling
           MAX_RETRIES=12
           RETRY_DELAY=5
-          HEALTH_URL="http://${{ secrets.SERVER_HOST }}/api/v1/status/"
+          HEALTH_URL="http://${SERVER_HOST}/api/v1/status/"
 
           echo "Waiting for production environment to be ready..." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
