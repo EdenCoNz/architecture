@@ -351,7 +351,7 @@ jobs:
           sleep 10
 
           # Check staging health endpoint via Tailscale
-          HEALTH_CHECK=$(curl -f -s ${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
+          HEALTH_CHECK=$(curl -f -s http://${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
 
           if [[ "$HEALTH_CHECK" != "failed" ]]; then
             echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
@@ -541,7 +541,7 @@ jobs:
           sleep 10
 
           # Check production health endpoint
-          HEALTH_CHECK=$(curl -f -s ${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
+          HEALTH_CHECK=$(curl -f -s http://${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
 
           if [[ "$HEALTH_CHECK" != "failed" ]]; then
             echo "✅ Production environment is healthy" >> $GITHUB_STEP_SUMMARY
