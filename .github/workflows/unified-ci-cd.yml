@@ -88,10 +88,19 @@ jobs:
       # ----------------------------------------------------------------
       # Uses GitHub Actions cache backend for efficient layer caching
       # Multi-level cache fallback strategy:
-      # 1. Branch-specific cache (current feature work)
-      # 2. Main branch cache (shared layers)
-      # 3. General cache (cross-branch fallback)
+      # 1. Version+branch cache (version-specific current work)
+      # 2. Version+main cache (version-specific shared layers)
+      # 3. Branch cache (cross-version fallback)
+      # 4. Main branch cache (cross-version shared layers)
+      # 5. General cache (last resort fallback)
       # ----------------------------------------------------------------
+      - name: Extract backend version from config/__init__.py
+        id: backend_version
+        run: |
+          BACKEND_VERSION=$(grep -E "^__version__\s*=\s*" backend/config/__init__.py | cut -d'"' -f2)
+          echo "version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
+          echo "Backend version: $BACKEND_VERSION" >> $GITHUB_STEP_SUMMARY
+
       - name: Build backend container
         uses: docker/build-push-action@v5
         with:
@@ -101,11 +110,22 @@ jobs:
           push: false
           load: true
           tags: backend-dev:latest
+          build-args: |
+            APP_VERSION=${{ steps.backend_version.outputs.version }}
           cache-from: |
+            type=gha,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-main
             type=gha,scope=backend-dev-${{ github.ref_name }}
             type=gha,scope=backend-dev-main
             type=gha,scope=backend-dev
-          cache-to: type=gha,mode=max,scope=backend-dev-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+
+      - name: Extract frontend version from package.json
+        id: frontend_version
+        run: |
+          FRONTEND_VERSION=$(node -p "require('./frontend/package.json').version")
+          echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
+          echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
 
       - name: Build frontend container
         uses: docker/build-push-action@v5
@@ -117,10 +137,12 @@ jobs:
           load: true
           tags: frontend-dev:latest
           cache-from: |
+            type=gha,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-main
             type=gha,scope=frontend-dev-${{ github.ref_name }}
             type=gha,scope=frontend-dev-main
             type=gha,scope=frontend-dev
-          cache-to: type=gha,mode=max,scope=frontend-dev-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
 
       - name: Build complete application stack summary
         run: |
@@ -230,11 +252,15 @@ jobs:
           push: false
           load: true
           tags: backend-prod:latest
+          build-args: |
+            APP_VERSION=${{ steps.backend_version.outputs.version }}
           cache-from: |
+            type=gha,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-main
             type=gha,scope=backend-prod-${{ github.ref_name }}
             type=gha,scope=backend-prod-main
             type=gha,scope=backend-prod
-          cache-to: type=gha,mode=max,scope=backend-prod-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
 
       - name: Build frontend production container
         uses: docker/build-push-action@v5
@@ -245,11 +271,17 @@ jobs:
           push: false
           load: true
           tags: frontend-prod:latest
+          build-args: |
+            VERSION=${{ steps.frontend_version.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
           cache-from: |
+            type=gha,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-main
             type=gha,scope=frontend-prod-${{ github.ref_name }}
             type=gha,scope=frontend-prod-main
             type=gha,scope=frontend-prod
-          cache-to: type=gha,mode=max,scope=frontend-prod-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
 
       - name: Build production images summary
         run: |

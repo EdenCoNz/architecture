@@ -46,6 +46,17 @@ RUN groupadd -g 1001 -r django && \
 # -----------------------------------------------------------------------------
 FROM base AS development
 
+# Application version for cache control and metadata
+# This ARG is used to:
+# 1. Invalidate Docker cache when version changes (ensures fresh builds for new releases)
+# 2. Add version metadata to container labels
+# 3. Allow version inspection via container metadata
+# The version is read from config/__init__.py and can be passed at build time
+ARG APP_VERSION=1.0.0
+
+# Add version label for container inspection
+LABEL app.version="${APP_VERSION}"
+
 # Install development dependencies
 COPY --chown=django:django requirements/base.txt requirements/dev.txt /app/requirements/
 
@@ -89,6 +100,10 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # -----------------------------------------------------------------------------
 FROM base AS builder
 
+# Application version for cache control
+# This ARG is used to invalidate Docker cache when version changes
+ARG APP_VERSION=1.0.0
+
 # Install production dependencies only
 COPY requirements/base.txt requirements/prod.txt /app/requirements/
 
@@ -100,6 +115,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Production Stage: Minimal runtime image
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS production
+
+# Application version for cache control and metadata
+ARG APP_VERSION=1.0.0
+
+# Add version label for container inspection
+LABEL app.version="${APP_VERSION}"
 
 # Set production environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \

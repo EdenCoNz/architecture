@@ -1,10 +1,21 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+// Read version from package.json
+const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
+const appVersion = packageJson.version;
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+
+  // Inject version from package.json into the app
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
 
   // Development server configuration optimized for Docker
   server: {
@@ -59,6 +70,7 @@ export default defineConfig({
     // Ensure test environment variables are loaded
     env: {
       VITE_API_URL: 'http://localhost:8000',
+      VITE_APP_VERSION: `${appVersion}-test`, // Add test suffix to distinguish test runs
     },
   },
 });
