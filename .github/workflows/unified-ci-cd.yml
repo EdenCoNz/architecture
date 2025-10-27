@@ -419,12 +419,15 @@ jobs:
         run: |
           REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
           # Docker registry repository names must be lowercase
-          REGISTRY_PATH="${REGISTRY}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          REPOSITORY_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          REGISTRY_PATH="${REGISTRY}/${REPOSITORY_OWNER}"
 
           echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
+          echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
 
           echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
           echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
 
@@ -504,6 +507,7 @@ jobs:
           # Docker Compose Environment Variables (Staging)
           # Container registry configuration
           CONTAINER_REGISTRY=${{ steps.registry.outputs.registry }}
+          REPOSITORY_OWNER=${{ steps.registry.outputs.repository_owner }}
 
           # Application versions
           BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
@@ -787,12 +791,15 @@ jobs:
         run: |
           REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
           # Docker registry repository names must be lowercase
-          REGISTRY_PATH="${REGISTRY}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          REPOSITORY_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          REGISTRY_PATH="${REGISTRY}/${REPOSITORY_OWNER}"
 
           echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
+          echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
 
           echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
           echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
 
@@ -872,6 +879,7 @@ jobs:
           # Docker Compose Environment Variables (Production)
           # Container registry configuration
           CONTAINER_REGISTRY=${{ steps.registry.outputs.registry }}
+          REPOSITORY_OWNER=${{ steps.registry.outputs.repository_owner }}
 
           # Application versions
           BACKEND_VERSION=${{ steps.backend_version.outputs.version }}

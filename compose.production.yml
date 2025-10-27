@@ -32,16 +32,16 @@ services:
   # ---------------------------------------------------------------------------
   backend:
     # Use production image from container registry
-    # Image includes full registry path (e.g., ghcr.io/owner/backend:1.0.0)
+    # Image includes full registry path (e.g., ghcr.io/edenconz/backend:1.0.0)
     # BACKEND_IMAGE should be set with full registry path in .env file
+    # Default uses REPOSITORY_OWNER variable set by GitHub Actions
     image: ${BACKEND_IMAGE:-${CONTAINER_REGISTRY:-ghcr.io}/${REPOSITORY_OWNER}/backend:${BACKEND_VERSION:-1.0.0}}
 
     # Pull images from registry (default behavior)
     # Images are pulled from container registry before starting
     pull_policy: always
 
-    # Remove build configuration - images are pre-built in CI/CD
-    build: null
+    # No build configuration - images are pre-built in CI/CD and pulled from registry
 
     # Load production environment variables from file
     env_file:
@@ -123,16 +123,16 @@ services:
   # ---------------------------------------------------------------------------
   frontend:
     # Use production image from container registry
-    # Image includes full registry path (e.g., ghcr.io/owner/frontend:1.0.0)
+    # Image includes full registry path (e.g., ghcr.io/edenconz/frontend:1.0.0)
     # FRONTEND_IMAGE should be set with full registry path in .env file
+    # Default uses REPOSITORY_OWNER variable set by GitHub Actions
     image: ${FRONTEND_IMAGE:-${CONTAINER_REGISTRY:-ghcr.io}/${REPOSITORY_OWNER}/frontend:${FRONTEND_VERSION:-1.0.0}}
 
     # Pull images from registry (default behavior)
     # Images are pulled from container registry before starting
     pull_policy: always
 
-    # Remove build configuration - images are pre-built in CI/CD
-    build: null
+    # No build configuration - images are pre-built in CI/CD and pulled from registry
 
     # Load production environment variables from file
     env_file:
@@ -345,6 +345,7 @@ services:
   # ---------------------------------------------------------------------------
   celery:
     # Use production backend image from registry (same version as backend service)
+    # Default uses REPOSITORY_OWNER variable set by GitHub Actions
     image: ${BACKEND_IMAGE:-${CONTAINER_REGISTRY:-ghcr.io}/${REPOSITORY_OWNER}/backend:${BACKEND_VERSION:-1.0.0}}
 
     # Pull images from registry (default behavior)
