@@ -227,18 +227,32 @@ services:
   # ---------------------------------------------------------------------------
   redis:
     # Redis with password and optimized persistence
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --appendonly yes
-      --appendfsync everysec
-      --maxmemory ${REDIS_MAXMEMORY:-1gb}
-      --maxmemory-policy allkeys-lru
-      --save 900 1
-      --save 300 10
-      --save 60 10000
-      --tcp-keepalive 300
-      --timeout 0
+    # Using array syntax to properly handle special characters in REDIS_PASSWORD
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-1gb}
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - "900"
+      - "1"
+      - --save
+      - "300"
+      - "10"
+      - --save
+      - "60"
+      - "10000"
+      - --tcp-keepalive
+      - "300"
+      - --timeout
+      - "0"
 
     # No direct port exposure in production
     ports: []
