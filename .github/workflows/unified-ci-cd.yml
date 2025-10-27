@@ -319,25 +319,55 @@ jobs:
             /tmp/docker-artifacts/* \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
 
-          # Deploy on staging server
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            cd $DEPLOY_DIR
+          # Deploy on staging server with health verification
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            cd /home/${{ secrets.SERVER_USER }}/deployments/app-staging
 
-            # Stop existing containers
+            echo "Stopping existing containers..."
             docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans || true
 
-            # Load new images
+            echo "Loading new images..."
             gunzip -c backend.tar.gz | docker load
             gunzip -c frontend.tar.gz | docker load
 
-            # Start services
+            echo "Starting services..."
             docker compose -f docker-compose.yml -f compose.staging.yml up -d
 
-            # Wait for health checks
-            sleep 30
+            echo "Waiting for services to become healthy..."
+            MAX_WAIT=120  # 2 minutes max wait
+            ELAPSED=0
+            CHECK_INTERVAL=5
 
-            # Verify deployment
+            while [ $ELAPSED -lt $MAX_WAIT ]; do
+              echo "Checking service health (${ELAPSED}s elapsed)..."
+
+              # Get health status of all services
+              UNHEALTHY=$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \
+                jq -r 'select(.Health != "" and .Health != "healthy") | .Service' 2>/dev/null || true)
+
+              if [ -z "$UNHEALTHY" ]; then
+                echo "✅ All services are healthy!"
+                docker compose -f docker-compose.yml -f compose.staging.yml ps
+                exit 0
+              fi
+
+              echo "⚠️ Waiting for services: $UNHEALTHY"
+              sleep $CHECK_INTERVAL
+              ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+            done
+
+            echo "❌ Services failed to become healthy within ${MAX_WAIT}s"
+            echo "Service status:"
             docker compose -f docker-compose.yml -f compose.staging.yml ps
+
+            echo "Proxy logs (last 50 lines):"
+            docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=50 proxy || true
+
+            echo "Backend logs (last 50 lines):"
+            docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=50 backend || true
+
+            exit 1
           EOF
 
           echo "✅ Staging deployment completed" >> $GITHUB_STEP_SUMMARY
@@ -547,25 +577,55 @@ jobs:
             /tmp/docker-artifacts/* \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
 
-          # Deploy on production server
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            cd $DEPLOY_DIR
+          # Deploy on production server with health verification
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            cd /home/${{ secrets.SERVER_USER }}/deployments/app-production
 
-            # Stop existing containers
+            echo "Stopping existing containers..."
             docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans || true
 
-            # Load new images
+            echo "Loading new images..."
             gunzip -c backend.tar.gz | docker load
             gunzip -c frontend.tar.gz | docker load
 
-            # Start services
+            echo "Starting services..."
             docker compose -f docker-compose.yml -f compose.production.yml up -d
 
-            # Wait for health checks
-            sleep 30
+            echo "Waiting for services to become healthy..."
+            MAX_WAIT=120  # 2 minutes max wait
+            ELAPSED=0
+            CHECK_INTERVAL=5
 
-            # Verify deployment
+            while [ $ELAPSED -lt $MAX_WAIT ]; do
+              echo "Checking service health (${ELAPSED}s elapsed)..."
+
+              # Get health status of all services
+              UNHEALTHY=$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \
+                jq -r 'select(.Health != "" and .Health != "healthy") | .Service' 2>/dev/null || true)
+
+              if [ -z "$UNHEALTHY" ]; then
+                echo "✅ All services are healthy!"
+                docker compose -f docker-compose.yml -f compose.production.yml ps
+                exit 0
+              fi
+
+              echo "⚠️ Waiting for services: $UNHEALTHY"
+              sleep $CHECK_INTERVAL
+              ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+            done
+
+            echo "❌ Services failed to become healthy within ${MAX_WAIT}s"
+            echo "Service status:"
             docker compose -f docker-compose.yml -f compose.production.yml ps
+
+            echo "Proxy logs (last 50 lines):"
+            docker compose -f docker-compose.yml -f compose.production.yml logs --tail=50 proxy || true
+
+            echo "Backend logs (last 50 lines):"
+            docker compose -f docker-compose.yml -f compose.production.yml logs --tail=50 backend || true
+
+            exit 1
           EOF
 
           echo "✅ Production deployment completed" >> $GITHUB_STEP_SUMMARY
