@@ -347,18 +347,56 @@ jobs:
           echo "## Verifying Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Wait for services to be fully ready
-          sleep 10
+          # Health check with retry logic and better error handling
+          MAX_RETRIES=12
+          RETRY_DELAY=5
+          HEALTH_URL="http://${{ secrets.SERVER_HOST }}/api/v1/status/"
 
-          # Check staging health endpoint via Tailscale
-          HEALTH_CHECK=$(curl -f -s http://${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
+          echo "Waiting for staging environment to be ready..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [[ "$HEALTH_CHECK" != "failed" ]]; then
-            echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Staging environment health check failed" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES: Checking health endpoint..." >> $GITHUB_STEP_SUMMARY
+
+            # Use status endpoint which always returns 200 and provides detailed info
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_URL" 2>&1)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            echo "HTTP Status: $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+
+            if [[ "$HTTP_CODE" == "200" ]]; then
+              # Parse the status from JSON response
+              STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+
+              if [[ "$STATUS" == "healthy" ]]; then
+                echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "Response details:" >> $GITHUB_STEP_SUMMARY
+                echo '```json' >> $GITHUB_STEP_SUMMARY
+                echo "$BODY" | head -n 20 >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                exit 0
+              else
+                echo "⚠️ Service responded but status is: $STATUS" >> $GITHUB_STEP_SUMMARY
+                echo "Response: $BODY" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "⚠️ Health endpoint returned HTTP $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+              if [[ -n "$BODY" ]]; then
+                echo "Response: $BODY" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+
+            if [[ $i -lt $MAX_RETRIES ]]; then
+              echo "Waiting ${RETRY_DELAY}s before retry..." >> $GITHUB_STEP_SUMMARY
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Staging environment health check failed after $MAX_RETRIES attempts" >> $GITHUB_STEP_SUMMARY
+          exit 1
 
   # ============================================================================
   # STAGE 3: E2E TESTING
@@ -537,18 +575,56 @@ jobs:
           echo "## Verifying Production Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Wait for services to be fully ready
-          sleep 10
+          # Health check with retry logic and better error handling
+          MAX_RETRIES=12
+          RETRY_DELAY=5
+          HEALTH_URL="http://${{ secrets.SERVER_HOST }}/api/v1/status/"
 
-          # Check production health endpoint
-          HEALTH_CHECK=$(curl -f -s http://${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
+          echo "Waiting for production environment to be ready..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [[ "$HEALTH_CHECK" != "failed" ]]; then
-            echo "✅ Production environment is healthy" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Production environment health check failed" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES: Checking health endpoint..." >> $GITHUB_STEP_SUMMARY
+
+            # Use status endpoint which always returns 200 and provides detailed info
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_URL" 2>&1)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            echo "HTTP Status: $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+
+            if [[ "$HTTP_CODE" == "200" ]]; then
+              # Parse the status from JSON response
+              STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+
+              if [[ "$STATUS" == "healthy" ]]; then
+                echo "✅ Production environment is healthy" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "Response details:" >> $GITHUB_STEP_SUMMARY
+                echo '```json' >> $GITHUB_STEP_SUMMARY
+                echo "$BODY" | head -n 20 >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                exit 0
+              else
+                echo "⚠️ Service responded but status is: $STATUS" >> $GITHUB_STEP_SUMMARY
+                echo "Response: $BODY" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "⚠️ Health endpoint returned HTTP $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+              if [[ -n "$BODY" ]]; then
+                echo "Response: $BODY" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+
+            if [[ $i -lt $MAX_RETRIES ]]; then
+              echo "Waiting ${RETRY_DELAY}s before retry..." >> $GITHUB_STEP_SUMMARY
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Production environment health check failed after $MAX_RETRIES attempts" >> $GITHUB_STEP_SUMMARY
+          exit 1
 
       - name: Production deployment summary
         if: success()
