@@ -313,25 +313,55 @@ jobs:
           # Create environment files locally before transfer
           mkdir -p /tmp/docker-artifacts/backend /tmp/docker-artifacts/frontend
 
-          # Create backend .env.staging
-          cat > /tmp/docker-artifacts/backend/.env.staging << 'ENV_EOF'
-          # Backend Staging Environment Configuration
+          # Create backend .env.docker (required by base docker-compose.yml)
+          # Docker Compose merges env_file arrays, so we need both .env.docker and .env.staging
+          cat > /tmp/docker-artifacts/backend/.env.docker << 'ENV_EOF'
+          # Backend Docker Environment Configuration (Staging)
+          # This file is loaded by base docker-compose.yml
+          # Settings are overridden by compose.staging.yml and .env.staging
           DJANGO_SETTINGS_MODULE=config.settings.staging
           DEBUG=False
           LOG_LEVEL=INFO
           ENVIRONMENT=staging
-
-          # These will be set by compose.staging.yml from GitHub secrets
-          # SECRET_KEY - set via GitHub secrets
-          # DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD - set via compose
-          # REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND - set via compose
           ENV_EOF
 
-          # Create frontend .env.staging
-          cat > /tmp/docker-artifacts/frontend/.env.staging << 'ENV_EOF'
-          # Frontend Staging Environment Configuration
+          # Create backend .env.staging (loaded by compose.staging.yml)
+          cat > /tmp/docker-artifacts/backend/.env.staging << 'ENV_EOF'
+          # Backend Staging Environment Configuration
+          # Additional staging-specific settings
+          ENV_EOF
+
+          # Create frontend .env.docker (required by base docker-compose.yml)
+          cat > /tmp/docker-artifacts/frontend/.env.docker << 'ENV_EOF'
+          # Frontend Docker Environment Configuration (Staging)
           NODE_ENV=production
           ENVIRONMENT=staging
+          ENV_EOF
+
+          # Create frontend .env.staging (loaded by compose.staging.yml)
+          cat > /tmp/docker-artifacts/frontend/.env.staging << 'ENV_EOF'
+          # Frontend Staging Environment Configuration
+          # Additional staging-specific settings
+          ENV_EOF
+
+          # Create root-level .env file for docker-compose variable substitution
+          cat > /tmp/docker-artifacts/.env << 'ENV_EOF'
+          # Docker Compose Environment Variables (Staging)
+          # These are used for variable substitution in docker-compose.yml files
+
+          # Database configuration
+          DB_NAME=backend_staging_db
+          DB_USER=backend_staging_user
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+          # Redis configuration
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+          # Backend image (using local built image)
+          BACKEND_IMAGE=backend-dev:latest
+
+          # Frontend image (using local built image)
+          FRONTEND_IMAGE=frontend-dev:latest
           ENV_EOF
 
           # Create deployment directory structure
@@ -342,14 +372,17 @@ jobs:
           scp -i ~/.ssh/id_ed25519 \
             /tmp/docker-artifacts/*.tar.gz \
             /tmp/docker-artifacts/*.yml \
+            /tmp/docker-artifacts/.env \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
 
-          # Transfer environment files
+          # Transfer environment files (both .env.docker and .env.staging)
           scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/backend/.env.docker \
             /tmp/docker-artifacts/backend/.env.staging \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/backend/
 
           scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/frontend/.env.docker \
             /tmp/docker-artifacts/frontend/.env.staging \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/frontend/
 
@@ -605,25 +638,55 @@ jobs:
           # Create environment files locally before transfer
           mkdir -p /tmp/docker-artifacts/backend /tmp/docker-artifacts/frontend
 
-          # Create backend .env.production
-          cat > /tmp/docker-artifacts/backend/.env.production << 'ENV_EOF'
-          # Backend Production Environment Configuration
+          # Create backend .env.docker (required by base docker-compose.yml)
+          # Docker Compose merges env_file arrays, so we need both .env.docker and .env.production
+          cat > /tmp/docker-artifacts/backend/.env.docker << 'ENV_EOF'
+          # Backend Docker Environment Configuration (Production)
+          # This file is loaded by base docker-compose.yml
+          # Settings are overridden by compose.production.yml and .env.production
           DJANGO_SETTINGS_MODULE=config.settings.production
           DEBUG=False
           LOG_LEVEL=WARNING
           ENVIRONMENT=production
-
-          # These will be set by compose.production.yml from GitHub secrets
-          # SECRET_KEY - set via GitHub secrets
-          # DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD - set via compose
-          # REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND - set via compose
           ENV_EOF
 
-          # Create frontend .env.production
-          cat > /tmp/docker-artifacts/frontend/.env.production << 'ENV_EOF'
-          # Frontend Production Environment Configuration
+          # Create backend .env.production (loaded by compose.production.yml)
+          cat > /tmp/docker-artifacts/backend/.env.production << 'ENV_EOF'
+          # Backend Production Environment Configuration
+          # Additional production-specific settings
+          ENV_EOF
+
+          # Create frontend .env.docker (required by base docker-compose.yml)
+          cat > /tmp/docker-artifacts/frontend/.env.docker << 'ENV_EOF'
+          # Frontend Docker Environment Configuration (Production)
           NODE_ENV=production
           ENVIRONMENT=production
+          ENV_EOF
+
+          # Create frontend .env.production (loaded by compose.production.yml)
+          cat > /tmp/docker-artifacts/frontend/.env.production << 'ENV_EOF'
+          # Frontend Production Environment Configuration
+          # Additional production-specific settings
+          ENV_EOF
+
+          # Create root-level .env file for docker-compose variable substitution
+          cat > /tmp/docker-artifacts/.env << 'ENV_EOF'
+          # Docker Compose Environment Variables (Production)
+          # These are used for variable substitution in docker-compose.yml files
+
+          # Database configuration
+          DB_NAME=backend_production_db
+          DB_USER=backend_production_user
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+          # Redis configuration
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+          # Backend image (using local built image)
+          BACKEND_IMAGE=backend-dev:latest
+
+          # Frontend image (using local built image)
+          FRONTEND_IMAGE=frontend-dev:latest
           ENV_EOF
 
           # Create deployment directory structure
@@ -634,14 +697,17 @@ jobs:
           scp -i ~/.ssh/id_ed25519 \
             /tmp/docker-artifacts/*.tar.gz \
             /tmp/docker-artifacts/*.yml \
+            /tmp/docker-artifacts/.env \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
 
-          # Transfer environment files
+          # Transfer environment files (both .env.docker and .env.production)
           scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/backend/.env.docker \
             /tmp/docker-artifacts/backend/.env.production \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/backend/
 
           scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/frontend/.env.docker \
             /tmp/docker-artifacts/frontend/.env.production \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/frontend/
 
