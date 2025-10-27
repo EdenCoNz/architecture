@@ -193,9 +193,10 @@ services:
       target: development
       # Use BuildKit cache for faster builds
       cache_from:
+        - backend-dev:${BACKEND_VERSION:-1.0.0}
         - backend-dev:latest
 
-    image: backend-dev:latest
+    image: backend-dev:${BACKEND_VERSION:-1.0.0}
     container_name: app-backend
     restart: unless-stopped
 
@@ -309,8 +310,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: development
+      cache_from:
+        - frontend-dev:${FRONTEND_VERSION:-1.0.0}
+        - frontend-dev:latest
 
-    image: frontend-dev:latest
+    image: frontend-dev:${FRONTEND_VERSION:-1.0.0}
     container_name: app-frontend
     restart: unless-stopped
 
@@ -479,9 +483,10 @@ services:
       dockerfile: Dockerfile
       target: development
       cache_from:
+        - backend-dev:${BACKEND_VERSION:-1.0.0}
         - backend-dev:latest
 
-    image: backend-dev:latest
+    image: backend-dev:${BACKEND_VERSION:-1.0.0}
     container_name: app-celery
     restart: unless-stopped
 

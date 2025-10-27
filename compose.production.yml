@@ -32,11 +32,13 @@ services:
   # ---------------------------------------------------------------------------
   backend:
     # Use production image from registry (built and scanned in CI/CD)
-    image: ${BACKEND_IMAGE:-ghcr.io/edenconz/backend:latest}
+    # Image is tagged with version from config/__init__.py (e.g., ghcr.io/edenconz/backend:1.0.0)
+    image: ${BACKEND_IMAGE:-ghcr.io/edenconz/backend:${BACKEND_VERSION:-1.0.0}}
 
     build:
       target: production
       cache_from:
+        - ghcr.io/edenconz/backend:${BACKEND_VERSION:-1.0.0}
         - ghcr.io/edenconz/backend:latest
 
     # Load production environment variables from file
@@ -119,11 +121,13 @@ services:
   # ---------------------------------------------------------------------------
   frontend:
     # Use production image from registry (built and scanned in CI/CD)
-    image: ${FRONTEND_IMAGE:-ghcr.io/edenconz/frontend:latest}
+    # Image is tagged with version from package.json (e.g., ghcr.io/edenconz/frontend:1.0.0)
+    image: ${FRONTEND_IMAGE:-ghcr.io/edenconz/frontend:${FRONTEND_VERSION:-1.0.0}}
 
     build:
       target: production
       cache_from:
+        - ghcr.io/edenconz/frontend:${FRONTEND_VERSION:-1.0.0}
         - ghcr.io/edenconz/frontend:latest
 
     # Load production environment variables from file
@@ -336,8 +340,8 @@ services:
   # Celery Worker Service - Production Configuration
   # ---------------------------------------------------------------------------
   celery:
-    # Use production backend image
-    image: ${BACKEND_IMAGE:-ghcr.io/edenconz/backend:latest}
+    # Use production backend image (same version as backend service)
+    image: ${BACKEND_IMAGE:-ghcr.io/edenconz/backend:${BACKEND_VERSION:-1.0.0}}
 
     # Load production environment variables
     env_file:

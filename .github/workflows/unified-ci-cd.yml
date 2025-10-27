@@ -109,7 +109,9 @@ jobs:
           target: development
           push: false
           load: true
-          tags: backend-dev:latest
+          tags: |
+            backend-dev:${{ steps.backend_version.outputs.version }}
+            backend-dev:latest
           build-args: |
             APP_VERSION=${{ steps.backend_version.outputs.version }}
           cache-from: |
@@ -135,7 +137,9 @@ jobs:
           target: development
           push: false
           load: true
-          tags: frontend-dev:latest
+          tags: |
+            frontend-dev:${{ steps.frontend_version.outputs.version }}
+            frontend-dev:latest
           cache-from: |
             type=gha,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
             type=gha,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-main
@@ -251,7 +255,10 @@ jobs:
           target: production
           push: false
           load: true
-          tags: backend-prod:latest
+          tags: |
+            backend-prod:${{ steps.backend_version.outputs.version }}
+            backend-prod:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
+            backend-prod:latest
           build-args: |
             APP_VERSION=${{ steps.backend_version.outputs.version }}
           cache-from: |
@@ -270,7 +277,10 @@ jobs:
           target: production
           push: false
           load: true
-          tags: frontend-prod:latest
+          tags: |
+            frontend-prod:${{ steps.frontend_version.outputs.version }}
+            frontend-prod:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
+            frontend-prod:latest
           build-args: |
             VERSION=${{ steps.frontend_version.outputs.version }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
@@ -355,6 +365,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Extract versions for deployment (same as build-and-test)
+      - name: Extract backend version
+        id: backend_version
+        run: |
+          BACKEND_VERSION=$(grep -E "^__version__\s*=\s*" backend/config/__init__.py | cut -d'"' -f2)
+          echo "version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
+          echo "Backend version: $BACKEND_VERSION" >> $GITHUB_STEP_SUMMARY
+
+      - name: Extract frontend version
+        id: frontend_version
+        run: |
+          FRONTEND_VERSION=$(node -p "require('./frontend/package.json').version")
+          echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
+          echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -428,6 +453,10 @@ jobs:
           # Docker Compose Environment Variables (Staging)
           # These are used for variable substitution in docker-compose.yml files
 
+          # Application versions (extracted from source files)
+          BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
+          FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
+
           # Database configuration
           DB_NAME=backend_staging_db
           DB_USER=backend_staging_user
@@ -436,11 +465,11 @@ jobs:
           # Redis configuration
           REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
 
-          # Backend image (using production built image)
-          BACKEND_IMAGE=backend-prod:latest
+          # Backend image (using versioned production image)
+          BACKEND_IMAGE=backend-prod:${{ steps.backend_version.outputs.version }}
 
-          # Frontend image (using production built image)
-          FRONTEND_IMAGE=frontend-prod:latest
+          # Frontend image (using versioned production image)
+          FRONTEND_IMAGE=frontend-prod:${{ steps.frontend_version.outputs.version }}
           ENV_EOF
 
           # Create deployment directory structure
@@ -680,6 +709,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Extract versions for deployment (same as build-and-test)
+      - name: Extract backend version
+        id: backend_version
+        run: |
+          BACKEND_VERSION=$(grep -E "^__version__\s*=\s*" backend/config/__init__.py | cut -d'"' -f2)
+          echo "version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
+          echo "Backend version: $BACKEND_VERSION" >> $GITHUB_STEP_SUMMARY
+
+      - name: Extract frontend version
+        id: frontend_version
+        run: |
+          FRONTEND_VERSION=$(node -p "require('./frontend/package.json').version")
+          echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
+          echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -753,6 +797,10 @@ jobs:
           # Docker Compose Environment Variables (Production)
           # These are used for variable substitution in docker-compose.yml files
 
+          # Application versions (extracted from source files)
+          BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
+          FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
+
           # Database configuration
           DB_NAME=backend_production_db
           DB_USER=backend_production_user
@@ -761,11 +809,11 @@ jobs:
           # Redis configuration
           REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
 
-          # Backend image (using production built image)
-          BACKEND_IMAGE=backend-prod:latest
+          # Backend image (using versioned production image)
+          BACKEND_IMAGE=backend-prod:${{ steps.backend_version.outputs.version }}
 
-          # Frontend image (using production built image)
-          FRONTEND_IMAGE=frontend-prod:latest
+          # Frontend image (using versioned production image)
+          FRONTEND_IMAGE=frontend-prod:${{ steps.frontend_version.outputs.version }}
           ENV_EOF
 
           # Create deployment directory structure
