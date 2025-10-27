@@ -310,14 +310,48 @@ jobs:
 
           DEPLOY_DIR="/home/${{ secrets.SERVER_USER }}/deployments/app-staging"
 
-          # Create deployment directory
+          # Create environment files locally before transfer
+          mkdir -p /tmp/docker-artifacts/backend /tmp/docker-artifacts/frontend
+
+          # Create backend .env.staging
+          cat > /tmp/docker-artifacts/backend/.env.staging << 'ENV_EOF'
+          # Backend Staging Environment Configuration
+          DJANGO_SETTINGS_MODULE=config.settings.staging
+          DEBUG=False
+          LOG_LEVEL=INFO
+          ENVIRONMENT=staging
+
+          # These will be set by compose.staging.yml from GitHub secrets
+          # SECRET_KEY - set via GitHub secrets
+          # DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD - set via compose
+          # REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND - set via compose
+          ENV_EOF
+
+          # Create frontend .env.staging
+          cat > /tmp/docker-artifacts/frontend/.env.staging << 'ENV_EOF'
+          # Frontend Staging Environment Configuration
+          NODE_ENV=production
+          ENVIRONMENT=staging
+          ENV_EOF
+
+          # Create deployment directory structure
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "mkdir -p $DEPLOY_DIR"
+            "mkdir -p $DEPLOY_DIR/backend $DEPLOY_DIR/frontend"
 
           # Transfer build artifacts
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/* \
+            /tmp/docker-artifacts/*.tar.gz \
+            /tmp/docker-artifacts/*.yml \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
+
+          # Transfer environment files
+          scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/backend/.env.staging \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/backend/
+
+          scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/frontend/.env.staging \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/frontend/
 
           # Deploy on staging server with health verification
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
@@ -568,14 +602,48 @@ jobs:
 
           DEPLOY_DIR="/home/${{ secrets.SERVER_USER }}/deployments/app-production"
 
-          # Create deployment directory
+          # Create environment files locally before transfer
+          mkdir -p /tmp/docker-artifacts/backend /tmp/docker-artifacts/frontend
+
+          # Create backend .env.production
+          cat > /tmp/docker-artifacts/backend/.env.production << 'ENV_EOF'
+          # Backend Production Environment Configuration
+          DJANGO_SETTINGS_MODULE=config.settings.production
+          DEBUG=False
+          LOG_LEVEL=WARNING
+          ENVIRONMENT=production
+
+          # These will be set by compose.production.yml from GitHub secrets
+          # SECRET_KEY - set via GitHub secrets
+          # DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD - set via compose
+          # REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND - set via compose
+          ENV_EOF
+
+          # Create frontend .env.production
+          cat > /tmp/docker-artifacts/frontend/.env.production << 'ENV_EOF'
+          # Frontend Production Environment Configuration
+          NODE_ENV=production
+          ENVIRONMENT=production
+          ENV_EOF
+
+          # Create deployment directory structure
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "mkdir -p $DEPLOY_DIR"
+            "mkdir -p $DEPLOY_DIR/backend $DEPLOY_DIR/frontend"
 
           # Transfer build artifacts
           scp -i ~/.ssh/id_ed25519 \
-            /tmp/docker-artifacts/* \
+            /tmp/docker-artifacts/*.tar.gz \
+            /tmp/docker-artifacts/*.yml \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
+
+          # Transfer environment files
+          scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/backend/.env.production \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/backend/
+
+          scp -i ~/.ssh/id_ed25519 \
+            /tmp/docker-artifacts/frontend/.env.production \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/frontend/
 
           # Deploy on production server with health verification
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
