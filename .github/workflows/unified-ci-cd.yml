@@ -352,10 +352,10 @@ jobs:
           # Database configuration
           DB_NAME=backend_staging_db
           DB_USER=backend_staging_user
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
 
           # Redis configuration
-          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
 
           # Backend image (using local built image)
           BACKEND_IMAGE=backend-dev:latest
@@ -677,10 +677,10 @@ jobs:
           # Database configuration
           DB_NAME=backend_production_db
           DB_USER=backend_production_user
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
 
           # Redis configuration
-          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
 
           # Backend image (using local built image)
           BACKEND_IMAGE=backend-dev:latest
