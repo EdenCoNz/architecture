@@ -77,7 +77,8 @@ jobs:
         id: registry
         run: |
           REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
-          REGISTRY_PATH="${REGISTRY}/${{ github.repository_owner }}"
+          # Docker registry repository names must be lowercase
+          REGISTRY_PATH="${REGISTRY}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
 
           echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
@@ -417,7 +418,8 @@ jobs:
         id: registry
         run: |
           REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
-          REGISTRY_PATH="${REGISTRY}/${{ github.repository_owner }}"
+          # Docker registry repository names must be lowercase
+          REGISTRY_PATH="${REGISTRY}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
 
           echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
@@ -784,7 +786,8 @@ jobs:
         id: registry
         run: |
           REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
-          REGISTRY_PATH="${REGISTRY}/${{ github.repository_owner }}"
+          # Docker registry repository names must be lowercase
+          REGISTRY_PATH="${REGISTRY}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
 
           echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
