@@ -216,6 +216,55 @@ jobs:
           echo "✅ Frontend linting passed" >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
+      # Build Production Images for Deployment
+      # ----------------------------------------------------------------
+      # After tests pass, build production-optimized images for staging/production
+      # These images use the production Dockerfile target with optimizations
+      # ----------------------------------------------------------------
+      - name: Build backend production container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: production
+          push: false
+          load: true
+          tags: backend-prod:latest
+          cache-from: |
+            type=gha,scope=backend-prod-${{ github.ref_name }}
+            type=gha,scope=backend-prod-main
+            type=gha,scope=backend-prod
+          cache-to: type=gha,mode=max,scope=backend-prod-${{ github.ref_name }}
+
+      - name: Build frontend production container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          target: production
+          push: false
+          load: true
+          tags: frontend-prod:latest
+          cache-from: |
+            type=gha,scope=frontend-prod-${{ github.ref_name }}
+            type=gha,scope=frontend-prod-main
+            type=gha,scope=frontend-prod
+          cache-to: type=gha,mode=max,scope=frontend-prod-${{ github.ref_name }}
+
+      - name: Build production images summary
+        run: |
+          echo "## Production Images Built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Production images built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Show image sizes comparison
+          echo "### Container Images Comparison" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "(backend-|frontend-|SIZE)"
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
       # Save Built Images as Artifacts
       # ----------------------------------------------------------------
       - name: Export container images
@@ -225,11 +274,9 @@ jobs:
 
           mkdir -p /tmp/docker-artifacts
 
-          # Save backend image
-          docker save backend-dev:latest | gzip > /tmp/docker-artifacts/backend.tar.gz
-
-          # Save frontend image
-          docker save frontend-dev:latest | gzip > /tmp/docker-artifacts/frontend.tar.gz
+          # Save production images (for staging/production deployment)
+          docker save backend-prod:latest | gzip > /tmp/docker-artifacts/backend.tar.gz
+          docker save frontend-prod:latest | gzip > /tmp/docker-artifacts/frontend.tar.gz
 
           # Save docker-compose configuration
           cp docker-compose.yml /tmp/docker-artifacts/
@@ -357,11 +404,11 @@ jobs:
           # Redis configuration
           REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
 
-          # Backend image (using local built image)
-          BACKEND_IMAGE=backend-dev:latest
+          # Backend image (using production built image)
+          BACKEND_IMAGE=backend-prod:latest
 
-          # Frontend image (using local built image)
-          FRONTEND_IMAGE=frontend-dev:latest
+          # Frontend image (using production built image)
+          FRONTEND_IMAGE=frontend-prod:latest
           ENV_EOF
 
           # Create deployment directory structure
@@ -682,11 +729,11 @@ jobs:
           # Redis configuration
           REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
 
-          # Backend image (using local built image)
-          BACKEND_IMAGE=backend-dev:latest
+          # Backend image (using production built image)
+          BACKEND_IMAGE=backend-prod:latest
 
-          # Frontend image (using local built image)
-          FRONTEND_IMAGE=frontend-dev:latest
+          # Frontend image (using production built image)
+          FRONTEND_IMAGE=frontend-prod:latest
           ENV_EOF
 
           # Create deployment directory structure
