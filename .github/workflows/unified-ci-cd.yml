@@ -298,7 +298,7 @@ jobs:
           chmod 700 ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.STAGING_SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       # ----------------------------------------------------------------
       # Deploy to Staging Server
@@ -308,19 +308,19 @@ jobs:
           echo "## Deploying to Staging" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          DEPLOY_DIR="/home/${{ secrets.STAGING_SERVER_USER }}/deployments/app-staging"
+          DEPLOY_DIR="/home/${{ secrets.SERVER_USER }}/deployments/app-staging"
 
           # Create deployment directory
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_HOST }} \
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
             "mkdir -p $DEPLOY_DIR"
 
           # Transfer build artifacts
           scp -i ~/.ssh/id_ed25519 \
             /tmp/docker-artifacts/* \
-            ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_HOST }}:$DEPLOY_DIR/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
 
           # Deploy on staging server
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             cd $DEPLOY_DIR
 
             # Stop existing containers
@@ -351,7 +351,7 @@ jobs:
           sleep 10
 
           # Check staging health endpoint via Tailscale
-          HEALTH_CHECK=$(curl -f -s ${{ secrets.STAGING_SERVER_HOST }}/api/v1/health/ || echo "failed")
+          HEALTH_CHECK=$(curl -f -s ${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
 
           if [[ "$HEALTH_CHECK" != "failed" ]]; then
             echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
@@ -372,6 +372,8 @@ jobs:
     needs: [deploy-staging]
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    environment:
+      name: Staging
 
     steps:
       - name: Checkout code
@@ -401,7 +403,7 @@ jobs:
 
           # Create test configuration pointing to staging
           cat > .env.e2e << EOF
-          PLAYWRIGHT_BASE_URL=http://${{ secrets.STAGING_SERVER_HOST }}
+          PLAYWRIGHT_BASE_URL=http://${{ secrets.SERVER_HOST }}
           PLAYWRIGHT_HEADLESS=true
           CI=true
           EOF
@@ -486,7 +488,7 @@ jobs:
           chmod 700 ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.PRODUCTION_SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       # ----------------------------------------------------------------
       # Deploy to Production Server
@@ -496,19 +498,19 @@ jobs:
           echo "## Deploying to Production" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          DEPLOY_DIR="/home/${{ secrets.PRODUCTION_SERVER_USER }}/deployments/app-production"
+          DEPLOY_DIR="/home/${{ secrets.SERVER_USER }}/deployments/app-production"
 
           # Create deployment directory
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.PRODUCTION_SERVER_USER }}@${{ secrets.PRODUCTION_SERVER_HOST }} \
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
             "mkdir -p $DEPLOY_DIR"
 
           # Transfer build artifacts
           scp -i ~/.ssh/id_ed25519 \
             /tmp/docker-artifacts/* \
-            ${{ secrets.PRODUCTION_SERVER_USER }}@${{ secrets.PRODUCTION_SERVER_HOST }}:$DEPLOY_DIR/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_DIR/
 
           # Deploy on production server
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.PRODUCTION_SERVER_USER }}@${{ secrets.PRODUCTION_SERVER_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             cd $DEPLOY_DIR
 
             # Stop existing containers
@@ -539,7 +541,7 @@ jobs:
           sleep 10
 
           # Check production health endpoint
-          HEALTH_CHECK=$(curl -f -s ${{ secrets.PRODUCTION_SERVER_HOST }}/api/v1/health/ || echo "failed")
+          HEALTH_CHECK=$(curl -f -s ${{ secrets.SERVER_HOST }}/api/v1/health/ || echo "failed")
 
           if [[ "$HEALTH_CHECK" != "failed" ]]; then
             echo "✅ Production environment is healthy" >> $GITHUB_STEP_SUMMARY
