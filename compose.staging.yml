@@ -66,7 +66,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
 
       # Security settings for HTTPS
-      # :TODO
+      # SECURE_SSL_REDIRECT=False in staging to allow both HTTP and HTTPS for testing
+      # Production should set this to True for security
       - SECURE_SSL_REDIRECT=False
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True

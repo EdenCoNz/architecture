@@ -17,42 +17,23 @@ class CoreConfig(AppConfig):
         Initialize core app components when Django is ready.
 
         This includes:
-        - Database connectivity checks
         - Signal handler registration
         - Health monitoring setup
+
+        Note: Database connectivity checks have been removed from ready() to avoid
+        the RuntimeWarning about accessing the database during app initialization.
+        Database health checks are available via:
+        - Health check endpoints: /api/v1/health/
+        - Management command: python manage.py check_database
+        - Startup scripts in Docker entrypoint
         """
         # Import signals here to avoid circular imports
         # import apps.core.signals
 
-        # Check database connectivity on startup
-        # Skip during migrations and other management commands that don't need DB
-        skip_commands = [
-            "makemigrations",
-            "migrate",
-            "check_database",
-            "showmigrations",
-            "sqlmigrate",
-            "help",
-            "version",
-        ]
-
-        # Only check database during runserver or production startup
-        is_management_command = "manage.py" in sys.argv[0] if sys.argv else False
-        current_command = sys.argv[1] if len(sys.argv) > 1 else None
-
-        if is_management_command and current_command in skip_commands:
-            # Skip database check for commands that don't need it
-            return
-
-        # Perform database connectivity check
-        # This provides immediate feedback if database is misconfigured
-        if is_management_command and current_command == "runserver":
-            # For runserver, warn but allow startup (development convenience)
-            from apps.core.management.commands.check_database import DatabaseReadyCheck
-
-            DatabaseReadyCheck.check_and_warn()
-        elif is_management_command:
-            # For other commands, check but don't fail
-            from apps.core.management.commands.check_database import DatabaseReadyCheck
-
-            DatabaseReadyCheck.check_and_warn()
+        # DO NOT perform database checks here - it causes RuntimeWarning
+        # Django discourages database access during AppConfig.ready()
+        # Database connectivity should be checked via:
+        # 1. Health check endpoints (/api/v1/health/)
+        # 2. Management commands (python manage.py check_database)
+        # 3. Docker entrypoint startup scripts
+        pass

@@ -27,7 +27,9 @@ INSTALLED_APPS += [
     "health_check.storage",
 ]
 
-# Security Settings (match production)
+# Security Settings
+# Note: SECURE_SSL_REDIRECT intentionally set to False in staging to allow both HTTP and HTTPS
+# Production should always set this to True
 SECURE_SSL_REDIRECT = get_config("SECURE_SSL_REDIRECT", default=True, cast=bool)
 SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -36,6 +38,11 @@ SESSION_COOKIE_SECURE = get_config("SESSION_COOKIE_SECURE", default=True, cast=b
 CSRF_COOKIE_SECURE = get_config("CSRF_COOKIE_SECURE", default=True, cast=bool)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+# Silence security.W008 warning if SSL redirect is disabled in staging
+# This is intentional to allow both HTTP and HTTPS for testing
+if not SECURE_SSL_REDIRECT:
+    SILENCED_SYSTEM_CHECKS = ["security.W008"]
 
 # CORS Configuration for Staging
 # Override development defaults with strict staging settings
