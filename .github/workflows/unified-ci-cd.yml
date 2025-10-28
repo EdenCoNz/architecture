@@ -60,6 +60,12 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
 
+    defaults:
+      run:
+        # Fail on unset variables (-u), exit on error (-e), fail on pipe errors (-o pipefail)
+        # This prevents silent failures from undefined variables
+        shell: bash -euo pipefail {0}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -392,6 +398,13 @@ jobs:
       name: Staging
       url: https://staging.yourdomain.com
 
+    defaults:
+      run:
+        # Fail on unset variables (-u), exit on error (-e), fail on pipe errors (-o pipefail)
+        # This prevents silent failures from undefined variables
+        # Note: Use ${VAR:-} syntax if you need to handle optional variables
+        shell: bash -euo pipefail {0}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -514,8 +527,8 @@ jobs:
           FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
 
           # Full image paths with registry
-          BACKEND_IMAGE=${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}
-          FRONTEND_IMAGE=${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}
+          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
+          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}
 
           # Database configuration
           DB_NAME=backend_staging_db
@@ -764,6 +777,13 @@ jobs:
       name: Production
       url: https://yourdomain.com
 
+    defaults:
+      run:
+        # Fail on unset variables (-u), exit on error (-e), fail on pipe errors (-o pipefail)
+        # This prevents silent failures from undefined variables
+        # Note: Use ${VAR:-} syntax if you need to handle optional variables
+        shell: bash -euo pipefail {0}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -886,8 +906,8 @@ jobs:
           FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
 
           # Full image paths with registry
-          BACKEND_IMAGE=${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}
-          FRONTEND_IMAGE=${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}
+          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
+          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}
 
           # Database configuration
           DB_NAME=backend_production_db
