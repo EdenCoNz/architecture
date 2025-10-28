@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getVersion, logVersionInfo, exposeVersionToWindow } from './version';
+import packageJson from '../../package.json';
 
 describe('Version Utility', () => {
   describe('getVersion', () => {
@@ -31,13 +32,14 @@ describe('Version Utility', () => {
       expect(version).toMatch(semverRegex);
     });
 
-    it('should return version "1.0.0" as initially configured in Story 16.1', () => {
+    it('should return version from package.json as configured in Story 16.1', () => {
       const version = getVersion();
+      const expectedVersion = packageJson.version;
 
       // This verifies Story 16.1 implementation is working
-      // In test environment, version might have -test suffix
-      expect(version).toMatch(/^1\.0\.0/);
-      expect(version.startsWith('1.0.0')).toBe(true);
+      // In test environment, version might have -test suffix, so we check the base version
+      const baseVersion = version.split('-')[0];
+      expect(baseVersion).toBe(expectedVersion);
     });
   });
 
@@ -206,12 +208,13 @@ describe('Version Utility', () => {
       // and updates automatically when package.json changes
 
       const version = getVersion();
+      const expectedVersion = packageJson.version;
 
       // Version should be sourced from Vite's build process which reads package.json
       // Vite automatically exposes package.json version at build time
-      // In test environment, version might have -test suffix
-      expect(version).toMatch(/^1\.0\.0/);
-      expect(version.startsWith('1.0.0')).toBe(true);
+      // In test environment, version might have -test suffix, so we check the base version
+      const baseVersion = version.split('-')[0];
+      expect(baseVersion).toBe(expectedVersion);
     });
   });
 
