@@ -585,47 +585,128 @@ jobs:
             echo "Starting services..."
             docker compose -f docker-compose.yml -f compose.staging.yml up -d --force-recreate --pull always
 
-            echo "Backend startup logs (immediate check):"
-            sleep 5
-            docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=100 backend || true
-
             echo ""
-            echo "Service status after startup:"
-            docker compose -f docker-compose.yml -f compose.staging.yml ps
+            echo "==================================================================="
+            echo "MONITORING CONTAINER HEALTH"
+            echo "==================================================================="
             echo ""
 
-            echo "Waiting for services to become healthy..."
+            # Give services a moment to initialize
+            sleep 3
+
             MAX_WAIT=120  # 2 minutes max wait
             ELAPSED=0
             CHECK_INTERVAL=5
+            PREVIOUS_UNHEALTHY=""
 
             while [ \$ELAPSED -lt \$MAX_WAIT ]; do
-              echo "Checking service health (\${ELAPSED}s elapsed)..."
+              echo "-------------------------------------------------------------------"
+              echo "Health Check (\${ELAPSED}s / \${MAX_WAIT}s elapsed)"
+              echo "-------------------------------------------------------------------"
 
-              # Get health status of all services
+              # Get detailed health status of all services with health checks
+              HEALTH_STATUS=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \\
+                jq -r 'select(.Health != "") | "\\(.Service):\\(.Health)"' 2>/dev/null || true)
+
+              if [ -z "\$HEALTH_STATUS" ]; then
+                echo "⚠️ No health status available yet - services still initializing..."
+              else
+                echo "Container Health Status:"
+                echo "\$HEALTH_STATUS" | while IFS=: read -r service health; do
+                  case "\$health" in
+                    "healthy")
+                      echo "  ✅ \$service: healthy"
+                      ;;
+                    "starting")
+                      echo "  🔄 \$service: starting (health check in progress)"
+                      ;;
+                    "unhealthy")
+                      echo "  ❌ \$service: UNHEALTHY"
+                      ;;
+                    *)
+                      echo "  ⚠️  \$service: \$health"
+                      ;;
+                  esac
+                done
+              fi
+
+              # Get list of unhealthy services
               UNHEALTHY=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \\
-                jq -r 'select(.Health != "" and .Health != "healthy") | .Service' 2>/dev/null || true)
+                jq -r 'select(.Health != "" and .Health != "healthy" and .Health != "starting") | .Service' 2>/dev/null || true)
 
-              if [ -z "\$UNHEALTHY" ]; then
-                echo "✅ All services are healthy!"
+              # Check if all services are healthy
+              STARTING=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \\
+                jq -r 'select(.Health == "starting") | .Service' 2>/dev/null || true)
+
+              if [ -z "\$UNHEALTHY" ] && [ -z "\$STARTING" ]; then
+                echo ""
+                echo "==================================================================="
+                echo "✅ ALL SERVICES ARE HEALTHY!"
+                echo "==================================================================="
+                echo ""
                 docker compose -f docker-compose.yml -f compose.staging.yml ps
                 exit 0
               fi
 
-              echo "⚠️ Waiting for services: \$UNHEALTHY"
+              # Show logs for newly unhealthy services
+              if [ -n "\$UNHEALTHY" ]; then
+                echo ""
+                echo "📋 Displaying logs for unhealthy containers:"
+                echo ""
+
+                for service in \$UNHEALTHY; do
+                  # Only show logs if this is a newly unhealthy service
+                  if ! echo "\$PREVIOUS_UNHEALTHY" | grep -q "\$service"; then
+                    echo ">>> NEW UNHEALTHY SERVICE DETECTED: \$service <<<"
+                  fi
+
+                  echo "--- \$service logs (last 30 lines) ---"
+                  docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=30 "\$service" 2>&1 || echo "Failed to retrieve logs for \$service"
+                  echo ""
+
+                  # Show detailed container inspection for health check failures
+                  echo "--- \$service health check details ---"
+                  CONTAINER_NAME=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps -q "\$service" 2>/dev/null)
+                  if [ -n "\$CONTAINER_NAME" ]; then
+                    docker inspect "\$CONTAINER_NAME" | jq -r '.[0].State.Health | "Health Status: " + .Status + "\nFailing Streak: " + (.FailingStreak|tostring) + "\nLast Check Output: " + (if .Log then .Log[0].Output else "No logs" end)' 2>&1 || echo "Failed to inspect container \$service"
+                  fi
+                  echo ""
+                done
+
+                PREVIOUS_UNHEALTHY="\$UNHEALTHY"
+              fi
+
+              # Show which services we're still waiting for
+              if [ -n "\$STARTING" ]; then
+                echo "⏳ Services still starting: \$STARTING"
+              fi
+              if [ -n "\$UNHEALTHY" ]; then
+                echo "❌ Unhealthy services: \$UNHEALTHY"
+              fi
+
               sleep \$CHECK_INTERVAL
               ELAPSED=\$((\$ELAPSED + \$CHECK_INTERVAL))
+              echo ""
             done
 
-            echo "❌ Services failed to become healthy within \${MAX_WAIT}s"
-            echo "Service status:"
+            echo "==================================================================="
+            echo "❌ TIMEOUT - SERVICES FAILED TO BECOME HEALTHY"
+            echo "==================================================================="
+            echo ""
+            echo "Final service status:"
             docker compose -f docker-compose.yml -f compose.staging.yml ps
+            echo ""
 
-            echo "Proxy logs (last 50 lines):"
-            docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=50 proxy || true
+            echo "==================================================================="
+            echo "FINAL LOG DUMP - ALL SERVICES"
+            echo "==================================================================="
+            echo ""
 
-            echo "Backend logs (last 50 lines):"
-            docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=50 backend || true
+            for service in proxy backend frontend db redis; do
+              echo "--- \$service logs (last 100 lines) ---"
+              docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=100 "\$service" 2>&1 || echo "Service \$service not found"
+              echo ""
+            done
 
             exit 1
           EOF
@@ -992,47 +1073,128 @@ jobs:
             echo "Starting services..."
             docker compose -f docker-compose.yml -f compose.production.yml up -d --force-recreate --pull always
 
-            echo "Backend startup logs (immediate check):"
-            sleep 5
-            docker compose -f docker-compose.yml -f compose.production.yml logs --tail=100 backend || true
-
             echo ""
-            echo "Service status after startup:"
-            docker compose -f docker-compose.yml -f compose.production.yml ps
+            echo "==================================================================="
+            echo "MONITORING CONTAINER HEALTH"
+            echo "==================================================================="
             echo ""
 
-            echo "Waiting for services to become healthy..."
+            # Give services a moment to initialize
+            sleep 3
+
             MAX_WAIT=120  # 2 minutes max wait
             ELAPSED=0
             CHECK_INTERVAL=5
+            PREVIOUS_UNHEALTHY=""
 
             while [ \$ELAPSED -lt \$MAX_WAIT ]; do
-              echo "Checking service health (\${ELAPSED}s elapsed)..."
+              echo "-------------------------------------------------------------------"
+              echo "Health Check (\${ELAPSED}s / \${MAX_WAIT}s elapsed)"
+              echo "-------------------------------------------------------------------"
 
-              # Get health status of all services
+              # Get detailed health status of all services with health checks
+              HEALTH_STATUS=\$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \\
+                jq -r 'select(.Health != "") | "\\(.Service):\\(.Health)"' 2>/dev/null || true)
+
+              if [ -z "\$HEALTH_STATUS" ]; then
+                echo "⚠️ No health status available yet - services still initializing..."
+              else
+                echo "Container Health Status:"
+                echo "\$HEALTH_STATUS" | while IFS=: read -r service health; do
+                  case "\$health" in
+                    "healthy")
+                      echo "  ✅ \$service: healthy"
+                      ;;
+                    "starting")
+                      echo "  🔄 \$service: starting (health check in progress)"
+                      ;;
+                    "unhealthy")
+                      echo "  ❌ \$service: UNHEALTHY"
+                      ;;
+                    *)
+                      echo "  ⚠️  \$service: \$health"
+                      ;;
+                  esac
+                done
+              fi
+
+              # Get list of unhealthy services
               UNHEALTHY=\$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \\
-                jq -r 'select(.Health != "" and .Health != "healthy") | .Service' 2>/dev/null || true)
+                jq -r 'select(.Health != "" and .Health != "healthy" and .Health != "starting") | .Service' 2>/dev/null || true)
 
-              if [ -z "\$UNHEALTHY" ]; then
-                echo "✅ All services are healthy!"
+              # Check if all services are healthy
+              STARTING=\$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \\
+                jq -r 'select(.Health == "starting") | .Service' 2>/dev/null || true)
+
+              if [ -z "\$UNHEALTHY" ] && [ -z "\$STARTING" ]; then
+                echo ""
+                echo "==================================================================="
+                echo "✅ ALL SERVICES ARE HEALTHY!"
+                echo "==================================================================="
+                echo ""
                 docker compose -f docker-compose.yml -f compose.production.yml ps
                 exit 0
               fi
 
-              echo "⚠️ Waiting for services: \$UNHEALTHY"
+              # Show logs for newly unhealthy services
+              if [ -n "\$UNHEALTHY" ]; then
+                echo ""
+                echo "📋 Displaying logs for unhealthy containers:"
+                echo ""
+
+                for service in \$UNHEALTHY; do
+                  # Only show logs if this is a newly unhealthy service
+                  if ! echo "\$PREVIOUS_UNHEALTHY" | grep -q "\$service"; then
+                    echo ">>> NEW UNHEALTHY SERVICE DETECTED: \$service <<<"
+                  fi
+
+                  echo "--- \$service logs (last 30 lines) ---"
+                  docker compose -f docker-compose.yml -f compose.production.yml logs --tail=30 "\$service" 2>&1 || echo "Failed to retrieve logs for \$service"
+                  echo ""
+
+                  # Show detailed container inspection for health check failures
+                  echo "--- \$service health check details ---"
+                  CONTAINER_NAME=\$(docker compose -f docker-compose.yml -f compose.production.yml ps -q "\$service" 2>/dev/null)
+                  if [ -n "\$CONTAINER_NAME" ]; then
+                    docker inspect "\$CONTAINER_NAME" | jq -r '.[0].State.Health | "Health Status: " + .Status + "\nFailing Streak: " + (.FailingStreak|tostring) + "\nLast Check Output: " + (if .Log then .Log[0].Output else "No logs" end)' 2>&1 || echo "Failed to inspect container \$service"
+                  fi
+                  echo ""
+                done
+
+                PREVIOUS_UNHEALTHY="\$UNHEALTHY"
+              fi
+
+              # Show which services we're still waiting for
+              if [ -n "\$STARTING" ]; then
+                echo "⏳ Services still starting: \$STARTING"
+              fi
+              if [ -n "\$UNHEALTHY" ]; then
+                echo "❌ Unhealthy services: \$UNHEALTHY"
+              fi
+
               sleep \$CHECK_INTERVAL
               ELAPSED=\$((\$ELAPSED + \$CHECK_INTERVAL))
+              echo ""
             done
 
-            echo "❌ Services failed to become healthy within \${MAX_WAIT}s"
-            echo "Service status:"
+            echo "==================================================================="
+            echo "❌ TIMEOUT - SERVICES FAILED TO BECOME HEALTHY"
+            echo "==================================================================="
+            echo ""
+            echo "Final service status:"
             docker compose -f docker-compose.yml -f compose.production.yml ps
+            echo ""
 
-            echo "Proxy logs (last 50 lines):"
-            docker compose -f docker-compose.yml -f compose.production.yml logs --tail=50 proxy || true
+            echo "==================================================================="
+            echo "FINAL LOG DUMP - ALL SERVICES"
+            echo "==================================================================="
+            echo ""
 
-            echo "Backend logs (last 50 lines):"
-            docker compose -f docker-compose.yml -f compose.production.yml logs --tail=50 backend || true
+            for service in proxy backend frontend db redis; do
+              echo "--- \$service logs (last 100 lines) ---"
+              docker compose -f docker-compose.yml -f compose.production.yml logs --tail=100 "\$service" 2>&1 || echo "Service \$service not found"
+              echo ""
+            done
 
             exit 1
           EOF
