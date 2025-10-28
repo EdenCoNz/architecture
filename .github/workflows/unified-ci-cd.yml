@@ -293,6 +293,7 @@ jobs:
           file: ./backend/Dockerfile
           target: production
           push: true
+          no-cache: true  # Temporarily disable cache to include new entrypoint script
           tags: |
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
