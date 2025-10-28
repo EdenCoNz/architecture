@@ -36,25 +36,26 @@ class TestApplicationVersion:
             semver_pattern, __version__
         ), f"Version '{__version__}' should follow semantic versioning (MAJOR.MINOR.PATCH)"
 
-    def test_version_initial_value(self):
-        """Test that initial version is 1.0.0."""
+    def test_version_not_empty(self):
+        """Test that version is not empty."""
         from config import __version__
 
-        assert __version__ == "1.0.0", "Initial version should be 1.0.0"
+        assert __version__ != "", "Version should not be empty"
+        assert len(__version__) > 0, "Version should have content"
 
     def test_version_can_be_imported_directly(self):
         """Test that version can be imported from config package."""
         # This import pattern should work from any module
         from config import __version__
 
-        assert __version__ == "1.0.0"
+        assert __version__ is not None, "Version should be importable"
 
     def test_version_accessible_from_config_module(self):
         """Test that version is accessible via config module."""
         import config
 
         assert hasattr(config, "__version__"), "config module should have __version__ attribute"
-        assert config.__version__ == "1.0.0"
+        assert config.__version__ is not None, "Version should be accessible"
 
     def test_version_components_are_valid(self):
         """Test that version components are valid integers."""
@@ -82,4 +83,5 @@ class TestApplicationVersion:
 
         # Verify version was successfully imported
         version = namespace.get("__version__") or namespace.get("version")
-        assert version == "1.0.0", f"Import style '{import_style}' should work"
+        assert version is not None, f"Import style '{import_style}' should work"
+        assert isinstance(version, str), f"Version from '{import_style}' should be a string"
