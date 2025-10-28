@@ -582,25 +582,25 @@ jobs:
             ELAPSED=0
             CHECK_INTERVAL=5
 
-            while [ $ELAPSED -lt $MAX_WAIT ]; do
-              echo "Checking service health (${ELAPSED}s elapsed)..."
+            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
+              echo "Checking service health (\${ELAPSED}s elapsed)..."
 
               # Get health status of all services
-              UNHEALTHY=$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \
+              UNHEALTHY=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \\
                 jq -r 'select(.Health != "" and .Health != "healthy") | .Service' 2>/dev/null || true)
 
-              if [ -z "$UNHEALTHY" ]; then
+              if [ -z "\$UNHEALTHY" ]; then
                 echo "✅ All services are healthy!"
                 docker compose -f docker-compose.yml -f compose.staging.yml ps
                 exit 0
               fi
 
-              echo "⚠️ Waiting for services: $UNHEALTHY"
-              sleep $CHECK_INTERVAL
-              ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+              echo "⚠️ Waiting for services: \$UNHEALTHY"
+              sleep \$CHECK_INTERVAL
+              ELAPSED=\$((\$ELAPSED + \$CHECK_INTERVAL))
             done
 
-            echo "❌ Services failed to become healthy within ${MAX_WAIT}s"
+            echo "❌ Services failed to become healthy within \${MAX_WAIT}s"
             echo "Service status:"
             docker compose -f docker-compose.yml -f compose.staging.yml ps
 
@@ -961,25 +961,25 @@ jobs:
             ELAPSED=0
             CHECK_INTERVAL=5
 
-            while [ $ELAPSED -lt $MAX_WAIT ]; do
-              echo "Checking service health (${ELAPSED}s elapsed)..."
+            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
+              echo "Checking service health (\${ELAPSED}s elapsed)..."
 
               # Get health status of all services
-              UNHEALTHY=$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \
+              UNHEALTHY=\$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \\
                 jq -r 'select(.Health != "" and .Health != "healthy") | .Service' 2>/dev/null || true)
 
-              if [ -z "$UNHEALTHY" ]; then
+              if [ -z "\$UNHEALTHY" ]; then
                 echo "✅ All services are healthy!"
                 docker compose -f docker-compose.yml -f compose.production.yml ps
                 exit 0
               fi
 
-              echo "⚠️ Waiting for services: $UNHEALTHY"
-              sleep $CHECK_INTERVAL
-              ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+              echo "⚠️ Waiting for services: \$UNHEALTHY"
+              sleep \$CHECK_INTERVAL
+              ELAPSED=\$((\$ELAPSED + \$CHECK_INTERVAL))
             done
 
-            echo "❌ Services failed to become healthy within ${MAX_WAIT}s"
+            echo "❌ Services failed to become healthy within \${MAX_WAIT}s"
             echo "Service status:"
             docker compose -f docker-compose.yml -f compose.production.yml ps
 
