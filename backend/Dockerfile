@@ -153,44 +153,10 @@ COPY --chown=django:django . /app/
 RUN mkdir -p /app/logs /app/media /app/staticfiles /app/static && \
     chown -R django:django /app/logs /app/media /app/staticfiles /app/static
 
-# Create production entrypoint script
-# Note: Production stage does NOT use volume mounts, so inline creation is safe
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-echo "=== Backend Production Container ==="\n\
-\n\
-# Validate configuration first (critical for production)\n\
-echo "Validating production configuration..."\n\
-python manage.py check_config --quiet || exit 1\n\
-echo "Configuration validated successfully!"\n\
-echo ""\n\
-\n\
-echo "Waiting for PostgreSQL to be ready..."\n\
-\n\
-# Wait for database\n\
-python manage.py check_database --wait 60\n\
-\n\
-echo "Database is ready!"\n\
-\n\
-# Run production checks\n\
-echo "Running deployment checks..."\n\
-python manage.py check --deploy --fail-level WARNING\n\
-\n\
-# Apply migrations\n\
-echo "Applying database migrations..."\n\
-python manage.py migrate --noinput\n\
-\n\
-# Collect static files\n\
-echo "Collecting static files..."\n\
-python manage.py collectstatic --noinput --clear\n\
-\n\
-echo "Production setup complete!"\n\
-echo ""\n\
-\n\
-# Execute the command\n\
-exec "$@"' > /app/docker-entrypoint-prod.sh && \
-    chmod +x /app/docker-entrypoint-prod.sh && \
+# Ensure entrypoint script has correct permissions
+# The script is copied from the repository via COPY . /app/ above (line 150)
+# IMPORTANT: docker-entrypoint-prod.sh is maintained in the repository at backend/docker-entrypoint-prod.sh
+RUN chmod +x /app/docker-entrypoint-prod.sh && \
     chown django:django /app/docker-entrypoint-prod.sh
 
 # Update PATH to include user-installed packages
