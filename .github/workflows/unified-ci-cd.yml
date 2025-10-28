@@ -564,7 +564,7 @@ jobs:
             docker compose -f docker-compose.yml -f compose.staging.yml pull
 
             echo "Starting services..."
-            docker compose -f docker-compose.yml -f compose.staging.yml up -d
+            docker compose -f docker-compose.yml -f compose.staging.yml up -d --force-recreate --pull always
 
             echo "Waiting for services to become healthy..."
             MAX_WAIT=120  # 2 minutes max wait
@@ -943,7 +943,7 @@ jobs:
             docker compose -f docker-compose.yml -f compose.production.yml pull
 
             echo "Starting services..."
-            docker compose -f docker-compose.yml -f compose.production.yml up -d
+            docker compose -f docker-compose.yml -f compose.production.yml up -d --force-recreate --pull always
 
             echo "Waiting for services to become healthy..."
             MAX_WAIT=120  # 2 minutes max wait
