@@ -2,6 +2,11 @@
 
 Configuration requirements for all services across environments.
 
+**Related Documentation:**
+- CI/CD Pipeline: [CICD.md](./CICD.md)
+- Container Health Monitoring: [container-health-monitoring.md](./container-health-monitoring.md)
+- Pipeline Flow: [pipeline-flow.md](./pipeline-flow.md)
+
 ---
 
 ## Frontend
@@ -31,12 +36,14 @@ VITE_API_ENABLE_LOGGING=true        # API logging
 
 # Application
 VITE_APP_NAME=App                   # Application name
+VITE_APP_TITLE=App                  # Browser tab title
 VITE_APP_VERSION=1.0.0              # Version
 VITE_DEBUG=true                     # Debug mode
 
 # Features
 VITE_ENABLE_ANALYTICS=false         # Analytics
 VITE_ENABLE_ERROR_REPORTING=false   # Error reporting
+VITE_ENABLE_SERVICE_WORKER=false    # Offline support/caching
 
 # Security
 VITE_SECURITY_ENABLE_CSP=false      # Content Security Policy
@@ -133,6 +140,21 @@ AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_STORAGE_BUCKET_NAME=
 USE_S3=False
+
+# Frontend Runtime Configuration (Feature #12)
+# Backend serves these to frontend at /api/v1/config/frontend/
+FRONTEND_API_URL=http://localhost
+FRONTEND_API_TIMEOUT=30000
+FRONTEND_API_ENABLE_LOGGING=true
+FRONTEND_APP_NAME=Application
+FRONTEND_APP_TITLE=Application
+FRONTEND_APP_VERSION=1.0.0
+FRONTEND_ENABLE_ANALYTICS=false
+FRONTEND_ENABLE_DEBUG=true
+
+# Docker-Specific Settings
+PYTHONUNBUFFERED=1                   # Important for Docker logs
+PYTHONDONTWRITEBYTECODE=1            # Prevent .pyc files
 ```
 
 ### Ports
@@ -311,10 +333,59 @@ docker compose -f docker-compose.yml -f compose.staging.yml up
 docker compose -f docker-compose.yml -f compose.production.yml up
 
 # Test environment
-docker compose -f compose.test.yml up
+docker compose -f docker-compose.yml -f compose.test.yml up
 ```
 
 ### Environment Files Priority
 1. `.env.{environment}` (local, staging, production)
 2. `.env.local` (git-ignored overrides)
 3. `.env` (fallback)
+
+---
+
+## Container Registry Configuration
+
+**Default Registry:** GitHub Container Registry (`ghcr.io`)
+
+### Environment Variables
+```bash
+# Used in CI/CD pipeline
+CONTAINER_REGISTRY=ghcr.io           # Container registry URL
+REPOSITORY_OWNER=username            # GitHub org/user (lowercase)
+
+# Image versioning
+BACKEND_VERSION=1.0.0                # From config/__init__.py
+FRONTEND_VERSION=1.0.0               # From package.json
+BACKEND_IMAGE=ghcr.io/owner/backend:tag
+FRONTEND_IMAGE=ghcr.io/owner/frontend:tag
+```
+
+### Image Tagging Strategy
+- `version` - Semantic version (e.g., 1.0.0)
+- `version-sha` - Version with commit SHA (immutable)
+- `latest` - Latest build from main branch
+- `branch-name` - Latest build from specific branch
+
+---
+
+## GitHub Actions Secrets
+
+Required secrets for CI/CD deployment:
+
+```bash
+# Tailscale VPN
+TS_OAUTH_CLIENT_ID=                  # Tailscale OAuth client ID
+TS_OAUTH_SECRET=                     # Tailscale OAuth secret
+
+# Server Access
+SSH_PRIVATE_KEY=                     # SSH key for server access
+SERVER_HOST=                         # Tailscale IP of deployment server
+SERVER_USER=                         # SSH username on server
+
+# Production Credentials
+DB_PASSWORD=                         # Production database password
+REDIS_PASSWORD=                      # Production Redis password
+GITHUB_TOKEN=                        # Auto-provided by GitHub Actions
+```
+
+**Setup Instructions:** See `.github/workflows/QUICK_START.md`
