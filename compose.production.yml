@@ -82,11 +82,10 @@ services:
     # No direct port exposure in production - ONLY through reverse proxy
     ports: []
 
-    # Production volumes - persistent data only (no bind mounts)
-    volumes:
+    # Production volumes - override base volumes completely (no source code bind mount)
+    volumes: !override
       - backend_media:/app/media
       - backend_static:/app/staticfiles
-      - ./backend/logs:/app/logs
 
     # Production resource limits - strict
     deploy:

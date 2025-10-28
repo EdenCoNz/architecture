@@ -77,11 +77,10 @@ services:
     # No direct port exposure in staging - only through reverse proxy
     ports: []
 
-    # Staging volumes - no bind mounts, only named volumes
-    volumes:
+    # Staging volumes - override base volumes completely (no source code bind mount)
+    volumes: !override
       - backend_media:/app/media
       - backend_static:/app/staticfiles
-      - ./backend/logs:/app/logs
 
     # Staging resource limits - moderate
     deploy:
