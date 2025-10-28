@@ -287,6 +287,7 @@ jobs:
           file: ./backend/Dockerfile
           target: production
           push: true
+          no-cache: true
           tags: |
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
