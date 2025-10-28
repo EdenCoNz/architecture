@@ -385,7 +385,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: Staging
-      url: https://staging.yourdomain.com
+      url: https://staging.edenco.online
 
     defaults:
       run:
