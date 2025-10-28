@@ -538,6 +538,9 @@ jobs:
           BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
           FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
 
+          # Security configuration
+          SECRET_KEY="${SECRET_KEY}"
+
           # Database configuration
           DB_NAME=backend_staging_db
           DB_USER=backend_staging_user
@@ -1025,6 +1028,9 @@ jobs:
           # Full image paths with registry (using SHA-tagged images for immutability)
           BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
           FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
+
+          # Security configuration
+          SECRET_KEY="${SECRET_KEY}"
 
           # Database configuration
           DB_NAME=backend_production_db

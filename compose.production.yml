@@ -54,6 +54,10 @@ services:
       - LOG_LEVEL=WARNING
       - ENVIRONMENT=production
 
+      # Security - Load from environment or .env file
+      # This overrides the insecure default in docker-compose.yml
+      - SECRET_KEY=${SECRET_KEY}
+
       # Database connection (use service name as host)
       - DB_HOST=db
       - DB_PORT=5432
