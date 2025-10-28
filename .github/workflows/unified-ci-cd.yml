@@ -293,7 +293,6 @@ jobs:
           file: ./backend/Dockerfile
           target: production
           push: true
-          no-cache: true  # Temporarily disable cache to include new entrypoint script
           tags: |
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
@@ -527,9 +526,9 @@ jobs:
           BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
           FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
 
-          # Full image paths with registry
-          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
-          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}
+          # Full image paths with registry (using SHA-tagged images for immutability)
+          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
+          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
 
           # Database configuration
           DB_NAME=backend_staging_db
@@ -906,9 +905,9 @@ jobs:
           BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
           FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
 
-          # Full image paths with registry
-          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
-          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}
+          # Full image paths with registry (using SHA-tagged images for immutability)
+          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
+          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
 
           # Database configuration
           DB_NAME=backend_production_db
