@@ -401,8 +401,8 @@ jobs:
     needs: [build-and-test]
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    # Only deploy from main branch
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Only deploy from main branch (via push or manual trigger)
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     environment:
       name: Staging
       url: https://staging.edenco.online
@@ -600,7 +600,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 2: Create Deployment Directories
+          # STEP 2: Create Deployment directories
           # ================================================================
           echo "#### Step 2: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
           echo "Ensuring all required directories exist on the server..." >> $GITHUB_STEP_SUMMARY
@@ -1049,8 +1049,8 @@ jobs:
     needs: [build-and-test, deploy-staging, e2e-testing]
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    # Only deploy to production from main branch after all stages pass
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Only deploy to production from main branch after all stages pass (via push or manual trigger)
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     environment:
       name: Production
       url: https://yourdomain.com
