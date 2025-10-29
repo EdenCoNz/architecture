@@ -552,9 +552,11 @@ jobs:
           REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
-          # Create deployment directory structure
+          # Create deployment directory structure with proper permissions
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx && \
+             sudo chown -R ${SERVER_USER}:${SERVER_USER} ${DEPLOY_DIR} && \
+             chmod -R u+w ${DEPLOY_DIR}"
 
           # Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
@@ -1097,9 +1099,11 @@ jobs:
           REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
-          # Create deployment directory structure
+          # Create deployment directory structure with proper permissions
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx && \
+             sudo chown -R ${SERVER_USER}:${SERVER_USER} ${DEPLOY_DIR} && \
+             chmod -R u+w ${DEPLOY_DIR}"
 
           # Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
