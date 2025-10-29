@@ -32,6 +32,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip backend and frontend tests (for deployment testing only)'
+        required: false
+        type: boolean
+        default: false
 
 # Explicit permissions (least privilege)
 permissions:
@@ -194,9 +200,22 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
+      # Test Skip Notice
+      # ----------------------------------------------------------------
+      - name: Tests skipped notice
+        if: ${{ inputs.skip_tests }}
+        run: |
+          echo "## ⚠️ Tests Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Backend and frontend tests were skipped as requested." >> $GITHUB_STEP_SUMMARY
+          echo "**This should only be used for deployment testing purposes.**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
       # Backend Tests (Unit + Integration)
       # ----------------------------------------------------------------
       - name: Run backend tests
+        if: ${{ !inputs.skip_tests }}
         run: |
           echo "## Backend Testing" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -248,6 +267,7 @@ jobs:
       # Frontend Tests (Unit + Integration)
       # ----------------------------------------------------------------
       - name: Run frontend tests
+        if: ${{ !inputs.skip_tests }}
         run: |
           echo "## Frontend Testing" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -597,6 +617,11 @@ jobs:
           echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
           echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
 
+          # Ensure directories are writable and wait for file locks to be released
+          echo "Verifying directory permissions and clearing file locks..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "chmod -R u+w ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx 2>/dev/null || true && sleep 2"
+
           echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.staging.yml \
@@ -606,7 +631,7 @@ jobs:
           echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             nginx/nginx.conf \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.conf
 
           echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
@@ -1240,6 +1265,11 @@ jobs:
           echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
           echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
 
+          # Ensure directories are writable and wait for file locks to be released
+          echo "Verifying directory permissions and clearing file locks..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "chmod -R u+w ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx 2>/dev/null || true && sleep 2"
+
           echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.production.yml \
@@ -1249,7 +1279,7 @@ jobs:
           echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             nginx/nginx.conf \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.conf
 
           echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
