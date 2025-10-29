@@ -459,7 +459,6 @@ jobs:
       # ----------------------------------------------------------------
       - name: Deploy to staging server
         id: deploy
-        continue-on-error: true
         env:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -826,6 +825,7 @@ jobs:
             echo "- Image pull failures" >> $GITHUB_STEP_SUMMARY
             echo "- Configuration errors" >> $GITHUB_STEP_SUMMARY
             echo "- Resource constraints (disk space, memory)" >> $GITHUB_STEP_SUMMARY
+            exit $DEPLOY_EXIT_CODE
           fi
 
       - name: Verify staging deployment
@@ -1102,7 +1102,6 @@ jobs:
       # ----------------------------------------------------------------
       - name: Deploy to production server
         id: deploy
-        continue-on-error: true
         env:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -1469,6 +1468,7 @@ jobs:
             echo "- Image pull failures" >> $GITHUB_STEP_SUMMARY
             echo "- Configuration errors" >> $GITHUB_STEP_SUMMARY
             echo "- Resource constraints (disk space, memory)" >> $GITHUB_STEP_SUMMARY
+            exit $DEPLOY_EXIT_CODE
           fi
 
       - name: Verify production deployment
