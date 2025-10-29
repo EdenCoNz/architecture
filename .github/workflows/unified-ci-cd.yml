@@ -554,13 +554,18 @@ jobs:
 
           # Create deployment directory structure
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend"
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
 
           # Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.staging.yml \
             /tmp/deployment/.env \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
+
+          # Transfer nginx configuration
+          scp -i ~/.ssh/id_ed25519 \
+            nginx/nginx.conf \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/
 
           # Transfer environment files
           scp -i ~/.ssh/id_ed25519 \
@@ -574,7 +579,8 @@ jobs:
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
           # Deploy on staging server with registry authentication
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
+          # Use -tt to force pseudo-terminal allocation for better output visibility
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
             cd /home/${SERVER_USER}/deployments/app-staging
 
@@ -1093,13 +1099,18 @@ jobs:
 
           # Create deployment directory structure
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend"
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
 
           # Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.production.yml \
             /tmp/deployment/.env \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
+
+          # Transfer nginx configuration
+          scp -i ~/.ssh/id_ed25519 \
+            nginx/nginx.conf \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/
 
           # Transfer environment files
           scp -i ~/.ssh/id_ed25519 \
@@ -1113,7 +1124,8 @@ jobs:
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
           # Deploy on production server with registry authentication
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
+          # Use -tt to force pseudo-terminal allocation for better output visibility
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
             cd /home/${SERVER_USER}/deployments/app-production
 

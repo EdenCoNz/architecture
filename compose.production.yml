@@ -306,10 +306,11 @@ services:
   # Proxy Service - Production Configuration
   # ---------------------------------------------------------------------------
   proxy:
-    # Use production nginx configuration (with SSL/TLS, security headers)
+    # Use nginx configuration (SSL/TLS configuration pending)
     volumes:
-      - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # SSL mount pending - add when certificates are configured
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
       - proxy_logs:/var/log/nginx
 
     # Expose HTTP (redirect to HTTPS) and HTTPS ports

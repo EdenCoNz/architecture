@@ -165,7 +165,7 @@ services:
       - ./testing/reports:/app/test-reports
 
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -291,10 +291,11 @@ services:
   # Proxy Service - Staging Configuration
   # ---------------------------------------------------------------------------
   proxy:
-    # Use staging nginx configuration (with SSL/TLS)
+    # Use nginx configuration (SSL/TLS configuration pending)
     volumes:
-      - ./nginx/nginx.staging.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # SSL mount pending - add when certificates are configured
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
       - proxy_logs:/var/log/nginx
 
     # Expose HTTP and HTTPS ports
