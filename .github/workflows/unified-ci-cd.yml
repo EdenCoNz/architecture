@@ -644,8 +644,8 @@ jobs:
 
           echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
-            nginx/nginx.conf \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.conf
+            nginx/nginx.production.conf \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.production.conf
 
           echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
@@ -1306,8 +1306,8 @@ jobs:
 
           echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
-            nginx/nginx.conf \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.conf
+            nginx/nginx.production.conf \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.production.conf
 
           echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
