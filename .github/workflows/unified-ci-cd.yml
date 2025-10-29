@@ -552,66 +552,17 @@ jobs:
           REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
-          # Create deployment directory structure
-          # Use -p to avoid errors if directories exist
-          # No sudo required - directories created with user's permissions
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} bash << EOF
-            set -e
+          # STEP 1: Stop containers to release file locks
+          echo "Stopping containers to release file locks..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "cd ${DEPLOY_DIR} && docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans 2>/dev/null || true"
 
-            DEPLOY_DIR="${DEPLOY_DIR}"
+          # STEP 2: Create deployment directories (simple after containers stopped)
+          echo "Creating deployment directories..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
 
-            # Function to handle directory creation with permission recovery
-            ensure_writable_dir() {
-              local dir="\$1"
-
-              # Try to create directory
-              if mkdir -p "\$dir" 2>/dev/null; then
-                # Successfully created or already exists with correct permissions
-                return 0
-              fi
-
-              # Directory exists but we can't write to it (likely owned by root from Docker)
-              # Check if directory exists but is not writable
-              if [ -d "\$dir" ] && [ ! -w "\$dir" ]; then
-                echo "Warning: Directory \$dir exists but is not writable"
-                echo "Attempting to recover by removing and recreating..."
-
-                # Try to remove the directory
-                # This will fail if owned by root, but that's okay - we'll handle it below
-                rm -rf "\$dir" 2>/dev/null || true
-
-                # Try to create again
-                if mkdir -p "\$dir" 2>/dev/null; then
-                  echo "Successfully recreated \$dir with correct permissions"
-                  return 0
-                else
-                  echo "Error: Cannot create writable directory \$dir"
-                  echo "This usually happens when Docker created the directory as root."
-                  echo "Manual intervention required: SSH to server and run:"
-                  echo "  sudo chown -R \${USER}:\${USER} \$dir"
-                  echo "  OR"
-                  echo "  sudo rm -rf \$dir"
-                  return 1
-                fi
-              fi
-
-              # Some other error occurred
-              echo "Error: Failed to create directory \$dir"
-              return 1
-            }
-
-            # Ensure base deployment directory exists and is writable
-            ensure_writable_dir "\${DEPLOY_DIR}" || exit 1
-
-            # Ensure subdirectories exist and are writable
-            ensure_writable_dir "\${DEPLOY_DIR}/backend" || exit 1
-            ensure_writable_dir "\${DEPLOY_DIR}/frontend" || exit 1
-            ensure_writable_dir "\${DEPLOY_DIR}/nginx" || exit 1
-
-            echo "All deployment directories verified and writable"
-          EOF
-
-          # Transfer configuration files
+          # STEP 3: Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.staging.yml \
             /tmp/deployment/.env \
@@ -1152,66 +1103,17 @@ jobs:
           REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
-          # Create deployment directory structure
-          # Use -p to avoid errors if directories exist
-          # No sudo required - directories created with user's permissions
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} bash << EOF
-            set -e
+          # STEP 1: Stop containers to release file locks
+          echo "Stopping containers to release file locks..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "cd ${DEPLOY_DIR} && docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans 2>/dev/null || true"
 
-            DEPLOY_DIR="${DEPLOY_DIR}"
+          # STEP 2: Create deployment directories (simple after containers stopped)
+          echo "Creating deployment directories..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
 
-            # Function to handle directory creation with permission recovery
-            ensure_writable_dir() {
-              local dir="\$1"
-
-              # Try to create directory
-              if mkdir -p "\$dir" 2>/dev/null; then
-                # Successfully created or already exists with correct permissions
-                return 0
-              fi
-
-              # Directory exists but we can't write to it (likely owned by root from Docker)
-              # Check if directory exists but is not writable
-              if [ -d "\$dir" ] && [ ! -w "\$dir" ]; then
-                echo "Warning: Directory \$dir exists but is not writable"
-                echo "Attempting to recover by removing and recreating..."
-
-                # Try to remove the directory
-                # This will fail if owned by root, but that's okay - we'll handle it below
-                rm -rf "\$dir" 2>/dev/null || true
-
-                # Try to create again
-                if mkdir -p "\$dir" 2>/dev/null; then
-                  echo "Successfully recreated \$dir with correct permissions"
-                  return 0
-                else
-                  echo "Error: Cannot create writable directory \$dir"
-                  echo "This usually happens when Docker created the directory as root."
-                  echo "Manual intervention required: SSH to server and run:"
-                  echo "  sudo chown -R \${USER}:\${USER} \$dir"
-                  echo "  OR"
-                  echo "  sudo rm -rf \$dir"
-                  return 1
-                fi
-              fi
-
-              # Some other error occurred
-              echo "Error: Failed to create directory \$dir"
-              return 1
-            }
-
-            # Ensure base deployment directory exists and is writable
-            ensure_writable_dir "\${DEPLOY_DIR}" || exit 1
-
-            # Ensure subdirectories exist and are writable
-            ensure_writable_dir "\${DEPLOY_DIR}/backend" || exit 1
-            ensure_writable_dir "\${DEPLOY_DIR}/frontend" || exit 1
-            ensure_writable_dir "\${DEPLOY_DIR}/nginx" || exit 1
-
-            echo "All deployment directories verified and writable"
-          EOF
-
-          # Transfer configuration files
+          # STEP 3: Transfer configuration files
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.production.yml \
             /tmp/deployment/.env \
