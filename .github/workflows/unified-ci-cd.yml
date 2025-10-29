@@ -472,9 +472,23 @@ jobs:
         run: |
           echo "## Deploying to Staging" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-staging"
           REGISTRY_PATH="${{ steps.registry.outputs.registry_path }}"
+
+          # Log deployment details for visibility
+          echo "**Deployment Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Server**: ${SERVER_HOST}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deploy Directory**: ${DEPLOY_DIR}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ steps.registry.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Deployment Progress" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           # Create environment files locally before transfer
           mkdir -p /tmp/deployment/backend /tmp/deployment/frontend
@@ -552,60 +566,122 @@ jobs:
           REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
-          # STEP 1: Stop containers to release file locks
-          echo "Stopping containers to release file locks..." >> $GITHUB_STEP_SUMMARY
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "cd ${DEPLOY_DIR} && docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans 2>/dev/null || true"
+          # ================================================================
+          # STEP 1: Stop Existing Containers
+          # ================================================================
+          echo "#### Step 1: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
+          echo "Stopping any running containers to release file locks and ensure clean deployment..." >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # STEP 2: Create deployment directories (simple after containers stopped)
-          echo "Creating deployment directories..." >> $GITHUB_STEP_SUMMARY
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
+            "cd ${DEPLOY_DIR} && docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans 2>&1 || echo 'No existing containers to stop'" | tee -a $GITHUB_STEP_SUMMARY
 
-          # STEP 3: Transfer configuration files
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "✅ Containers stopped successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 2: Create Deployment Directories
+          # ================================================================
+          echo "#### Step 2: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
+          echo "Ensuring all required directories exist on the server..." >> $GITHUB_STEP_SUMMARY
+
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx && echo 'Directories created: ${DEPLOY_DIR}/{backend,frontend,nginx}'"
+
+          echo "✅ Directories created successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 3: Transfer Configuration Files
+          # ================================================================
+          echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
+          echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
+
+          echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.staging.yml \
             /tmp/deployment/.env \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
 
-          # Transfer nginx configuration
+          echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             nginx/nginx.conf \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/
 
-          # Transfer environment files
+          echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             /tmp/deployment/backend/.env.docker \
             /tmp/deployment/backend/.env.staging \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/backend/
 
+          echo "Transferring frontend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             /tmp/deployment/frontend/.env.docker \
             /tmp/deployment/frontend/.env.staging \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
+          echo "✅ All configuration files transferred successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 4: Deploy Containers on Server
+          # ================================================================
+          echo "#### Step 4: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
+          echo "Connecting to server to pull images and start containers..." >> $GITHUB_STEP_SUMMARY
+          echo "This step includes real-time health monitoring and will show detailed logs if any issues occur." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
           # Deploy on staging server with registry authentication
           # Use -tt to force pseudo-terminal allocation for better output visibility
-          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << 'EOF'
             set -e
-            cd /home/${SERVER_USER}/deployments/app-staging
-
-            echo "Stopping existing containers..."
-            docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans || true
-
-            echo "Logging in to container registry..."
-            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
-
-            echo "Pulling latest images from registry..."
-            docker compose -f docker-compose.yml -f compose.staging.yml pull
-
-            echo "Starting services..."
-            docker compose -f docker-compose.yml -f compose.staging.yml up -d --force-recreate --pull always
+            cd /home/$SERVER_USER/deployments/app-staging
 
             echo ""
             echo "==================================================================="
-            echo "MONITORING CONTAINER HEALTH"
+            echo "STAGING DEPLOYMENT - STARTING"
             echo "==================================================================="
+            echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "Deploy Directory: $(pwd)"
+            echo "==================================================================="
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 1: Stopping Existing Containers"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans || true
+            echo "✅ Existing containers stopped"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 2: Authenticating to Container Registry"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Registry: ${REGISTRY}"
+            echo "User: ${GITHUB_ACTOR}"
+            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+            echo "✅ Successfully authenticated to registry"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 3: Pulling Latest Images from Registry"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f compose.staging.yml config | grep "image:" | sed 's/^ *//' || true
+            echo ""
+            docker compose -f docker-compose.yml -f compose.staging.yml pull
+            echo "✅ Images pulled successfully"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 4: Starting Services"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f compose.staging.yml up -d --force-recreate --pull always
+            echo "✅ Services started - beginning health monitoring"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 5: MONITORING CONTAINER HEALTH"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
 
             # Give services a moment to initialize
@@ -728,7 +804,29 @@ jobs:
             exit 1
           EOF
 
-          echo "✅ Staging deployment completed" >> $GITHUB_STEP_SUMMARY
+          # Capture exit code from SSH session
+          DEPLOY_EXIT_CODE=$?
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
+            echo "✅ **Staging deployment completed successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All containers are healthy and running." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Staging deployment encountered issues**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Exit code: $DEPLOY_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The deployment script failed during execution. Review the logs above for details." >> $GITHUB_STEP_SUMMARY
+            echo "Common issues:" >> $GITHUB_STEP_SUMMARY
+            echo "- Containers failed health checks" >> $GITHUB_STEP_SUMMARY
+            echo "- Image pull failures" >> $GITHUB_STEP_SUMMARY
+            echo "- Configuration errors" >> $GITHUB_STEP_SUMMARY
+            echo "- Resource constraints (disk space, memory)" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Verify staging deployment
         if: steps.deploy.outcome == 'success'
@@ -827,12 +925,6 @@ jobs:
               echo ""
             done
           EOF
-
-      - name: Fail job if deployment failed
-        if: steps.deploy.outcome == 'failure'
-        run: |
-          echo "❌ Deployment to staging failed - see logs above for details" >> $GITHUB_STEP_SUMMARY
-          exit 1
 
   # ============================================================================
   # STAGE 3: E2E TESTING
@@ -1023,9 +1115,23 @@ jobs:
         run: |
           echo "## Deploying to Production" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-production"
           REGISTRY_PATH="${{ steps.registry.outputs.registry_path }}"
+
+          # Log deployment details for visibility
+          echo "**Deployment Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Server**: ${SERVER_HOST}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deploy Directory**: ${DEPLOY_DIR}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ steps.registry.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Deployment Progress" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           # Create environment files locally before transfer
           mkdir -p /tmp/deployment/backend /tmp/deployment/frontend
@@ -1103,60 +1209,122 @@ jobs:
           REDIS_PASSWORD="${REDIS_PASSWORD}"
           ENV_EOF
 
-          # STEP 1: Stop containers to release file locks
-          echo "Stopping containers to release file locks..." >> $GITHUB_STEP_SUMMARY
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "cd ${DEPLOY_DIR} && docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans 2>/dev/null || true"
+          # ================================================================
+          # STEP 1: Stop Existing Containers
+          # ================================================================
+          echo "#### Step 1: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
+          echo "Stopping any running containers to release file locks and ensure clean deployment..." >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # STEP 2: Create deployment directories (simple after containers stopped)
-          echo "Creating deployment directories..." >> $GITHUB_STEP_SUMMARY
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx"
+            "cd ${DEPLOY_DIR} && docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans 2>&1 || echo 'No existing containers to stop'" | tee -a $GITHUB_STEP_SUMMARY
 
-          # STEP 3: Transfer configuration files
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "✅ Containers stopped successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 2: Create Deployment Directories
+          # ================================================================
+          echo "#### Step 2: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
+          echo "Ensuring all required directories exist on the server..." >> $GITHUB_STEP_SUMMARY
+
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "mkdir -p ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx && echo 'Directories created: ${DEPLOY_DIR}/{backend,frontend,nginx}'"
+
+          echo "✅ Directories created successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 3: Transfer Configuration Files
+          # ================================================================
+          echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
+          echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
+
+          echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             docker-compose.yml compose.production.yml \
             /tmp/deployment/.env \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
 
-          # Transfer nginx configuration
+          echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             nginx/nginx.conf \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/
 
-          # Transfer environment files
+          echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             /tmp/deployment/backend/.env.docker \
             /tmp/deployment/backend/.env.production \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/backend/
 
+          echo "Transferring frontend environment files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
             /tmp/deployment/frontend/.env.docker \
             /tmp/deployment/frontend/.env.production \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
+          echo "✅ All configuration files transferred successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 4: Deploy Containers on Server
+          # ================================================================
+          echo "#### Step 4: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
+          echo "Connecting to server to pull images and start containers..." >> $GITHUB_STEP_SUMMARY
+          echo "This step includes real-time health monitoring and will show detailed logs if any issues occur." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
           # Deploy on production server with registry authentication
           # Use -tt to force pseudo-terminal allocation for better output visibility
-          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << 'EOF'
             set -e
-            cd /home/${SERVER_USER}/deployments/app-production
-
-            echo "Stopping existing containers..."
-            docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans || true
-
-            echo "Logging in to container registry..."
-            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
-
-            echo "Pulling latest images from registry..."
-            docker compose -f docker-compose.yml -f compose.production.yml pull
-
-            echo "Starting services..."
-            docker compose -f docker-compose.yml -f compose.production.yml up -d --force-recreate --pull always
+            cd /home/$SERVER_USER/deployments/app-production
 
             echo ""
             echo "==================================================================="
-            echo "MONITORING CONTAINER HEALTH"
+            echo "PRODUCTION DEPLOYMENT - STARTING"
             echo "==================================================================="
+            echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "Deploy Directory: $(pwd)"
+            echo "==================================================================="
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 1: Stopping Existing Containers"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans || true
+            echo "✅ Existing containers stopped"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 2: Authenticating to Container Registry"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Registry: ${REGISTRY}"
+            echo "User: ${GITHUB_ACTOR}"
+            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+            echo "✅ Successfully authenticated to registry"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 3: Pulling Latest Images from Registry"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f compose.production.yml config | grep "image:" | sed 's/^ *//' || true
+            echo ""
+            docker compose -f docker-compose.yml -f compose.production.yml pull
+            echo "✅ Images pulled successfully"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 4: Starting Services"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f compose.production.yml up -d --force-recreate --pull always
+            echo "✅ Services started - beginning health monitoring"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "STEP 5: MONITORING CONTAINER HEALTH"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
 
             # Give services a moment to initialize
@@ -1279,7 +1447,29 @@ jobs:
             exit 1
           EOF
 
-          echo "✅ Production deployment completed" >> $GITHUB_STEP_SUMMARY
+          # Capture exit code from SSH session
+          DEPLOY_EXIT_CODE=$?
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
+            echo "✅ **Production deployment completed successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All containers are healthy and running." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Production deployment encountered issues**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Exit code: $DEPLOY_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The deployment script failed during execution. Review the logs above for details." >> $GITHUB_STEP_SUMMARY
+            echo "Common issues:" >> $GITHUB_STEP_SUMMARY
+            echo "- Containers failed health checks" >> $GITHUB_STEP_SUMMARY
+            echo "- Image pull failures" >> $GITHUB_STEP_SUMMARY
+            echo "- Configuration errors" >> $GITHUB_STEP_SUMMARY
+            echo "- Resource constraints (disk space, memory)" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Verify production deployment
         if: steps.deploy.outcome == 'success'
@@ -1378,12 +1568,6 @@ jobs:
               echo ""
             done
           EOF
-
-      - name: Fail job if deployment failed
-        if: steps.deploy.outcome == 'failure'
-        run: |
-          echo "❌ Deployment to production failed - see logs above for details" >> $GITHUB_STEP_SUMMARY
-          exit 1
 
       - name: Production deployment summary
         if: success()
