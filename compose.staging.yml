@@ -165,9 +165,9 @@ services:
     restart: always
 
     # Optimized health check for staging
-    # Use 127.0.0.1 instead of localhost to force IPv4 (Vite binds to 0.0.0.0 IPv4 only)
+    # Production image runs nginx on port 80 with /health endpoint
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5173"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 45s
       timeout: 5s
       retries: 3
