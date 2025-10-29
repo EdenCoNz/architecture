@@ -68,7 +68,7 @@ services:
       # Security settings for HTTPS
       # SECURE_SSL_REDIRECT=False in staging to allow both HTTP and HTTPS for testing
       # Production should set this to True for security
-      - SECURE_SSL_REDIRECT=False
+      - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
 
