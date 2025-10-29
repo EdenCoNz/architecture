@@ -619,8 +619,22 @@ jobs:
 
           # Ensure directories are writable and wait for file locks to be released
           echo "Verifying directory permissions and clearing file locks..." >> $GITHUB_STEP_SUMMARY
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "chmod -R u+w ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx 2>/dev/null || true && sleep 2"
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} "
+            # Ensure deployment directory ownership is correct
+            sudo chown -R ${SERVER_USER}:${SERVER_USER} ${DEPLOY_DIR} 2>/dev/null || true
+
+            # Remove any read-only flags and ensure write permissions
+            chmod -R u+w ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx 2>/dev/null || true
+
+            # Wait for file locks to be released after container shutdown
+            sleep 5
+
+            # Verify directories are writable
+            if [ ! -w \"${DEPLOY_DIR}/nginx\" ]; then
+              echo \"Warning: ${DEPLOY_DIR}/nginx is still not writable after permission fix\"
+              ls -ld ${DEPLOY_DIR}/nginx
+            fi
+          "
 
           echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
@@ -658,9 +672,9 @@ jobs:
 
           # Deploy on staging server with registry authentication
           # Use -tt to force pseudo-terminal allocation for better output visibility
-          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
-            cd /home/$SERVER_USER/deployments/app-staging
+            cd /home/${SERVER_USER}/deployments/app-staging
 
             echo ""
             echo "==================================================================="
@@ -925,7 +939,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # SSH to server and collect logs from failed deployment
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             cd /home/${SERVER_USER}/deployments/app-staging
 
             echo "### Container Status"
@@ -1267,8 +1281,22 @@ jobs:
 
           # Ensure directories are writable and wait for file locks to be released
           echo "Verifying directory permissions and clearing file locks..." >> $GITHUB_STEP_SUMMARY
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
-            "chmod -R u+w ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx 2>/dev/null || true && sleep 2"
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} "
+            # Ensure deployment directory ownership is correct
+            sudo chown -R ${SERVER_USER}:${SERVER_USER} ${DEPLOY_DIR} 2>/dev/null || true
+
+            # Remove any read-only flags and ensure write permissions
+            chmod -R u+w ${DEPLOY_DIR}/backend ${DEPLOY_DIR}/frontend ${DEPLOY_DIR}/nginx 2>/dev/null || true
+
+            # Wait for file locks to be released after container shutdown
+            sleep 5
+
+            # Verify directories are writable
+            if [ ! -w \"${DEPLOY_DIR}/nginx\" ]; then
+              echo \"Warning: ${DEPLOY_DIR}/nginx is still not writable after permission fix\"
+              ls -ld ${DEPLOY_DIR}/nginx
+            fi
+          "
 
           echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
@@ -1306,9 +1334,9 @@ jobs:
 
           # Deploy on production server with registry authentication
           # Use -tt to force pseudo-terminal allocation for better output visibility
-          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
-            cd /home/$SERVER_USER/deployments/app-production
+            cd /home/${SERVER_USER}/deployments/app-production
 
             echo ""
             echo "==================================================================="
@@ -1573,7 +1601,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # SSH to server and collect logs from failed deployment
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
             cd /home/${SERVER_USER}/deployments/app-production
 
             echo "### Container Status"
