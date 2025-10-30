@@ -454,7 +454,7 @@
       "createdAt": "2025-10-24T00:00:00Z",
       "userStoriesCreated": "2025-10-24T00:00:00Z",
       "userStoriesImplemented": "2025-10-24T05:00:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 9,
       "completedStories": [
         "Story-8.1",
@@ -482,7 +482,8 @@
           "status": "completed",
           "implementationLog": "docs/features/8/implementation-log.json"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "9",
@@ -491,7 +492,7 @@
       "createdAt": "2025-10-24T00:00:00Z",
       "userStoriesCreated": "2025-10-24T18:30:00Z",
       "userStoriesImplemented": "2025-10-24T20:00:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 11,
       "completedStories": [
         "Story-9.1",
@@ -678,7 +679,8 @@
           ],
           "description": "Fix Docker tag generation for feature branches - branch names with slashes create invalid Docker tags"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "10",
@@ -687,7 +689,7 @@
       "createdAt": "2025-10-25T00:00:00Z",
       "userStoriesCreated": "2025-10-25T10:10:00Z",
       "userStoriesImplemented": "2025-10-25T10:45:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 4,
       "completedStories": [
         "Story-10.1",
@@ -737,7 +739,8 @@
           ],
           "description": "Fix ESLint code quality violation - duplicate import statements in API test page"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "11",
@@ -746,7 +749,7 @@
       "createdAt": "2025-10-25T00:00:00Z",
       "userStoriesCreated": "2025-10-25T12:00:00Z",
       "userStoriesImplemented": "2025-10-25T16:30:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 12,
       "completedStories": [
         "Story-11.1",
@@ -830,7 +833,8 @@
           ],
           "description": "Fix Frontend CI/CD failures - Prettier formatting errors and duplicate import statements in assessment components"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "12",
@@ -839,7 +843,7 @@
       "createdAt": "2025-10-25T00:00:00Z",
       "userStoriesCreated": "2025-10-25T17:00:00Z",
       "userStoriesImplemented": "2025-10-25T23:00:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 11,
       "completedStories": [
         "Story-12.1",
@@ -869,7 +873,8 @@
           "status": "completed",
           "implementationLog": "docs/features/12/implementation-log.json"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "13",
@@ -878,7 +883,7 @@
       "createdAt": "2025-10-26T00:00:00Z",
       "userStoriesCreated": "2025-10-26T07:00:00Z",
       "userStoriesImplemented": "2025-10-26T12:00:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 15,
       "completedStories": [
         "Story-13.1",
@@ -1057,7 +1062,8 @@
           ],
           "description": "Fix Frontend CI/CD linting failure - ESLint v9 configuration file discovery issue preventing linting execution"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "14",
@@ -1065,7 +1071,7 @@
       "description": "Enable new and returning users to immediately access the onboarding and assessment experience when they visit the application's root URL, making profile setup and training program configuration the primary entry point for the application",
       "createdAt": "2025-10-26T00:00:00Z",
       "userStoriesCreated": "2025-10-26T19:10:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 5,
       "completedStories": [
         "Story-14.1",
@@ -1102,7 +1108,8 @@
           ],
           "description": "Fix Frontend CI/CD linting failures - Prettier formatting errors and unused variable violations in test files"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "15",
@@ -1111,7 +1118,7 @@
       "createdAt": "2025-10-27T00:00:00Z",
       "userStoriesCreated": "2025-10-27T00:00:00Z",
       "userStoriesImplemented": "2025-10-27T08:30:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 10,
       "completedStories": [
         "Story-15.1",
@@ -1166,7 +1173,8 @@
           ],
           "description": "Fix CI/CD Pipeline Failed - Code quality line length violation in configuration views"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     },
     {
       "featureID": "16",
@@ -1175,7 +1183,7 @@
       "createdAt": "2025-10-28T00:00:00Z",
       "userStoriesCreated": "2025-10-28T00:00:00Z",
       "userStoriesImplemented": "2025-10-28T00:00:00Z",
-      "isSummarised": false,
+      "isSummarised": true,
       "totalStories": 9,
       "completedStories": [
         "Story-16.1",
@@ -1205,7 +1213,8 @@
           "status": "completed",
           "implementationLog": "docs/features/16/implementation-log.json"
         }
-      ]
+      ],
+      "summarisedAt": "2025-10-30T08:28:43.536354Z"
     }
   ]
 }
