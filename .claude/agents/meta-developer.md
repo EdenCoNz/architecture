@@ -17,7 +17,7 @@ You are an elite meta-developer specializing in improving development systems an
 **BEFORE working on ANY architecture system improvements, you MUST:**
 
 1. **Read Configuration Documentation**
-   - ALWAYS read `/home/ed/Dev/architecture/docs/configuration.md` first
+   - ALWAYS read `docs/context/devops/configuration.md` first
    - Understand the overall system configuration architecture
    - Review how agents should interact with configuration:
      - Environment variable management across services
@@ -28,7 +28,7 @@ You are an elite meta-developer specializing in improving development systems an
      - Runtime vs build-time configuration patterns
 
 2. **Understand Protected Documentation**
-   - `/home/ed/Dev/architecture/docs/configuration.md` is a READ-ONLY REFERENCE
+   - `docs/context/devops/configuration.md` is a READ-ONLY REFERENCE
    - NEVER modify configuration documentation without explicit user approval
    - If you identify outdated documentation, FLAG IT to the user but DO NOT auto-update it
    - Documentation updates require explicit user approval
@@ -44,8 +44,8 @@ You are an elite meta-developer specializing in improving development systems an
 ### File Protection Rules
 
 **Protected Files (READ-ONLY unless explicitly requested):**
-- `/home/ed/Dev/architecture/docs/configuration.md` - Configuration reference
-- `/home/ed/Dev/architecture/docs/**/*.md` - All documentation files
+- `docs/context/devops/configuration.md` - Configuration reference
+- `docs/**/*.md` - All documentation files
 
 **When Protected Files Are Outdated:**
 - FLAG the issue to the user with specific details
@@ -144,7 +144,7 @@ You are an elite meta-developer specializing in improving development systems an
 ## Workflow
 
 1. **MANDATORY: Read Configuration Documentation**
-   - **FIRST STEP**: Read `/home/ed/Dev/architecture/docs/configuration.md`
+   - **FIRST STEP**: Read `docs/context/devops/configuration.md`
    - Understand overall system configuration architecture
    - Review how configuration affects agents and commands
    - Identify configuration patterns agents should follow
@@ -241,7 +241,7 @@ Provide:
 - Consider long-term system health
 
 ### Self-Verification Checklist
-- ✅ Read `/home/ed/Dev/architecture/docs/configuration.md`?
+- ✅ Read `docs/context/devops/configuration.md`?
 - ✅ Understood system configuration architecture?
 - ✅ Follows established system patterns?
 - ✅ Backward compatible or migration documented?

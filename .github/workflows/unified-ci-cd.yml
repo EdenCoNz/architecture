@@ -80,6 +80,21 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # ----------------------------------------------------------------
+      # Sanitize Branch Name for Docker Tags
+      # ----------------------------------------------------------------
+      # Docker image tags cannot contain forward slashes, which are present
+      # in branch names like "292/merge" from GitHub pull requests.
+      # This step converts "/" to "-" for safe Docker tag usage.
+      # ----------------------------------------------------------------
+      - name: Sanitize branch name for Docker tags
+        id: sanitized_ref
+        run: |
+          # Replace forward slashes with hyphens for Docker tag compatibility
+          SANITIZED_REF=$(echo '${{ github.ref_name }}' | sed 's/\//-/g')
+          echo "ref=$SANITIZED_REF" >> $GITHUB_OUTPUT
+          echo "Sanitized branch name: $GITHUB_REF_NAME -> $SANITIZED_REF" >> $GITHUB_STEP_SUMMARY
+
+      # ----------------------------------------------------------------
       # Container Registry Configuration
       # ----------------------------------------------------------------
       # Default: GitHub Container Registry (ghcr.io)
@@ -159,9 +174,9 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.backend_version.outputs.version }}
           cache-from: |
-            type=gha,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
             type=gha,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-main
-          cache-to: type=gha,mode=max,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=backend-dev-v${{ steps.backend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
 
       - name: Extract frontend version from package.json
         id: frontend_version
@@ -182,9 +197,9 @@ jobs:
             frontend-dev:${{ steps.frontend_version.outputs.version }}
             frontend-dev:latest
           cache-from: |
-            type=gha,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
             type=gha,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-main
-          cache-to: type=gha,mode=max,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=frontend-dev-v${{ steps.frontend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
 
       - name: Build complete application stack summary
         run: |
@@ -312,13 +327,13 @@ jobs:
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
             ${{ steps.registry.outputs.registry_path }}/backend:latest
-            ${{ steps.registry.outputs.registry_path }}/backend:${{ github.ref_name }}
+            ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.sanitized_ref.outputs.ref }}
           build-args: |
             APP_VERSION=${{ steps.backend_version.outputs.version }}
           cache-from: |
-            type=gha,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
             type=gha,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-main
-          cache-to: type=gha,mode=max,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=backend-prod-v${{ steps.backend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -336,15 +351,15 @@ jobs:
             ${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}
             ${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
             ${{ steps.registry.outputs.registry_path }}/frontend:latest
-            ${{ steps.registry.outputs.registry_path }}/frontend:${{ github.ref_name }}
+            ${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.sanitized_ref.outputs.ref }}
           build-args: |
             VERSION=${{ steps.frontend_version.outputs.version }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
           cache-from: |
-            type=gha,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
+            type=gha,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
             type=gha,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-main
-          cache-to: type=gha,mode=max,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=frontend-prod-v${{ steps.frontend_version.outputs.version }}-${{ steps.sanitized_ref.outputs.ref }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
