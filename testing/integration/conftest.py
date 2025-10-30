@@ -12,7 +12,7 @@ import pytest
 import requests  # type: ignore[import-untyped]
 
 # Setup Django before importing models
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.test")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.testing")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "backend"))
 django.setup()
 
