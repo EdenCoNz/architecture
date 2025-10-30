@@ -63,7 +63,7 @@ jobs:
 
   build-and-test:
     name: Build and Test Complete Stack
-    runs-on: ubuntu-22.04
+    runs-on: [ubuntu-22.04, self-hosted]
     timeout-minutes: 45
 
     defaults:
@@ -399,7 +399,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     needs: [build-and-test]
-    runs-on: ubuntu-22.04
+    runs-on: [ubuntu-22.04, self-hosted]
     timeout-minutes: 20
     # Only deploy from main branch (via push or manual trigger)
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -975,7 +975,7 @@ jobs:
   e2e-testing:
     name: E2E Tests Against Staging
     needs: [deploy-staging]
-    runs-on: ubuntu-22.04
+    runs-on: [ubuntu-22.04, self-hosted]
     timeout-minutes: 30
     environment:
       name: Staging
@@ -1061,7 +1061,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     needs: [build-and-test, deploy-staging, e2e-testing]
-    runs-on: ubuntu-22.04
+    runs-on: [ubuntu-22.04, self-hosted]
     timeout-minutes: 20
     # Only deploy to production from main branch after all stages pass (via push or manual trigger)
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -1650,7 +1650,7 @@ jobs:
 
   detect-workflow-failures:
     name: Detect Workflow Failures
-    runs-on: ubuntu-22.04
+    runs-on: [ubuntu-22.04, self-hosted]
     timeout-minutes: 10
     if: failure() || cancelled()
     needs: [build-and-test, deploy-staging, e2e-testing, deploy-production]
