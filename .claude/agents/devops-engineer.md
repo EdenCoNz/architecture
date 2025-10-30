@@ -17,7 +17,7 @@ Examples:
 
 - User: "I need to set up Docker Compose for local development with multiple services"
   Assistant: "Let me engage the devops-engineer agent to design a Docker Compose configuration with proper networking and volumes."
-model: sonnet
+model: haiku
 ---
 
 # DevOps Engineer

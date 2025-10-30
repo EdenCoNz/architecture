@@ -1,7 +1,7 @@
 ---
 name: research-specialist
 description: Use this agent when you need comprehensive research on technical topics, best practices, or emerging technologies that will inform project decisions. Examples:\n\n<example>\nContext: User needs to understand current best practices before implementing a new feature.\nuser: "I'm about to build our API gateway. Can you research best practices for API rate limiting?"\nassistant: "I'll use the research-specialist agent to gather authoritative information on API rate limiting best practices."\n<Task tool call to research-specialist with topic='API rate limiting best practices' and purpose='Designing rate limiting strategy for API gateway implementation'>\n</example>\n\n<example>\nContext: User mentions exploring a new technology area for the roadmap.\nuser: "We're considering adding quantum computing capabilities to our roadmap next quarter."\nassistant: "Let me research quantum computing developments to help inform your roadmap planning."\n<Task tool call to research-specialist with topic='quantum computing developments 2024-2025' and purpose='Evaluating quantum computing capabilities for product roadmap planning'>\n</example>\n\n<example>\nContext: User is discussing implementation options and needs data to make a decision.\nuser: "I'm not sure whether to use PostgreSQL or MongoDB for our new analytics service."\nassistant: "I'll research the current state of both databases to help you make an informed decision."\n<Task tool call to research-specialist with topic='PostgreSQL vs MongoDB for analytics workloads' and purpose='Selecting optimal database for analytics service implementation'>\n</example>
-model: sonnet
+model: haiku
 ---
 
 # Research Specialist

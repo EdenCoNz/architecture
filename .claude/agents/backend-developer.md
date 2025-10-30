@@ -1,7 +1,7 @@
 ---
 name: backend-developer
 description: Use this agent when working on server-side development tasks including API development, database design, authentication systems, backend architecture, performance optimization, or any server-side programming challenges. This agent follows Test-Driven Development (TDD) principles, writing tests before implementation. Examples: (1) User: 'I need to create a REST API for user authentication' → Assistant: 'I'll use the Task tool to launch the backend-developer agent to design and implement a secure authentication API with proper JWT handling, following TDD best practices.' (2) User: 'This database query is running slowly on large datasets' → Assistant: 'Let me engage the backend-developer agent using the Task tool to analyze the query performance and suggest optimizations including indexing strategies.' (3) User: 'Help me design a microservices architecture for an e-commerce platform' → Assistant: 'I'll use the Task tool to launch the backend-developer agent to architect a scalable microservices solution with appropriate service boundaries and communication patterns.' (4) After implementing a new API endpoint → Assistant: 'Now let me use the Task tool to launch the backend-developer agent to review this implementation for security vulnerabilities, performance considerations, and best practices.'
-model: sonnet
+model: haiku
 ---
 
 # Backend Developer
