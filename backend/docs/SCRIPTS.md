@@ -1,47 +1,86 @@
 # Backend Development Scripts
 
-This document provides comprehensive documentation for all development scripts available in the `backend/scripts/` directory.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Script Index](#script-index)
-- [Development Scripts](#development-scripts)
-  - [dev.sh - Development Server](#devsh---development-server)
-  - [prod.sh - Production Server](#prodsh---production-server)
-  - [test.sh - Test Runner](#testsh---test-runner)
-  - [seed.sh - Database Seeding](#seedsh---database-seeding)
-  - [setup.sh - Environment Setup](#setupsh---environment-setup)
-  - [verify_tools.sh - Code Quality Verification](#verify_toolssh---code-quality-verification)
-- [Environment Variables](#environment-variables)
-- [Common Workflows](#common-workflows)
-- [Troubleshooting](#troubleshooting)
+> **IMPORTANT NOTICE (Updated October 31, 2025)**
+>
+> Most backend development scripts have been **archived** and replaced by Docker-based workflows.
+>
+> - **Archived Scripts:** `dev.sh`, `prod.sh`, `test.sh`, `seed.sh`, `setup.sh`
+> - **Location:** `/archive/legacy-backend-scripts/`
+> - **Reason:** Replaced by unified Docker Compose orchestration (Feature #15)
+> - **Current Workflow:** Use `/docker-dev.sh` for all development tasks
+>
+> This document is maintained for historical reference. See [Current Development Workflow](#current-development-workflow) below.
 
 ---
 
-## Overview
+## Current Development Workflow
 
-The backend project includes several shell scripts to streamline common development tasks. These scripts are located in `backend/scripts/` and provide convenient wrappers around Django management commands and common operations.
+For Docker-based development (recommended):
 
-**Key Features:**
-- Automatic virtual environment detection and activation
-- Safety checks and validation
-- Clear error messages and helpful output
-- Support for various configuration options
-- Production-ready deployment scripts
+```bash
+# Start all services (backend, frontend, database, redis)
+./docker-dev.sh start
+
+# Run backend tests
+docker compose exec backend pytest
+
+# Open Django shell
+./docker-dev.sh backend-shell
+
+# Run migrations
+./docker-dev.sh backend-migrate
+
+# View logs
+./docker-dev.sh logs backend
+```
+
+See the main [project README](/README.md) and `/docker-dev.sh help` for complete documentation.
 
 ---
 
-## Script Index
+## Active Scripts
 
-| Script | Purpose | Environment | Hot Reload |
-|--------|---------|-------------|------------|
-| `dev.sh` | Start development server | Development | ✓ Yes |
-| `prod.sh` | Start production server | Production | ✗ No |
-| `test.sh` | Run test suite | Testing | N/A |
-| `seed.sh` | Seed database with test data | Development | N/A |
-| `setup.sh` | Initial environment setup | Development | N/A |
-| `verify_tools.sh` | Verify code quality tools | Development | N/A |
+### verify_tools.sh - Code Quality Verification
+
+**Location:** `backend/scripts/verify_tools.sh`
+
+**Purpose:** Verify that all code quality tools are properly installed and configured.
+
+**Usage:**
+```bash
+# Via Makefile (recommended)
+make verify
+
+# Direct execution
+./scripts/verify_tools.sh
+```
+
+**What It Checks:**
+1. Virtual environment is activated
+2. Tool installation (Black, isort, Flake8, mypy, pytest, pre-commit)
+3. Configuration files exist (.flake8, pyproject.toml, pytest.ini, etc.)
+4. Tool functionality with test file
+5. Pre-commit hooks installation
+6. Project files formatting and linting status
+
+This script is still useful for local non-Docker development and CI/CD pipelines.
+
+---
+
+## Archived Scripts Documentation
+
+The following scripts have been archived to `/archive/legacy-backend-scripts/`. This documentation is preserved for reference.
+
+### Script Index (Archived)
+
+| Script | Purpose | Status | Replacement |
+|--------|---------|--------|-------------|
+| `dev.sh` | Start development server | Archived | `docker-dev.sh start` |
+| `prod.sh` | Start production server | Archived | Docker Compose production config |
+| `test.sh` | Run test suite | Archived | `docker compose exec backend pytest` |
+| `seed.sh` | Seed database with test data | Archived | Django management command in Docker |
+| `setup.sh` | Initial environment setup | Archived | Docker Compose handles setup |
+| `verify_tools.sh` | Verify code quality tools | **Active** | Still in use via Makefile |
 
 ---
 
@@ -888,6 +927,24 @@ ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
 
 ---
 
-**Last Updated:** 2025-10-23
-**Story:** #13 - Create Development Startup Scripts
+## Accessing Archived Scripts
+
+If you need to access the archived scripts for non-Docker development or historical reference:
+
+**Location:** `/archive/legacy-backend-scripts/`
+
+**Available Scripts:**
+- `dev.sh` - Development server startup
+- `prod.sh` - Production server startup
+- `test.sh` - Test runner
+- `seed.sh` - Database seeding
+- `setup.sh` - Environment setup
+
+**README:** See `/archive/legacy-backend-scripts/README.md` for detailed information about why these scripts were archived and how to use them if needed.
+
+---
+
+**Last Updated:** 2025-10-31
+**Story:** #13 - Create Development Startup Scripts (Archived most scripts)
 **Feature:** #7 - Initialize Backend API
+**Feature:** #15 - Docker Compose Orchestration (Replacement workflow)

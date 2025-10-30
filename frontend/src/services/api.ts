@@ -5,9 +5,12 @@
  * Handles request configuration, error handling, and response parsing.
  *
  * Story-10.3: API Call Functionality
+ *
+ * Uses runtime configuration loaded from backend API endpoint to ensure
+ * the same frontend image works across all environments without rebuilding.
  */
 
-import { config } from '../config';
+import { getRuntimeConfig } from '../config/runtimeConfig';
 
 /**
  * API Response from backend test endpoint
@@ -67,6 +70,7 @@ export class ApiError extends Error {
  * @throws ApiError if request fails or backend is unreachable
  */
 export async function testBackendConnection(): Promise<ApiTestResponse> {
+  const config = getRuntimeConfig();
   const apiUrl = config.api.baseUrl;
   const endpoint = `${apiUrl}/api/v1/test/`;
 
@@ -147,6 +151,7 @@ export async function testBackendConnection(): Promise<ApiTestResponse> {
  * Story 11.7: Complete Assessment Form
  */
 export async function submitAssessment(data: AssessmentData): Promise<AssessmentResponse> {
+  const config = getRuntimeConfig();
   const apiUrl = config.api.baseUrl;
   const endpoint = `${apiUrl}/api/v1/assessments/`;
 

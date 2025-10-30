@@ -86,10 +86,17 @@ def frontend_config(request):
         environment = "development"
 
     # Build configuration from environment variables
-    # If FRONTEND_API_URL is not set or empty, use default http://localhost:8000
-    # for local development. This matches the backend's default port configuration
-    # and provides sensible defaults for developers who clone the repo.
-    frontend_api_url = os.getenv("FRONTEND_API_URL") or "http://localhost:8000"
+    # FRONTEND_API_URL: Controls the API base URL returned to the frontend
+    #   - If set to a non-empty value: Return that URL (e.g., https://api.example.com)
+    #   - If empty or unset: Return empty string, frontend will use same origin (http://localhost)
+    #     This allows the frontend to access the API through the nginx reverse proxy,
+    #     which works for both localhost and network IP addresses
+    #
+    # When FRONTEND_API_URL is empty:
+    #   - In development: Frontend uses http://localhost (proxy routes to backend)
+    #   - In production: Frontend uses same origin (proxy routes to backend)
+    #   - This setup enables the same image to work without rebuilding
+    frontend_api_url = os.getenv("FRONTEND_API_URL", "")
 
     config = {
         "api": {

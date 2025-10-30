@@ -232,13 +232,15 @@ function validateApiUrl(url: string): void {
 /**
  * Load and validate application configuration
  *
- * This function is called once at application startup to load and validate
- * all configuration values. It will throw an error if required configuration
- * is missing or invalid, preventing the application from starting in an
- * invalid state.
+ * DEPRECATED: This build-time configuration is kept for backward compatibility.
+ * New code should use loadRuntimeConfig() from './runtimeConfig' instead.
  *
- * @returns Validated application configuration
- * @throws ConfigValidationError if configuration is invalid
+ * This function loads configuration from build-time environment variables.
+ * Validation is deferred to runtime to allow the app to load before the
+ * backend API is available. Runtime configuration (from backend API) will
+ * override these build-time values.
+ *
+ * @returns Application configuration with fallback values
  */
 function loadConfig(): AppConfig {
   const environment = getEnvironment();
@@ -246,10 +248,11 @@ function loadConfig(): AppConfig {
   const isDevelopment = environment === 'development';
   const isTest = environment === 'test';
 
-  // Load API configuration
-  // API URL is required and must be a valid URL
-  const apiBaseUrl = getEnv('API_URL', '', false);
-  validateApiUrl(apiBaseUrl);
+  // Load API configuration - use sensible defaults to allow app to load
+  // Runtime configuration from backend API will override these values
+  // If VITE_API_URL is not set, we'll use window.location.origin as fallback
+  // during runtime config loading (runtimeConfig.ts)
+  const apiBaseUrl = getEnv('API_URL', 'http://localhost:8000', false);
 
   const config: AppConfig = {
     environment,

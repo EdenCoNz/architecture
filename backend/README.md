@@ -235,139 +235,103 @@ The API will be available at `http://localhost:8000/`
 
 ## Quick Start Scripts
 
-The backend provides convenient shell scripts for common development tasks. All scripts are located in the `scripts/` directory and handle environment setup automatically.
+> **RECOMMENDED:** Use Docker-based development workflow (see [Docker Development Setup](#docker-development-setup) above)
 
-### Development Server
+### Docker Workflow (Recommended)
 
-Start the development server with hot reload:
+For the best developer experience, use the Docker-based workflow:
 
 ```bash
-# Using the script (recommended - includes checks and setup)
-./scripts/dev.sh
+# Start all services (backend, database, redis, frontend)
+cd /path/to/project  # Go to project root
+./docker-dev.sh start
 
-# Or using Make
+# Run backend tests
+docker compose exec backend pytest
+
+# Run backend tests with coverage
+docker compose exec backend pytest --cov
+
+# Open Django shell
+./docker-dev.sh backend-shell
+
+# Run migrations
+./docker-dev.sh backend-migrate
+
+# View backend logs
+./docker-dev.sh logs backend
+```
+
+**Benefits:**
+- No local PostgreSQL or Redis installation needed
+- Consistent environment across all developers
+- Isolated from other projects
+- Automatic dependency management
+- Hot reload enabled
+
+See `/docker-dev.sh help` for all available commands.
+
+### Non-Docker Development (Legacy)
+
+If you need to develop without Docker:
+
+```bash
+# Setup virtual environment (first time only)
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements/dev.txt
+
+# Run development server
 make run
+# Or: python manage.py runserver
 
-# Or directly
-python manage.py runserver
+# Run tests
+make test
+# Or: pytest
+
+# Run tests with coverage
+make coverage
+# Or: pytest --cov
 ```
 
-**Features**:
-- Automatically activates virtual environment if found
-- Checks database connectivity
-- Prompts to run pending migrations
-- Displays useful URLs (API docs, admin, health checks)
-- Hot reload enabled - code changes automatically restart server
+**Note:** Most convenience scripts (`dev.sh`, `prod.sh`, `test.sh`, `seed.sh`, `setup.sh`) have been archived to `/archive/legacy-backend-scripts/` as they are superseded by the Docker workflow. See `docs/SCRIPTS.md` for details.
 
-**Environment Variables**:
-- `DEV_HOST`: Server host (default: 127.0.0.1)
-- `DEV_PORT`: Server port (default: 8000)
-- `DJANGO_SETTINGS_MODULE`: Settings module (default: config.settings.development)
+### Active Development Scripts
 
-### Production Server
+Only one script remains actively maintained:
 
-Start the production server with Gunicorn:
+- **`verify_tools.sh`** - Verifies code quality tools are properly configured
 
 ```bash
-# Using the script (includes production readiness checks)
-./scripts/prod.sh
+# Verify code quality tools
+make verify
+# Or: ./scripts/verify_tools.sh
 ```
 
-**Features**:
-- Validates SECRET_KEY is production-ready (50+ characters, no "django-insecure")
-- Verifies DEBUG is False
-- Checks ALLOWED_HOSTS is configured
-- Runs database connectivity test
-- Ensures all migrations are applied
-- Executes Django deployment checks
-- Collects static files
-- Starts Gunicorn with optimized settings
-
-**Environment Variables**:
-- `PROD_HOST`: Server host (default: 0.0.0.0)
-- `PROD_PORT`: Server port (default: 8000)
-- `GUNICORN_WORKERS`: Number of workers (default: 4)
-- `GUNICORN_TIMEOUT`: Request timeout (default: 30s)
-- `GUNICORN_MAX_REQUESTS`: Max requests before worker restart (default: 1000)
-
-**Gunicorn Configuration**:
-- Worker class: sync
-- Max requests jitter: 100 (prevents thundering herd)
-- Worker temp directory: /dev/shm (for better performance)
-- Logging: access and error logs to stdout
-
-### Running Tests
-
-Execute tests with various options:
-
-```bash
-# Run all tests
-./scripts/test.sh
-
-# Run with coverage report
-./scripts/test.sh --coverage
-
-# Run tests in parallel (faster)
-./scripts/test.sh --parallel
-
-# Run specific test type
-./scripts/test.sh --type unit
-./scripts/test.sh --type integration
-
-# Run with specific marker
-./scripts/test.sh --marker slow
-
-# Run specific test file
-./scripts/test.sh tests/unit/test_models.py
-
-# Combined options
-./scripts/test.sh --coverage --parallel --verbose
-```
-
-**Options**:
-- `-c, --coverage`: Generate coverage report (HTML + XML + terminal)
-- `-p, --parallel`: Run tests in parallel using all CPU cores
-- `-v, --verbose`: Verbose output
-- `-f, --fail-fast`: Stop on first failure
-- `-k, --keep-db`: Reuse test database (faster for repeated runs)
-- `-m, --marker`: Run tests with specific pytest marker
-- `-t, --type`: Run specific test type (unit, integration, e2e, acceptance, all)
-- `-h, --help`: Show help message
+This script is useful for local development and CI/CD pipelines.
 
 ### Database Seeding
 
 Populate database with test data for development:
 
 ```bash
-# Seed with default data (10 users)
-./scripts/seed.sh
+# Using Docker (recommended)
+docker compose exec backend python manage.py seed_database
 
-# Seed with admin user
-./scripts/seed.sh --admin
+# Using Make (non-Docker)
+make seed
 
-# Seed with custom number of users
-./scripts/seed.sh --users 50
-
-# Clear existing data and seed
-./scripts/seed.sh --clear --admin
-
-# Show help
-./scripts/seed.sh --help
+# Or directly (non-Docker)
+python manage.py seed_database
 ```
 
 **Created Users**:
 - Test users: `testuser1@example.com`, `testuser2@example.com`, etc.
   - Password: `password123`
-- Admin user (with --admin flag): `admin@example.com`
+- Admin user: `admin@example.com`
   - Password: `admin123`
 
-**Safety Features**:
-- Only works when DEBUG=True (prevents accidental production use)
-- Requires confirmation for data clearing
-- Checks database connectivity before seeding
-- Prompts to run migrations if pending
-
-**Note**: This script should NEVER be used in production!
+**Note**: The `seed.sh` script has been archived. Use Django management commands instead.
 
 ## Architecture
 
