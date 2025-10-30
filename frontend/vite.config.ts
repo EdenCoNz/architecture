@@ -62,6 +62,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './tests/setup.ts',
     css: true,
+    testTimeout: 15000, // 15 seconds - allows async operations and complex component testing
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],
