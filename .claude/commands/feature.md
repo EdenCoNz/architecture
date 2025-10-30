@@ -151,64 +151,27 @@ After the `/implement` command completes:
    - Confirm that `userStoriesImplemented` has been set to a timestamp (this should have been done by /implement)
    - **Cache this updated data** for use in Step 6 (avoids third read)
 
-### Step 6: Commit and Push Feature Changes
+### Step 6: Cache Feature Metadata for Hooks
 
 After verifying implementation completion in Step 5:
 
-1. **Extract feature title from cached data**:
+1. **Extract and cache feature metadata**:
    - Use the cached feature-log data from Step 5.3 (do NOT re-read the file)
    - Find the feature entry with matching featureID in the cached data
-   - Extract the feature title for use in the commit message
+   - Extract the feature title for use in commit message and hooks
+   - Store these values for use in the Report and Hook System:
+     - `FeatureID`: The numeric feature ID
+     - `FeatureBranch`: The current branch name (from git)
+     - `IntendedCommitMessage`: "Feature {feature_id}: {feature_title}"
    - **Token Optimization**: Using cached data saves ~400 lines of JSON parsing
+   - **Note**: Git operations (commit, push, PR) are now handled by the hook system in Step 8
 
-2. **Use /push command to stage, commit, and push**:
-   - Use SlashCommand tool to execute: `/push "Feature {feature_id}: {feature_title}"`
-   - The /push command will automatically:
-     - Stage all changes with `git add .`
-     - Create a commit with the provided message (including Claude Code footer)
-     - Push to remote (configuring tracking if needed)
-   - Wait for /push to complete
-
-3. **Monitor /push completion**:
-   - The /push command handles all git operations automatically
-   - It will report staging, commit, and push status
-   - Capture the commit hash and push status from /push output
-
-4. **Handle /push failures**:
-   - CRITICAL: If /push fails, implementation-log.json MUST remain unchanged - all completed stories stay marked as completed
-   - The /push command provides detailed error reporting for:
-     - Staging failures
-     - Commit failures
-     - Push failures (partial success if commit succeeded)
-   - Follow the recovery instructions provided by /push
-   - If /push succeeded: CONTINUE to Step 7
-   - If /push failed: SKIP Step 7 and jump to Report (cannot create PR without remote branch)
-
-### Step 7: Create Pull Request
-
-After successfully pushing to the remote branch in Step 6 (SKIP this step if push failed):
-
-1. **Extract feature summary for PR body**:
-   - Read the user-stories.md file at `docs/features/{feature_id}/user-stories.md`
-   - Extract the Overview section for the feature description
-   - Parse the User Stories section to create a summary list of all implemented stories
-   - Format the summary as a bulleted markdown list with story titles
-
-2. **Create PR using gh CLI**:
-   - Use gh pr create command with standardized title format: "Feature {feature_id}: {feature_title}"
-   - Use a HEREDOC to construct the PR body with summary, user stories list, and Claude Code attribution
-   - Ensure the PR targets the main branch (or repository default branch)
-
-3. **Capture and verify PR creation**:
-   - Capture the PR URL from the gh pr create output
-   - Store the PR URL for inclusion in the final report
-
-4. **Handle PR creation failures**:
-   - CRITICAL: If gh pr create fails, implementation-log.json MUST remain unchanged - all completed stories stay marked as completed
-   - IMPORTANT: Commit and push already succeeded, so this is a PARTIAL SUCCESS scenario
-   - Capture the error message from gh pr create command
-   - Provide manual recovery instructions: "PR creation failed. Create manually at GitHub or retry with: gh pr create --title 'Feature {feature_id}: {feature_title}'"
-   - Report PARTIAL SUCCESS: "Commit created and pushed but PR creation failed"
+2. **Prepare for hook execution**:
+   - Verify all three variables are available and non-empty
+   - These variables will be used by:
+     - The Report section to display command outputs
+     - The Hook System to execute the /push command automatically
+   - Continue to Report section
 
 ## Report
 
@@ -238,28 +201,154 @@ Provide a comprehensive summary with the following sections:
 - Total stories completed vs. total stories
 - Feature log update confirmation
 
-### Git Workflow Status
-
-#### /push Command Execution
-- Commit hash
-- Commit message: "Feature {feature_id}: {feature_title}"
-- Branch name
-- Number of files staged
-- Key files staged
-- Push status (success/failure)
-- Remote tracking status
-- Overall /push status: (success/partial success/failure)
-- Error details (if any)
-
-#### Pull Request
-- PR URL (if successfully created)
-- PR title
-- PR creation status (success/failure)
-- PR creation errors with details (if any)
-
 ### Overall Workflow Status
-- If ALL steps completed successfully: Display success message
-- If any git operations failed: Display partial success message with error details and manual recovery steps
+- If ALL steps completed successfully: Display success message with note that hooks will execute next
+- If any steps failed: Display failure message with error details and manual recovery steps
+
+### Command Output Variables
+Display these variables in a clearly formatted section for use by hooks or other automation:
+
+```
+FeatureID: {feature_id}
+FeatureBranch: {branch_name}
+IntendedCommitMessage: Feature {feature_id}: {feature_title}
+```
+
+These variables are available for:
+- Hook automation (configured in .claude/hooks.json)
+- Manual reference for subsequent commands
+- Integration with external tools
 
 ### Issues Encountered
 - Any other issues encountered during the process
+
+## Post-Execution Hook System
+
+After completing the initial workflow report and only if implementation was successful (Steps 1-5 completed):
+
+### Step 7: Check and Execute Hooks
+
+1. **Read hook configuration**:
+   - Read the hooks configuration file at `/home/ed/Dev/architecture/.claude/hooks.json`
+   - If file doesn't exist or cannot be read: Skip hook execution (not an error, hooks are optional)
+   - Parse the JSON to extract hook configuration
+
+2. **Check if hooks are enabled globally**:
+   - Check `configuration.disableAllHooks` in the hooks config
+   - If `true`: Skip all hook execution
+   - If `false`: Continue to feature-specific hooks
+
+3. **Check feature command hooks**:
+   - Navigate to `hooks.feature` in the configuration
+   - Check if `hooks.feature.enabled` is `true`
+   - If `false`: Skip feature hooks execution
+   - If `true`: Continue to process onComplete hooks
+
+4. **Process onComplete hooks**:
+   - Iterate through `hooks.feature.onComplete` array
+   - For each hook entry:
+     - Check if the hook's `enabled` field is `true`
+     - If `false`: Skip this hook
+     - If `true`: Continue processing this hook
+
+5. **Validate hook conditions**:
+   - Check if hook has a `condition` object
+   - If `condition.requireAllVariables` exists:
+     - Verify all required variables are available (FeatureID, FeatureBranch, IntendedCommitMessage)
+     - If any variable is missing: Skip this hook and log warning
+     - If all variables present: Continue to execute hook
+
+6. **Prepare hook command**:
+   - Extract `command` field (e.g., "/push")
+   - Extract `arguments` object
+   - Replace variable placeholders with actual values:
+     - Replace `{{FeatureID}}` with the actual feature ID
+     - Replace `{{FeatureBranch}}` with the actual branch name
+     - Replace `{{IntendedCommitMessage}}` with "Feature {feature_id}: {feature_title}"
+   - Construct the final command string with replaced arguments
+
+7. **Execute hook command**:
+   - If `configuration.verbose` is `true`:
+     - Display: "Executing hook: {command} with arguments: {replaced_arguments}"
+     - Display hook description if available
+   - Use SlashCommand tool to execute the hook command
+   - Example: `SlashCommand("/push", "Feature 5: User Authentication System")`
+
+8. **Handle hook execution results**:
+   - If hook executes successfully: Display success message
+   - If hook fails:
+     - Check `configuration.failOnHookError`:
+       - If `true`: Display error and note that hook failed (workflow already completed successfully)
+       - If `false`: Display warning but continue (hook failures don't affect main workflow status)
+   - Display completion message for all hooks processed
+
+9. **Hook execution summary**:
+   - Display: "Hook execution complete. Executed {count} hook(s)."
+   - If no hooks were executed: Display: "No hooks configured or enabled for this command."
+
+**Important Notes**:
+- Hooks execute after implementation completes but before PR creation
+- Hook failures do not affect the success status of the main /feature workflow
+- Hooks are optional - missing hook configuration file is not an error
+- Hook execution is logged for debugging and transparency
+- Users can disable hooks globally, per-command, or per-hook
+- If hooks fail, PR creation in Step 8 will be skipped
+
+### Step 8: Create Pull Request
+
+After hook execution completes (or if hooks were skipped), and only if the /push hook succeeded:
+
+1. **Verify push was successful**:
+   - Check that the /push command (executed by hook in Step 7) completed successfully
+   - Verify the feature branch exists on the remote repository
+   - If push failed or was skipped: SKIP PR creation and note in final report
+
+2. **Extract feature summary for PR body**:
+   - Read the user-stories.md file at `docs/features/{feature_id}/user-stories.md`
+   - Extract the Overview section for the feature description
+   - Parse the User Stories section to create a summary list of all implemented stories
+   - Format the summary as a bulleted markdown list with story titles
+
+3. **Create PR using gh CLI**:
+   - Use gh pr create command with standardized title format: "Feature {feature_id}: {feature_title}"
+   - Use a HEREDOC to construct the PR body with summary, user stories list, and Claude Code attribution
+   - Ensure the PR targets the main branch (or repository default branch)
+
+4. **Capture and verify PR creation**:
+   - Capture the PR URL from the gh pr create output
+   - Store the PR URL for inclusion in the final report
+
+5. **Handle PR creation failures**:
+   - CRITICAL: If gh pr create fails, implementation-log.json MUST remain unchanged - all completed stories stay marked as completed
+   - IMPORTANT: Commit and push already succeeded (via hook), so this is a PARTIAL SUCCESS scenario
+   - Capture the error message from gh pr create command
+   - Provide manual recovery instructions: "PR creation failed. Create manually at GitHub or retry with: gh pr create --title 'Feature {feature_id}: {feature_title}'"
+   - Report PARTIAL SUCCESS: "Commit created and pushed but PR creation failed"
+
+6. **PR creation summary**:
+   - If successful: Display PR URL and success message
+   - If failed: Display error and manual recovery steps
+   - Continue to Final Report
+
+## Final Report
+
+After all steps complete (including hooks and PR creation), provide a final comprehensive summary:
+
+### Hook Execution Results
+- Hooks enabled: (yes/no)
+- Hooks executed: {count}
+- /push hook status: (success/failure/skipped)
+- Commit hash (if /push succeeded): {hash}
+- Push status (if /push succeeded): (success/failure)
+
+### Pull Request Results
+- PR creation status: (success/failure/skipped)
+- PR URL (if successful): {url}
+- PR title (if successful): "Feature {feature_id}: {feature_title}"
+- Error details (if failed): {error_message}
+
+### Complete Workflow Summary
+- Overall status: (fully successful/partial success/failed)
+- If fully successful: "Feature {feature_id} created, implemented, committed, pushed, and PR created successfully!"
+- If partial success: Explain what succeeded and what failed, with recovery steps
+- If failed: Explain what failed and provide detailed recovery instructions
