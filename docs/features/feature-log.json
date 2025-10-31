@@ -1359,6 +1359,20 @@
             "backend-developer"
           ],
           "description": "Fix CI/CD Pipeline failures - startup scripts acceptance tests outdated (16 failures), equipment migration details tracking, and frontend config test expectations mismatch"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 301,
+          "timestamp": "2025-11-01T01:40:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/301/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/301/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "devops-engineer",
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - docker-dev.sh script not accessible in test container (14 failures) and equipment migration details tracking missing (1 failure)"
         }
       ]
     }

@@ -250,6 +250,15 @@ services:
       - backend_media:/app/media
       # Persistent static files
       - backend_static:/app/staticfiles
+      # Mount project root files for acceptance tests (Story 301.1)
+      # Tests need access to docker-dev.sh, docker-compose.yml, compose.*.yml
+      # Mount project root files at container root so Path(...).parent.parent.parent.parent resolves correctly
+      - ./docker-dev.sh:/docker-dev.sh:ro
+      - ./docker-compose.yml:/docker-compose.yml:ro
+      - ./compose.override.yml:/compose.override.yml:ro
+      - ./compose.production.yml:/compose.production.yml:ro
+      - ./compose.staging.yml:/compose.staging.yml:ro
+      - ./compose.test.yml:/compose.test.yml:ro
 
     # NETWORK ISOLATION (Story 12.5):
     # - NO ports exposed to host by default (secure)
@@ -507,6 +516,13 @@ services:
       - ./backend:/app
       - /app/venv
       - ./backend/logs:/app/logs
+      # Mount project root files for acceptance tests (Story 301.1)
+      - ./docker-dev.sh:/docker-dev.sh:ro
+      - ./docker-compose.yml:/docker-compose.yml:ro
+      - ./compose.override.yml:/compose.override.yml:ro
+      - ./compose.production.yml:/compose.production.yml:ro
+      - ./compose.staging.yml:/compose.staging.yml:ro
+      - ./compose.test.yml:/compose.test.yml:ro
 
     depends_on:
       db:
