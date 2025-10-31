@@ -1399,6 +1399,19 @@
             "frontend-developer"
           ],
           "description": "Fix CI/CD Pipeline failures - ApiTest component test failures (18 failing tests in Story 10.3 and 10.4)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 304,
+          "timestamp": "2025-11-01T17:45:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/304/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/304/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - AssessmentForm submit button loading state and equipment selection deselection timeout"
         }
       ]
     }
