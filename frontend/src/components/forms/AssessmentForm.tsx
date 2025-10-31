@@ -38,7 +38,8 @@ export interface AssessmentFormData {
   experienceLevel: string | null;
   trainingDays: string | null;
   injuries: string | null;
-  equipment: string[];
+  equipment: string[];  // Will contain single value but kept as array for backward compatibility
+  equipmentItems?: string[];  // Story 19.5: Specific items selected for basic equipment
 }
 
 interface AssessmentFormProps {
@@ -53,6 +54,28 @@ interface FormErrors {
   equipment?: string;
 }
 
+// Story 19.3: Predefined equipment items
+const PREDEFINED_EQUIPMENT_ITEMS = [
+  'dumbbell',
+  'barbell',
+  'kettlebell',
+  'resistance-bands',
+  'pull-up-bar',
+  'bench',
+  'yoga-mat',
+];
+
+// Display labels for equipment items
+const EQUIPMENT_ITEM_LABELS: Record<string, string> = {
+  dumbbell: 'Dumbbell',
+  barbell: 'Barbell',
+  kettlebell: 'Kettlebell',
+  'resistance-bands': 'Resistance Bands',
+  'pull-up-bar': 'Pull-up Bar',
+  bench: 'Bench',
+  'yoga-mat': 'Yoga Mat',
+};
+
 export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
   const [formData, setFormData] = useState<AssessmentFormData>({
     sport: null,
@@ -61,8 +84,10 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
     trainingDays: null,
     injuries: null,
     equipment: [],
+    equipmentItems: [],  // Story 19.5: Initialize equipment items
   });
 
+  const [customEquipmentInput, setCustomEquipmentInput] = useState('');  // Story 19.6: Custom equipment input
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -85,6 +110,22 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
   // Check if form is complete and valid
   const isFormValid = (): boolean => {
     const ageError = validateAge(formData.age);
+
+    // Story 19.6: If basic equipment is selected, require at least one item
+    if (formData.equipment.includes('basic-equipment')) {
+      return (
+        formData.sport !== null &&
+        formData.age !== null &&
+        !ageError &&
+        formData.experienceLevel !== null &&
+        formData.trainingDays !== null &&
+        formData.injuries !== null &&
+        formData.equipment.length > 0 &&
+        formData.equipmentItems !== undefined &&
+        formData.equipmentItems.length > 0
+      );
+    }
+
     return (
       formData.sport !== null &&
       formData.age !== null &&
@@ -136,16 +177,69 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
     setFormData((prev) => ({ ...prev, injuries: e.target.value }));
   };
 
-  // Handle equipment selection
+  // Handle equipment selection - Story 19.4: Single selection only
+  // Story 19.5: Clear equipment items when switching away from basic equipment
   const handleEquipmentToggle = (equipment: string) => {
     setFormData((prev) => {
-      const currentEquipment = prev.equipment;
-      const newEquipment = currentEquipment.includes(equipment)
-        ? currentEquipment.filter((item) => item !== equipment)
-        : [...currentEquipment, equipment];
-      return { ...prev, equipment: newEquipment };
+      // If clicking the same equipment, deselect it; otherwise select the new one
+      if (prev.equipment.includes(equipment)) {
+        return { ...prev, equipment: [], equipmentItems: [] };
+      }
+      // Replace previous selection with new one (single selection)
+      // If switching away from basic-equipment, clear the items
+      if (equipment !== 'basic-equipment') {
+        return { ...prev, equipment: [equipment], equipmentItems: [] };
+      }
+      return { ...prev, equipment: [equipment] };
     });
     setErrors((prev) => ({ ...prev, equipment: undefined }));
+  };
+
+  // Story 19.5: Handle equipment item selection
+  const handleEquipmentItemToggle = (item: string) => {
+    setFormData((prev) => {
+      const currentItems = prev.equipmentItems || [];
+      const newItems = currentItems.includes(item)
+        ? currentItems.filter((i) => i !== item)
+        : [...currentItems, item];
+      return { ...prev, equipmentItems: newItems };
+    });
+  };
+
+  // Story 19.6: Handle adding custom equipment item
+  const handleAddCustomEquipment = () => {
+    const trimmed = customEquipmentInput.trim();
+
+    // Validate custom input
+    if (!trimmed) {
+      return;
+    }
+
+    if (trimmed.length > 50) {
+      return;
+    }
+
+    // Normalize the custom item (lowercase with hyphens)
+    const normalizedItem = trimmed.toLowerCase().replace(/\s+/g, '-');
+
+    // Check for duplicates (both exact and in lowercase)
+    const currentItems = formData.equipmentItems || [];
+    if (
+      currentItems.includes(normalizedItem) ||
+      currentItems.some((item) => item.toLowerCase() === normalizedItem.toLowerCase())
+    ) {
+      setCustomEquipmentInput('');
+      return;
+    }
+
+    // Add custom item to equipment items
+    setFormData((prev) => ({
+      ...prev,
+      equipmentItems: [...(prev.equipmentItems || []), normalizedItem],
+    }));
+
+    // Clear input
+    setCustomEquipmentInput('');
   };
 
   // Handle form submission
@@ -168,6 +262,10 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
         trainingDays: formData.trainingDays,
         injuries: formData.injuries === 'no' ? null : formData.injuries,
         equipment: formData.equipment,
+        // Story 19.5: Include equipment items if basic equipment is selected
+        ...(formData.equipment.includes('basic-equipment') && formData.equipmentItems && formData.equipmentItems.length > 0
+          ? { equipmentItems: formData.equipmentItems }
+          : {}),
       };
 
       await onSubmit(submissionData);
@@ -556,63 +654,264 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
         </Stack>
       </Box>
 
-      {/* Equipment - Story 11.6 */}
+      {/* Equipment - Story 19.4: Single Selection Equipment Assessment */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" gutterBottom>
-          What equipment do you have access to?
+          What equipment do you have access to? <span style={{ color: 'error.main' }}>*</span>
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Select all that apply
+          Choose one option that best describes your equipment availability
         </Typography>
 
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           {[
-            { value: 'none', label: 'No equipment' },
-            { value: 'basic', label: 'Basic equipment' },
-            { value: 'full-gym', label: 'Full gym' },
+            {
+              value: 'no-equipment',
+              label: 'No Equipment',
+              description: 'Bodyweight only - no equipment, weights, or machines available',
+            },
+            {
+              value: 'basic-equipment',
+              label: 'Basic Equipment',
+              description: 'Minimal gear - some weights or simple equipment available',
+            },
+            {
+              value: 'full-gym',
+              label: 'Full Gym',
+              description: 'Complete equipment access - all common gym equipment available',
+            },
           ].map((equipment) => (
-            <Grid key={equipment.value} size={{ xs: 12, sm: 4 }}>
+            <Grid key={equipment.value} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card
                 elevation={formData.equipment.includes(equipment.value) ? 3 : 1}
                 sx={{
                   border: formData.equipment.includes(equipment.value)
                     ? '2px solid'
-                    : '2px solid transparent',
+                    : '1px solid',
                   borderColor: formData.equipment.includes(equipment.value)
                     ? 'primary.main'
-                    : 'transparent',
+                    : 'divider',
                   transition: 'all 225ms cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
                 }}
               >
                 <CardActionArea
                   onClick={() => handleEquipmentToggle(equipment.value)}
                   aria-label={equipment.label}
                   sx={{
-                    minHeight: 80,
-                    p: 2,
+                    minHeight: 120,
+                    p: 3,
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    justifyContent: 'flex-start',
                   }}
                 >
                   <Typography
-                    variant="body1"
-                    align="center"
+                    variant="h6"
                     sx={{
                       color: formData.equipment.includes(equipment.value)
                         ? 'primary.main'
                         : 'text.primary',
                       transition: 'color 225ms',
+                      mb: 1,
                     }}
                   >
                     {equipment.label}
                   </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      transition: 'color 225ms',
+                    }}
+                  >
+                    {equipment.description}
+                  </Typography>
+                  {formData.equipment.includes(equipment.value) && (
+                    <CheckCircleIcon
+                      sx={{
+                        position: 'absolute',
+                        top: 16,
+                        right: 16,
+                        color: 'primary.main',
+                        fontSize: 24,
+                      }}
+                    />
+                  )}
                 </CardActionArea>
               </Card>
             </Grid>
           ))}
         </Grid>
+
+        {errors.equipment && (
+          <Alert severity="error" sx={{ mt: 3 }}>
+            {errors.equipment}
+          </Alert>
+        )}
       </Box>
+
+      {/* Story 19.5: Basic Equipment Follow-up Section */}
+      {formData.equipment.includes('basic-equipment') && (
+        <Box sx={{ mb: 4, p: 3, bgcolor: 'action.hover', borderRadius: 1 }}>
+          <Typography variant="h6" gutterBottom>
+            Which equipment items do you have?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Please specify which equipment items you have
+          </Typography>
+
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {PREDEFINED_EQUIPMENT_ITEMS.map((item) => (
+              <Grid key={item} size={{ xs: 12, sm: 6 }}>
+                <Card
+                  elevation={
+                    formData.equipmentItems && formData.equipmentItems.includes(item) ? 2 : 0
+                  }
+                  sx={{
+                    border: formData.equipmentItems && formData.equipmentItems.includes(item)
+                      ? '2px solid'
+                      : '1px solid',
+                    borderColor:
+                      formData.equipmentItems && formData.equipmentItems.includes(item)
+                        ? 'primary.main'
+                        : 'divider',
+                    transition: 'all 225ms cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                  }}
+                >
+                  <CardActionArea
+                    onClick={() => handleEquipmentItemToggle(item)}
+                    aria-label={EQUIPMENT_ITEM_LABELS[item]}
+                    sx={{
+                      minHeight: 80,
+                      p: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        color:
+                          formData.equipmentItems && formData.equipmentItems.includes(item)
+                            ? 'primary.main'
+                            : 'text.primary',
+                        transition: 'color 225ms',
+                      }}
+                    >
+                      {EQUIPMENT_ITEM_LABELS[item]}
+                    </Typography>
+                    {formData.equipmentItems && formData.equipmentItems.includes(item) && (
+                      <CheckCircleIcon
+                        sx={{
+                          color: 'primary.main',
+                          fontSize: 24,
+                          ml: 1,
+                        }}
+                      />
+                    )}
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* Story 19.6: Custom Equipment Input Section */}
+          <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Don&apos;t see your equipment?
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Add a custom equipment item
+            </Typography>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+              <TextField
+                size="small"
+                placeholder="e.g., Cable machine, Smith machine"
+                value={customEquipmentInput}
+                onChange={(e) => setCustomEquipmentInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustomEquipment();
+                  }
+                }}
+                sx={{ flex: 1 }}
+                inputProps={{
+                  maxLength: 50,
+                }}
+              />
+              <Button
+                variant="outlined"
+                onClick={handleAddCustomEquipment}
+                disabled={!customEquipmentInput.trim()}
+                sx={{ minWidth: 100 }}
+              >
+                Add
+              </Button>
+            </Stack>
+
+            {/* Display selected custom items as removable chips */}
+            {formData.equipmentItems && formData.equipmentItems.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Selected items:
+                </Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {formData.equipmentItems.map((item) => {
+                    const label = EQUIPMENT_ITEM_LABELS[item] || item.replace(/-/g, ' ');
+                    return (
+                      <Box
+                        key={item}
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          px: 2,
+                          py: 1,
+                          bgcolor: 'primary.light',
+                          color: 'primary.contrastText',
+                          borderRadius: 1,
+                          fontSize: '0.875rem',
+                        }}
+                      >
+                        {label}
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              equipmentItems: (prev.equipmentItems || []).filter(
+                                (i) => i !== item
+                              ),
+                            }));
+                          }}
+                          sx={{
+                            minWidth: 0,
+                            p: 0.25,
+                            ml: 0.5,
+                            color: 'inherit',
+                            '&:hover': {
+                              bgcolor: 'rgba(255,255,255,0.2)',
+                            },
+                          }}
+                          aria-label={`Remove ${label}`}
+                        >
+                          ✕
+                        </Button>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
 
       {/* Submit Button */}
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>

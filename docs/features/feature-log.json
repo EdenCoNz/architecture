@@ -1291,6 +1291,63 @@
           "implementationLog": "docs/features/18/implementation-log.json"
         }
       ]
+    },
+    {
+      "featureID": "19",
+      "title": "Equipment Assessment Single Selection with Conditional Follow-up",
+      "description": "Enable users to accurately specify their available training equipment through a single-selection equipment assessment with conditional follow-up prompts for basic equipment, allowing users to indicate specific equipment items from predefined options or custom entries",
+      "createdAt": "2025-10-31T00:00:00Z",
+      "userStoriesCreated": "2025-10-31T00:00:00Z",
+      "userStoriesImplemented": "2025-10-31T21:30:00Z",
+      "isSummarised": false,
+      "totalStories": 11,
+      "completedStories": [
+        "Story-19.1",
+        "Story-19.2",
+        "Story-19.3",
+        "Story-19.4",
+        "Story-19.5",
+        "Story-19.6",
+        "Story-19.7",
+        "Story-19.8",
+        "Story-19.9",
+        "Story-19.10",
+        "Story-19.11"
+      ],
+      "assignedAgents": [
+        "ui-ux-designer",
+        "frontend-developer",
+        "backend-developer"
+      ],
+      "executionPhases": 4,
+      "parallelPhases": 1,
+      "sequentialPhases": 3,
+      "filesPath": "docs/features/19/user-stories.md",
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-31T18:45:00Z",
+          "designBriefUpdated": true
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-31T19:15:00Z",
+          "designBriefUpdated": true
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-31T19:45:00Z",
+          "designBriefUpdated": true
+        }
+      ],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-31T21:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/implementation-log.json"
+        }
+      ]
     }
   ]
 }

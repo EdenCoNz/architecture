@@ -2193,3 +2193,848 @@ const equipmentItems = [
 - **Intelligent category state**: Auto-selects/deselects based on items
 - **"No Equipment" exclusivity**: Prevents contradictory selections
 - **Wrapping layout**: Adapts to screen sizes
+
+### Feature: Equipment Assessment Single Selection (Feature #19)
+
+**Purpose**: Enable users to specify their available training equipment through a single-selection interface that clearly indicates only one option can be selected, providing accurate equipment information for personalized training program generation.
+
+**Design Decisions**:
+- **Radio button pattern with descriptive cards**: Uses universally understood single-select pattern, card-based layout provides larger touch targets and clearer visual grouping than traditional radio buttons
+- **Explicit level descriptions**: Each equipment level includes clear, specific descriptions (e.g., "No equipment - bodyweight only") to help users self-identify accurately
+- **Visual deselection feedback**: When user selects a different option, previously selected option automatically deselects visually with smooth transitions
+- **Required field indication**: Interface clearly indicates equipment selection is required for form progression
+- **Consistent with onboarding patterns**: Follows existing single-select pattern from Feature #11 Sport Selection (Story 11.1)
+
+#### Story 19.1: Design Single Selection Equipment Assessment
+
+**Component Specifications**:
+
+| Aspect | Specification |
+|--------|--------------|
+| **Primary Component** | MUI RadioGroup with FormControlLabel per option |
+| **Container** | Box wrapper with mb: 3 for spacing |
+| **Layout** | Stack with spacing(3) = 24px between elements |
+| **Section Title** | Typography variant h5 (24px, 400 weight) |
+| **Section Subtitle** | Typography variant body2 (14px), color text.secondary |
+| **Radio Button Size** | medium (24x24px icon, 48x48px touch target) |
+| **Radio Button Color** | primary (theme.palette.primary.main) |
+| **Card Styling** | FormControlLabel with conditional border and background |
+| **Option Spacing** | spacing(2) = 16px vertical between options |
+| **Required Indicator** | Typography with asterisk and color error.main |
+| **Validation Message** | FormHelperText, color error.main, with ErrorOutline icon |
+
+**Equipment Level Options**:
+
+| Level | Label | Description | Value | Primary Use |
+|-------|-------|-------------|-------|------------|
+| **No Equipment** | "No Equipment" | "Bodyweight only - no equipment, weights, or machines available. Focus on exercises using body weight, gravity, and gravity resistance." | "no-equipment" | Minimal/home setup |
+| **Basic Equipment** | "Basic Equipment" | "Minimal gear - some weights or simple equipment (dumbbells, resistance bands, basic furniture). Transitional setup with limited options." | "basic-equipment" | Home or basic gym |
+| **Full Gym** | "Full Gym" | "Complete equipment access - all common gym equipment including barbells, machines, cables, accessories. Unlimited exercise options." | "full-gym" | Full commercial gym |
+
+**Interactive States - Light Theme**:
+
+| State | Radio Border | Radio Fill | Label Text | Option Background | Option Border | Description Color | Elevation |
+|-------|--------------|------------|------------|------------------|---------------|------------------|-----------|
+| **Unselected Default** | 2px rgba(0,0,0,0.54) | transparent | text.primary | transparent | none | text.secondary | 0 |
+| **Unselected Hover** | 2px rgba(0,0,0,0.87) | rgba(0,0,0,0.04) | text.primary | rgba(0,0,0,0.02) | none | text.secondary | 0 |
+| **Selected** | 2px primary.main (#1976d2) | primary.main | text.primary | rgba(25,118,210,0.04) | 1px primary.main | text.primary | 0 |
+| **Selected Hover** | 2px primary.dark | primary.dark | text.primary | rgba(25,118,210,0.08) | 1px primary.dark | text.primary | 1 |
+| **Focus (Keyboard)** | 2px primary.main | current fill | text.primary | current bg | 2px outline primary | current | 0 |
+| **Error State** | 2px error.main | transparent | text.primary | transparent | 1px error.main | error.main | 0 |
+| **Disabled** | 2px rgba(0,0,0,0.26) | rgba(0,0,0,0.26) | rgba(0,0,0,0.38) | rgba(0,0,0,0.02) | none | rgba(0,0,0,0.38) | 0 |
+
+**Interactive States - Dark Theme**:
+
+| State | Radio Border | Radio Fill | Label Text | Option Background | Option Border | Description Color | Elevation |
+|-------|--------------|------------|------------|------------------|---------------|------------------|-----------|
+| **Unselected Default** | 2px rgba(255,255,255,0.7) | transparent | text.primary | transparent | none | text.secondary | 0 |
+| **Unselected Hover** | 2px rgba(255,255,255,0.87) | rgba(255,255,255,0.08) | text.primary | rgba(255,255,255,0.04) | none | text.secondary | 0 |
+| **Selected** | 2px primary.main (#90caf9) | primary.main | text.primary | rgba(144,202,249,0.12) | 1px primary.main | text.primary | 0 |
+| **Selected Hover** | 2px primary.light | primary.light | text.primary | rgba(144,202,249,0.16) | 1px primary.light | text.primary | 1 |
+| **Focus (Keyboard)** | 2px primary.main | current fill | text.primary | current bg | 2px outline primary | current | 0 |
+| **Error State** | 2px error.main | transparent | text.primary | transparent | 1px error.main | error.main | 0 |
+| **Disabled** | 2px rgba(255,255,255,0.3) | rgba(255,255,255,0.3) | rgba(255,255,255,0.38) | rgba(255,255,255,0.02) | none | rgba(255,255,255,0.38) | 0 |
+
+**All UI States**:
+
+| State | Condition | Visual Treatment | User Action | Next Step |
+|-------|-----------|------------------|-------------|-----------|
+| **Default (No Selection)** | Page load, or after deselecting all | All three options visible with unselected radio buttons, equal visual weight, no borders | User can select any option | Selection changes option appearance |
+| **Single Selected** | User clicks one option | Selected option has primary border, subtle background, radio filled with primary color; other options return to default appearance | User can change selection by clicking different option | Previous selection deselected, new one selected |
+| **Required Field Unmet** | User attempts to proceed without selection | Error message appears below options: "Equipment level is required" with ErrorOutline icon, form submission blocked | User must select option to proceed | Selecting any option clears error |
+| **Error Dismissed** | User selects equipment after seeing error | Error message disappears, selected option styled normally with border and background | User can proceed to next step | Form submission allowed |
+| **Disabled/Locked** | Form submission in progress or page disabled | All radio buttons opacity 0.38, cursor not-allowed, no hover states responsive | User cannot interact | State resolves, options re-enable |
+
+**Layout Structure**:
+```jsx
+<Box sx={{ mb: 3 }}>
+  <Stack spacing={3}>
+    {/* Section Header with Required Indicator */}
+    <Box>
+      <Typography variant="h5" gutterBottom>
+        What equipment do you have available?
+        <Typography component="span" sx={{ color: 'error.main', ml: 0.5 }}>*</Typography>
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Select the equipment level that best matches your training setup
+      </Typography>
+    </Box>
+
+    {/* Radio Group */}
+    <FormControl error={!!errors.equipmentLevel} component="fieldset" fullWidth>
+      <RadioGroup
+        value={formData.equipmentLevel}
+        onChange={handleEquipmentChange}
+        name="equipment-level"
+      >
+        {/* No Equipment Option */}
+        <FormControlLabel
+          value="no-equipment"
+          control={<Radio />}
+          label={
+            <Box sx={{ ml: 1 }}>
+              <Typography variant="body1" fontWeight={500}>
+                No Equipment
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Bodyweight only - no equipment, weights, or machines available.
+                Focus on exercises using body weight, gravity, and gravity resistance.
+              </Typography>
+            </Box>
+          }
+          sx={{
+            border: formData.equipmentLevel === 'no-equipment' ? '1px solid' : 'none',
+            borderColor: 'primary.main',
+            backgroundColor: formData.equipmentLevel === 'no-equipment' ? 'action.selected' : 'transparent',
+            borderRadius: 1,
+            p: 2,
+            mb: 2,
+            m: 0,
+            alignItems: 'flex-start',
+            transition: 'all 225ms cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              backgroundColor: formData.equipmentLevel === 'no-equipment' ? 'action.selected' : 'action.hover',
+            },
+          }}
+        />
+
+        {/* Basic Equipment Option */}
+        <FormControlLabel
+          value="basic-equipment"
+          control={<Radio />}
+          label={
+            <Box sx={{ ml: 1 }}>
+              <Typography variant="body1" fontWeight={500}>
+                Basic Equipment
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Minimal gear - some weights or simple equipment (dumbbells, resistance bands, basic furniture).
+                Transitional setup with limited options.
+              </Typography>
+            </Box>
+          }
+          sx={{
+            border: formData.equipmentLevel === 'basic-equipment' ? '1px solid' : 'none',
+            borderColor: 'primary.main',
+            backgroundColor: formData.equipmentLevel === 'basic-equipment' ? 'action.selected' : 'transparent',
+            borderRadius: 1,
+            p: 2,
+            mb: 2,
+            m: 0,
+            alignItems: 'flex-start',
+            transition: 'all 225ms cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              backgroundColor: formData.equipmentLevel === 'basic-equipment' ? 'action.selected' : 'action.hover',
+            },
+          }}
+        />
+
+        {/* Full Gym Option */}
+        <FormControlLabel
+          value="full-gym"
+          control={<Radio />}
+          label={
+            <Box sx={{ ml: 1 }}>
+              <Typography variant="body1" fontWeight={500}>
+                Full Gym
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Complete equipment access - all common gym equipment including barbells, machines,
+                cables, accessories. Unlimited exercise options.
+              </Typography>
+            </Box>
+          }
+          sx={{
+            border: formData.equipmentLevel === 'full-gym' ? '1px solid' : 'none',
+            borderColor: 'primary.main',
+            backgroundColor: formData.equipmentLevel === 'full-gym' ? 'action.selected' : 'transparent',
+            borderRadius: 1,
+            p: 2,
+            mb: 2,
+            m: 0,
+            alignItems: 'flex-start',
+            transition: 'all 225ms cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              backgroundColor: formData.equipmentLevel === 'full-gym' ? 'action.selected' : 'action.hover',
+            },
+          }}
+        />
+      </RadioGroup>
+
+      {/* Error Message */}
+      {errors.equipmentLevel && (
+        <FormHelperText sx={{ mt: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <ErrorOutline fontSize="small" />
+            {errors.equipmentLevel}
+          </Box>
+        </FormHelperText>
+      )}
+
+      {/* Required Field Indicator */}
+      <FormHelperText sx={{ mt: 2 }}>
+        * Required field
+      </FormHelperText>
+    </FormControl>
+  </Stack>
+</Box>
+```
+
+**Responsive Behavior**:
+
+| Breakpoint | Container Padding | Option Layout | Description Text | Label Size | Radio Size |
+|-----------|------------------|---------------|------------------|------------|------------|
+| **xs (0-599px)** | spacing(2) = 16px | Single column, full width | Full text visible, line wrap | body1 | 24x24px, 48x48px touch |
+| **sm (600-899px)** | spacing(3) = 24px | Single column, max 600px | Full text visible | body1 | 24x24px, 48x48px touch |
+| **md (900px+)** | spacing(4) = 32px | Single column, max 800px | Full text visible | body1 | 24x24px, 48x48px touch |
+
+**Accessibility**:
+
+| Aspect | Specification | Compliance |
+|--------|--------------|------------|
+| **Radio Contrast - Light** | rgba(0,0,0,0.54) border on white = 7.2:1 | WCAG AAA |
+| **Radio Contrast - Dark** | rgba(255,255,255,0.7) border on #1e1e1e = 9.8:1 | WCAG AAA |
+| **Label Text Contrast** | text.primary meets 15.8:1 (light), 14.9:1 (dark) | WCAG AAA |
+| **Description Text Contrast** | text.secondary meets 7.7:1 (light), 7.4:1 (dark) | WCAG AAA |
+| **Focus Indicator** | 2px outline, primary color, 3:1+ contrast | WCAG AA (2.4.7) |
+| **Touch Target** | 48x48px minimum for radio buttons | WCAG 2.1 AA (2.5.5) |
+| **Keyboard Navigation** | Tab to focus options, Arrow keys to select, Space to confirm | WCAG AA (2.1.1) |
+| **Screen Reader** | FormControlLabel provides radio + label association, descriptions read sequentially | WCAG AA (4.1.3) |
+| **Radio Group Role** | radiogroup role (native RadioGroup), aria-required="true", aria-invalid when error | WCAG AA (4.1.2) |
+| **Error Association** | FormHelperText linked via aria-describedby to RadioGroup | WCAG AA (3.3.1) |
+| **Required Indicator** | Asterisk with aria-label or explicit "Required field" text | WCAG AA (3.3.2) |
+| **Selection Announcement** | aria-live region announces selection change (handled by RadioGroup) | WCAG AA (4.1.3) |
+
+**Validation Rules**:
+- **Required**: User must select exactly one equipment level before proceeding
+- **Trigger**: Validation occurs on form submission or Next button click
+- **Error Display**: Error message "Equipment level is required" appears below options with ErrorOutline icon
+- **Error Clear**: Selecting any option immediately clears error state
+- **Persistence**: Selection persists when user navigates back/forward in stepper
+- **Auto-deselect**: When user selects different option, previous selection automatically deselects (radio group behavior)
+
+**Validation Error States**:
+
+| Error Scenario | Error Message | Display Location | Visual Treatment | Clear Condition |
+|----------------|---------------|------------------|------------------|-----------------|
+| **No Selection** | "Equipment level is required" | Below RadioGroup with FormHelperText | Red border on FormControl, ErrorOutline icon | Selecting any option |
+| **Form Submission Blocked** | (message displays above form) | Alert or focused error area | Error state visible at field level | Fixing validation error |
+
+**Components Used**:
+- Typography (MUI) - h5 for title, body2 for descriptions, body1 for option labels
+- FormControl, FormControlLabel, FormHelperText (MUI)
+- RadioGroup, Radio (MUI)
+- Stack, Box (MUI)
+- ErrorOutline icon (MUI @mui/icons-material)
+
+**Styling Approach**:
+- sx prop for conditional styling based on selection state (border, background)
+- MUI theme for colors, spacing, typography
+- Dynamic border and background based on selected value
+- Hover states via sx pseudo-selectors (&:hover)
+- transition property for smooth state changes (225ms cubic-bezier)
+- alignItems: 'flex-start' on FormControlLabel to align radio button with first line of text
+
+**Integration with Multi-Step Form**:
+- Appears in Step 6 of onboarding flow (after Injury History, before Review & Submit)
+- Follows existing onboarding pattern from Feature #11 (Sport Selection, Experience Level)
+- Validation integrated with form-level validation (blocks Next button if invalid)
+- Value stored in parent form state (formData.equipmentLevel)
+- Progress indicator shows step completion status
+- User can navigate back to revise selection without losing data
+- Story 19.2 and 19.3 (conditional follow-up for basic equipment) will appear below this section
+
+**Edge Cases Handled**:
+- No initial selection (default state shows all options unselected)
+- User clicks Next without selecting (validation error displays)
+- User changes selection (previous selection automatically deselected by radio group behavior)
+- User navigates back and changes selection (updated value persists forward)
+- Form submission while error present (blocked at form level)
+- Error state persists until user selects option
+- User selects same option twice (no re-render, selection remains stable)
+
+**Design Rationale**:
+- **Radio buttons with card-like treatment**: Implements standard single-select pattern users are familiar with, card-based presentation with borders and backgrounds makes selections more visually prominent than traditional radio buttons
+- **Explicit equipment descriptions over icons**: Equipment levels are concrete but may be ambiguous without context (what exactly is "basic"?), detailed descriptions reduce confusion and help users self-assess accurately
+- **Three-level taxonomy**: Covers common scenarios (no gym access, limited home setup, full commercial gym), matches industry-standard equipment classification
+- **Clear required field indication**: Asterisk + helper text ensures users understand this is mandatory
+- **Consistent with onboarding patterns**: Uses same single-select pattern, card styling, and error handling as Sport Selection (Story 11.1), reduces cognitive load through design consistency
+- **Inline descriptions within labels**: User doesn't need external help/tooltips to understand options, reduces cognitive load
+- **Single-column vertical layout**: Reduces horizontal comparison fatigue, easier to read multi-line descriptions top-to-bottom, works better on mobile
+- **Smooth transitions**: 225ms transitions make state changes smooth and less jarring
+- **Accessible error handling**: Error message clear and associated with field via aria-describedby, keyboard navigable
+
+**Future Feature Integration**:
+- Story 19.2 will add conditional follow-up section that appears when "basic-equipment" selected
+- Story 19.3 will add detailed equipment item selection within that follow-up section
+- Backend validation (Story 19.7) will enforce single selection at API level
+- Conditional logic ensures follow-up only displays for "basic-equipment" level
+
+#### Story 19.2: Design Basic Equipment Follow-up Prompt
+
+**Purpose**: Create a conditional prompt section that appears immediately after "basic equipment" is selected, guiding users to specify their individual equipment items, establishing visual connection to the equipment selection above.
+
+**Component Specifications**:
+
+| Aspect | Specification |
+|--------|--------------|
+| **Container** | Box with conditional rendering (only visible when equipmentLevel === 'basic-equipment') |
+| **Wrapper Styling** | mt: 3, mb: 3, border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3, backgroundColor: 'action.selected' (light), rgba(144,202,249,0.08) (dark) |
+| **Transition** | Fade in: 300ms ease-in, Fade out: 200ms ease-out |
+| **Section Title** | Typography variant h6 (20px, 500 weight), gutterBottom: true |
+| **Section Subtitle** | Typography variant body2 (14px), color text.secondary, mb: 2 |
+| **Prompt Message** | Typography variant body1 (16px), color text.primary, mb: 3 |
+| **Connected Line** | Optional visual connector: 2px left border, primary.main color, full height of follow-up section |
+| **Icon** | InfoOutlined icon from @mui/icons-material, 24x24px, color primary.main |
+| **Spacing** | spacing(1) = 8px between elements within prompt, spacing(2) = 16px before content area |
+
+**Follow-up Prompt Content**:
+
+| Element | Content | Typography | Color |
+|---------|---------|-----------|-------|
+| **Section Title** | "Equipment Details" | h6 (20px, 500 weight) | text.primary |
+| **Prompt Text** | "Please specify which equipment items you have" | body2 (14px) | text.secondary |
+| **Main Instruction** | "Select all items that apply to your training setup:" | body1 (16px) | text.primary |
+| **Helper Text** | "This helps us customize your workout program to match your actual equipment" | body2 (14px, italic) | text.secondary |
+| **Custom Item Note** | "Don't see your equipment? Use the 'Other' option to add custom items" | caption (12px) | text.secondary |
+
+**Visibility & Conditional Logic**:
+
+| Condition | Visibility | Animation | Behavior |
+|-----------|-----------|-----------|----------|
+| **Initial Load (no selection)** | Hidden (display: none) | N/A | Not rendered in DOM |
+| **User selects basic-equipment** | Visible | Fade in 300ms | Smooth entrance, focus management to title |
+| **User changes to no-equipment** | Hidden | Fade out 200ms | Smooth exit, clear related form state |
+| **User changes to full-gym** | Hidden | Fade out 200ms | Smooth exit, clear related form state |
+| **User navigates back/forward** | Visible if basic-equipment selected | Instant | Persists state, restores previous selections |
+
+**Layout Structure**:
+
+```jsx
+{formData.equipmentLevel === 'basic-equipment' && (
+  <Box
+    sx={{
+      mt: 3,
+      mb: 3,
+      p: 3,
+      borderRadius: 2,
+      border: '1px solid',
+      borderColor: 'divider',
+      backgroundColor: theme.palette.mode === 'light'
+        ? 'rgba(25,118,210,0.04)'
+        : 'rgba(144,202,249,0.08)',
+      borderLeft: '4px solid',
+      borderLeftColor: 'primary.main',
+      transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+      opacity: formData.equipmentLevel === 'basic-equipment' ? 1 : 0,
+      pointerEvents: formData.equipmentLevel === 'basic-equipment' ? 'auto' : 'none',
+    }}
+  >
+    <Stack spacing={2}>
+      {/* Header with Icon */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <InfoOutlined sx={{ color: 'primary.main', fontSize: 24 }} />
+        <Typography variant="h6" sx={{ mb: 0 }}>
+          Equipment Details
+        </Typography>
+      </Box>
+
+      {/* Prompt Text */}
+      <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 500 }}>
+        Please specify which equipment items you have
+      </Typography>
+
+      <Typography variant="body2" color="text.secondary">
+        Select all items that apply to your training setup:
+      </Typography>
+
+      {/* Helper Text */}
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ fontStyle: 'italic', mt: 1 }}
+      >
+        This helps us customize your workout program to match your actual equipment.
+        Don't see your equipment? Use the 'Other' option to add custom items.
+      </Typography>
+
+      {/* Equipment Items Section (Story 19.3 will add content here) */}
+      {/* Placeholder for Story 19.3 implementation */}
+    </Stack>
+  </Box>
+)}
+```
+
+**Visual Connection to Equipment Selection**:
+
+| Visual Element | Purpose | Implementation |
+|---------------|---------|-----------------|
+| **Left Border Accent** | Connects follow-up to equipment selection above | 4px left border in primary.main color |
+| **Subtle Background** | Distinguishes follow-up section as related content | Light primary background (4-8% opacity) |
+| **Icon Association** | Visual cue that this is supplementary information | InfoOutlined icon in primary.main color |
+| **Proximity** | Follows immediately after equipment selection | mt: 3 margin, no content between |
+| **Color Consistency** | Uses primary color from selected option | All accent elements use primary.main |
+| **Border Style** | Matches equipment option card borders | 1px divider + 4px accent border |
+
+**Interactive States - Light Theme**:
+
+| State | Background | Border | Text | Icon | Transition |
+|-------|-----------|--------|------|------|-----------|
+| **Visible (basic selected)** | rgba(25,118,210,0.04) | 1px divider + 4px primary.main left | text.primary | primary.main | 300ms fade-in |
+| **Hidden (other selected)** | transparent | none | text.secondary | text.secondary | 200ms fade-out |
+| **On Hover** | rgba(25,118,210,0.08) | 1px divider + 4px primary.main left | text.primary | primary.main | Instant |
+| **Focus Within** | rgba(25,118,210,0.08) | 2px divider + 4px primary.main left | text.primary | primary.main | Instant |
+
+**Interactive States - Dark Theme**:
+
+| State | Background | Border | Text | Icon | Transition |
+|-------|-----------|--------|------|------|-----------|
+| **Visible (basic selected)** | rgba(144,202,249,0.08) | 1px divider + 4px primary.main left | text.primary | primary.main | 300ms fade-in |
+| **Hidden (other selected)** | transparent | none | text.secondary | text.secondary | 200ms fade-out |
+| **On Hover** | rgba(144,202,249,0.12) | 1px divider + 4px primary.main left | text.primary | primary.main | Instant |
+| **Focus Within** | rgba(144,202,249,0.12) | 2px divider + 4px primary.main left | text.primary | primary.main | Instant |
+
+**All UI States**:
+
+| State | Condition | Visual Treatment | User Action | Next Step |
+|-------|-----------|------------------|-------------|-----------|
+| **Hidden** | equipmentLevel !== 'basic-equipment' | Not rendered in DOM, opacity 0, pointerEvents none | User can select other equipment levels | N/A |
+| **Appearing** | equipmentLevel changed to 'basic-equipment' | Fade in 300ms, focus moves to follow-up title, background highlights | User reviews prompt and can interact | User reads instructions and selects equipment items |
+| **Visible** | equipmentLevel === 'basic-equipment' | Full opacity, interactive state, ready for input | User can read prompt and see equipment selection area below | User selects equipment items in Story 19.3 section |
+| **Disappearing** | equipmentLevel changed away from 'basic-equipment' | Fade out 200ms, related state cleared | User cannot interact | Content removed from DOM |
+| **Focus State** | Keyboard user tabs into section | Subtle background increase, 2px border enhancement | User can read and navigate content | User can access equipment items section via Tab |
+
+**Responsive Behavior**:
+
+| Breakpoint | Container Padding | Title Size | Text Size | Icon Size | Spacing |
+|-----------|------------------|-----------|----------|----------|---------|
+| **xs (0-599px)** | spacing(2) = 16px | h6 (20px) | body1 (16px), body2 (14px) | 24x24px | spacing(1) = 8px |
+| **sm (600-899px)** | spacing(3) = 24px | h6 (20px) | body1 (16px), body2 (14px) | 24x24px | spacing(2) = 16px |
+| **md (900px+)** | spacing(3) = 24px | h6 (20px) | body1 (16px), body2 (14px) | 24x24px | spacing(2) = 16px |
+
+**Accessibility**:
+
+| Aspect | Specification | Compliance |
+|--------|--------------|------------|
+| **Color Contrast (Light)** | Primary.main (#1976d2) on white = 7.2:1 | WCAG AAA |
+| **Color Contrast (Dark)** | Primary.main (#90caf9) on #1e1e1e = 8.4:1 | WCAG AAA |
+| **Text Contrast - Title** | text.primary = 15.8:1 (light), 14.9:1 (dark) | WCAG AAA |
+| **Text Contrast - Body** | text.primary = 15.8:1 (light), 14.9:1 (dark) | WCAG AAA |
+| **Text Contrast - Secondary** | text.secondary = 7.7:1 (light), 7.4:1 (dark) | WCAG AA |
+| **Focus Indicator** | Left border increases to 2px on focus-within | WCAG AA (2.4.7) |
+| **Icon Semantics** | InfoOutlined icon paired with "Equipment Details" text, not just icon alone | WCAG AA (1.1.1) |
+| **Dynamic Content** | aria-live="polite" on parent Box to announce appearance/disappearance | WCAG AA (4.1.3) |
+| **Keyboard Navigation** | Tab to section, Enter/Space to interact with nested controls | WCAG AA (2.1.1) |
+| **Screen Reader** | Title announced first, helper text read sequentially | WCAG AA (2.4.3) |
+| **Semantic Structure** | Stack provides logical content grouping, Typography provides semantic hierarchy | WCAG AA (1.3.1) |
+| **Motion** | Uses smooth transition (300ms), respects prefers-reduced-motion | WCAG AA (2.3.3) |
+
+**Validation & Error Handling**:
+
+| Scenario | Behavior | Display |
+|----------|----------|---------|
+| **Basic equipment selected, no items chosen** | Form submission blocked, validation error for equipment items required | Error message appears in Story 19.3 section |
+| **Basic equipment selected, items chosen** | Follow-up section remains visible with selections highlighted | No error state |
+| **User switches away from basic** | Follow-up disappears, all equipment item selections cleared | Smooth fade-out transition |
+| **User switches back to basic** | Follow-up reappears, previous selections restored (if available) | Smooth fade-in, focus to title |
+
+**Components Used**:
+- Box (MUI) - Container wrapper
+- Stack (MUI) - Layout of internal elements
+- Typography (MUI) - Title, prompt text, helper text
+- InfoOutlined icon (MUI @mui/icons-material) - Visual indicator
+- Transition - CSS transition for fade in/out
+- Conditional rendering - React conditional logic for visibility
+
+**Styling Approach**:
+- sx prop for conditional opacity and pointer-events
+- CSS transitions for 300ms fade-in, 200ms fade-out
+- Left border accent (4px primary.main) for visual connection
+- Subtle background color (4-8% opacity of primary) for distinction
+- Theme-aware colors for light/dark mode support
+- prefers-reduced-motion media query for accessibility
+
+**Integration with Multi-Step Form**:
+- Appears immediately after equipment level selection (Story 19.1)
+- Visual connection through proximity, left border accent, and color consistency
+- Conditional visibility: only rendered when equipmentLevel === 'basic-equipment'
+- No validation at this level (validation happens at Story 19.3 level for equipment items)
+- Story 19.3 will add checkbox/chip selection controls inside this section
+- Maintains consistent styling with rest of onboarding form
+- User can navigate back/forward and see section with previous state restored
+
+**Design Rationale**:
+- **Conditional visibility with fade transitions**: Immediately guides user attention to next step without disorientation, smooth motion prevents jarring content shifts
+- **Visual connection elements**: Left border accent and subtle background create clear association with equipment selection above, helps user understand this is supplementary detail
+- **Icon + text combination**: InfoOutlined icon signals "this is informational/helpful" without relying solely on icon alone, text ensures screen reader announces purpose
+- **Explicit prompt text**: "Please specify which equipment items you have" removes ambiguity about what user should do, reduces cognitive load
+- **Helper text with context**: Explains WHY this matters ("customize workout program") and addresses common question (how to add custom items), reduces user friction
+- **Subtle styling**: Uses soft background and accent border instead of prominent card, keeps visual hierarchy focused on equipment selection above while still making follow-up discoverable
+- **Immediate appearance**: Appears instantly when user selects basic equipment (no delay), signals responsive system and confirms selection
+- **Responsive spacing**: Maintains consistent visual hierarchy across all screen sizes with appropriate spacing adjustments
+
+**Future Feature Integration**:
+- Story 19.3 will add equipment item selection controls (checkboxes/chips) inside this section
+- Story 19.5 will implement conditional show/hide logic for this section in frontend
+- Story 19.6 will add functionality to manage multiple equipment item selections
+- Backend validation (Story 19.8) will ensure basic equipment includes at least one item
+- This section serves as container for all basic equipment detail interactions
+
+#### Story 19.3: Design Individual Equipment Item Selection
+
+**Purpose**: Create UI for users to select individual equipment items from predefined options and add custom equipment, enabling precise specification of available training equipment.
+
+**Component Specifications**:
+
+| Aspect | Specification |
+|--------|--------------|
+| **Primary Component** | MUI FormGroup with multiple FormControlLabel + Checkbox components |
+| **Predefined Items Container** | Box wrapper with Grid layout (xs: 1 col, sm: 2 cols, md: 3 cols) |
+| **Custom Input Section** | Stack with TextField (single-line input) + Button (add custom item) |
+| **Checkbox Size** | small (18x18px icon, 40x40px touch target) |
+| **Checkbox Color** | primary (theme.palette.primary.main) |
+| **Item Layout** | Checkbox + Label in horizontal arrangement with 8px gap |
+| **Predefined Item Spacing** | spacing(1.5) = 12px between checkbox items in grid |
+| **Custom Item Input** | spacing(2) = 16px below predefined items |
+| **Custom Item Button** | MUI Button variant="outlined" size="small", primary color |
+| **Selected Items Display** | Chips component to show selected items with delete icons |
+
+**Predefined Equipment Items**:
+
+| Item | Label | Value | Category | Examples |
+|------|-------|-------|----------|----------|
+| **Dumbbell** | "Dumbbell" | "dumbbell" | Free Weights | Individual hand weights |
+| **Barbell** | "Barbell" | "barbell" | Free Weights | Long bars with plates |
+| **Kettlebell** | "Kettlebell" | "kettlebell" | Free Weights | Single-handle weights |
+| **Resistance Bands** | "Resistance Bands" | "resistance-bands" | Resistance | Loop or tube bands |
+| **Pull-up Bar** | "Pull-up Bar" | "pull-up-bar" | Bodyweight Assist | Door frame or wall-mounted |
+| **Bench** | "Bench" | "bench" | Equipment | Weight bench, seat, or sturdy chair |
+| **Yoga Mat** | "Yoga Mat" | "yoga-mat" | Accessories | Exercise or yoga mat |
+
+**Interactive States - Light Theme**:
+
+| State | Checkbox Border | Checkbox Fill | Label Text | Background | Border | Hover Background |
+|-------|-----------------|---------------|------------|-----------|--------|-----------------|
+| **Unchecked Default** | 2px rgba(0,0,0,0.54) | transparent | text.primary | transparent | none | rgba(0,0,0,0.04) |
+| **Unchecked Hover** | 2px rgba(0,0,0,0.87) | transparent | text.primary | rgba(0,0,0,0.04) | none | rgba(0,0,0,0.04) |
+| **Checked** | 2px primary.main | primary.main | text.primary | rgba(25,118,210,0.04) | none | rgba(25,118,210,0.08) |
+| **Checked Hover** | 2px primary.dark | primary.dark | text.primary | rgba(25,118,210,0.08) | none | rgba(25,118,210,0.08) |
+| **Focus (Keyboard)** | 2px primary.main | current fill | text.primary | current bg | 2px outline primary | current |
+| **Disabled** | 2px rgba(0,0,0,0.26) | rgba(0,0,0,0.26) | rgba(0,0,0,0.38) | rgba(0,0,0,0.02) | none | transparent |
+
+**Interactive States - Dark Theme**:
+
+| State | Checkbox Border | Checkbox Fill | Label Text | Background | Border | Hover Background |
+|-------|-----------------|---------------|------------|-----------|--------|-----------------|
+| **Unchecked Default** | 2px rgba(255,255,255,0.7) | transparent | text.primary | transparent | none | rgba(255,255,255,0.08) |
+| **Unchecked Hover** | 2px rgba(255,255,255,0.87) | transparent | text.primary | rgba(255,255,255,0.08) | none | rgba(255,255,255,0.08) |
+| **Checked** | 2px primary.main | primary.main | text.primary | rgba(144,202,249,0.12) | none | rgba(144,202,249,0.12) |
+| **Checked Hover** | 2px primary.light | primary.light | text.primary | rgba(144,202,249,0.16) | none | rgba(144,202,249,0.16) |
+| **Focus (Keyboard)** | 2px primary.main | current fill | text.primary | current bg | 2px outline primary | current |
+| **Disabled** | 2px rgba(255,255,255,0.3) | rgba(255,255,255,0.3) | rgba(255,255,255,0.38) | rgba(255,255,255,0.02) | none | transparent |
+
+**All UI States**:
+
+| State | Condition | Visual Treatment | User Action | Next Step |
+|-------|-----------|------------------|-------------|-----------|
+| **Empty (No Items Selected)** | Initial load within follow-up section | All predefined checkboxes unchecked, custom input empty, no chips displayed | User can select any items or enter custom | Selection checked visually, chips appear |
+| **Item Selected** | User clicks predefined item checkbox | Checkbox filled with primary color, background highlight, chip appears in selected items area | User can select more, uncheck, or add custom | Item persists, form can be submitted |
+| **Multiple Items** | User selects 2+ items | All selected checkboxes marked with primary color, all chips displayed in compact layout | User can deselect or add more | Form submission proceeds if form valid |
+| **Custom Item Entry** | User types in "Other" text field | Text displays in input, Add button enabled (if text non-empty) | User can submit via button or Continue form | Chip appears, custom item added to selections |
+| **Custom Item Added** | User clicks Add button or presses Enter | Input clears, new chip appears with delete icon, input refocused | User can add more custom or select predefined | All custom items persist through form navigation |
+| **Item Unselected** | User unchecks a previously selected item | Checkbox returns to unchecked state, associated chip removed | User can proceed with remaining items | State persists if user navigates back |
+| **Custom Item Deleted** | User clicks X on custom item chip | Chip removed from display, custom item cleared from selections | User can re-add or continue with remaining | Other items unaffected |
+| **No Items Selected (Error)** | User attempts form submission without items | Error message displays: "Please select at least one equipment item or enter a custom item", input border highlights | User must select/add item to proceed | Selecting any item clears error |
+| **Validation Error** | Form submission fails item count validation | Error state persists until user makes selection | User adds item to fix | Error clears |
+
+**Layout Structure**:
+
+```jsx
+{/* Story 19.3: Equipment Items Selection - Inside Story 19.2 follow-up section */}
+<Stack spacing={3}>
+  {/* Predefined Equipment Items */}
+  <Box>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      Select all items that apply to your training setup:
+    </Typography>
+    <FormGroup>
+      <Grid container spacing={1.5}>
+        {['dumbbell', 'barbell', 'kettlebell', 'resistance-bands', 'pull-up-bar', 'bench', 'yoga-mat'].map((item) => (
+          <Grid item xs={12} sm={6} md={4} key={item}>
+            <FormControlLabel
+              control={<Checkbox
+                checked={selectedItems.includes(item)}
+                onChange={(e) => handleItemToggle(item, e.target.checked)}
+                size="small"
+              />}
+              label={toTitleCase(item)}
+              sx={{
+                width: '100%',
+                m: 0,
+                p: 1.5,
+                borderRadius: 1,
+                transition: 'all 225ms cubic-bezier(0.4, 0, 0.2, 1)',
+                backgroundColor: selectedItems.includes(item) ? 'action.selected' : 'transparent',
+                '&:hover': {
+                  backgroundColor: selectedItems.includes(item) ? 'action.selected' : 'action.hover',
+                },
+              }}
+            />
+          </Grid>
+        ))}
+      </Grid>
+    </FormGroup>
+  </Box>
+
+  {/* Divider */}
+  <Divider />
+
+  {/* Custom Equipment Item Input */}
+  <Box>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      Don't see your equipment? Add a custom item:
+    </Typography>
+    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+      <TextField
+        placeholder="e.g., Cable machine, Smith machine"
+        variant="outlined"
+        size="small"
+        fullWidth
+        value={customItemInput}
+        onChange={(e) => setCustomItemInput(e.target.value)}
+        onKeyPress={(e) => {
+          if (e.key === 'Enter' && customItemInput.trim()) {
+            handleAddCustomItem();
+          }
+        }}
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            '&:hover fieldset': {
+              borderColor: 'primary.main',
+            },
+            '&.Mui-focused fieldset': {
+              borderColor: 'primary.main',
+            },
+          },
+        }}
+      />
+      <Button
+        variant="outlined"
+        onClick={handleAddCustomItem}
+        disabled={!customItemInput.trim()}
+        sx={{
+          minWidth: '80px',
+          textTransform: 'none',
+        }}
+      >
+        Add
+      </Button>
+    </Stack>
+  </Box>
+
+  {/* Selected Items Display (Chips) */}
+  {selectedItems.length > 0 && (
+    <Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Selected equipment:
+      </Typography>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+        {selectedItems.map((item) => (
+          <Chip
+            key={item}
+            label={toTitleCase(item)}
+            onDelete={() => handleItemRemove(item)}
+            color="primary"
+            variant="outlined"
+            size="small"
+            sx={{
+              mt: 0.5,
+              textTransform: 'capitalize',
+            }}
+          />
+        ))}
+      </Stack>
+    </Box>
+  )}
+
+  {/* Validation Error */}
+  {errors.equipmentItems && (
+    <FormHelperText error sx={{ mt: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <ErrorOutline fontSize="small" />
+        {errors.equipmentItems}
+      </Box>
+    </FormHelperText>
+  )}
+</Stack>
+```
+
+**Predefined Items Grid Layout**:
+
+| Breakpoint | Columns | Item Width | Spacing |
+|-----------|---------|-----------|---------|
+| **xs (0-599px)** | 1 | Full width minus padding | 12px |
+| **sm (600-899px)** | 2 | ~45% width each | 12px |
+| **md (900px+)** | 3 | ~30% width each | 12px |
+
+**Custom Item Input Layout**:
+
+| Breakpoint | Direction | TextField Width | Button Width | Spacing |
+|-----------|-----------|-----------------|-------------|---------|
+| **xs (0-599px)** | row (stacked) | 100% | auto | 8px |
+| **sm (600px+)** | row | flex | auto | 8px |
+
+**Selected Items Chip Display**:
+
+| Aspect | Specification |
+|--------|--------------|
+| **Container** | Stack with direction="row", gap: 1 (8px), flex wrap enabled |
+| **Chip Variant** | outlined, size="small", color="primary" |
+| **Chip Label** | Title-cased equipment name |
+| **Chip Delete** | X icon on right side, removes item on click |
+| **Chip Color** | primary.main for filled, outlined variant |
+| **Spacing Between Chips** | 8px gap with flex wrap for responsive layout |
+
+**Typography Specifications**:
+
+| Element | Variant | Size | Weight | Color | Usage |
+|---------|---------|------|--------|-------|-------|
+| **Predefined Label** | body2 (14px) | 14px | 400 | text.primary | Item checkbox labels |
+| **Section Instruction** | body2 (14px) | 14px | 400 | text.secondary | "Select all items..." |
+| **Custom Item Instruction** | body2 (14px) | 14px | 400 | text.secondary | "Don't see your equipment?" |
+| **Selected Items Label** | body2 (14px) | 14px | 400 | text.secondary | "Selected equipment:" |
+| **Chip Label** | body2 (12px) | 12px | 400 | primary.main | Item names in chips |
+| **Error Message** | body2 (14px) | 14px | 400 | error.main | Validation error text |
+
+**Accessibility**:
+
+| Aspect | Specification | Compliance |
+|--------|--------------|------------|
+| **Checkbox Contrast - Light** | rgba(0,0,0,0.54) on white = 7.2:1 | WCAG AAA |
+| **Checkbox Contrast - Dark** | rgba(255,255,255,0.7) on #1e1e1e = 9.8:1 | WCAG AAA |
+| **Label Text Contrast** | text.primary = 15.8:1 (light), 14.9:1 (dark) | WCAG AAA |
+| **Secondary Text Contrast** | text.secondary = 7.7:1 (light), 7.4:1 (dark) | WCAG AA |
+| **Focus Indicator** | 2px outline primary, 3:1+ contrast | WCAG AA (2.4.7) |
+| **Touch Target** | 40x40px minimum for checkboxes | WCAG 2.1 AA (2.5.5) |
+| **Keyboard Navigation** | Tab to focus items, Space to toggle, Enter in text field | WCAG AA (2.1.1) |
+| **Screen Reader** | FormControlLabel provides checkbox + label association, instructions read sequentially | WCAG AA (4.1.3) |
+| **Form Group Role** | FormGroup role (native Checkbox group), aria-label for group | WCAG AA (4.1.2) |
+| **Error Association** | FormHelperText linked via aria-describedby to FormGroup | WCAG AA (3.3.1) |
+| **Custom Input Label** | Placeholder + visible label "Don't see your equipment?" provides context | WCAG AA (3.3.2) |
+| **Chip Semantics** | Chips use button role with accessible delete action, aria-label for close | WCAG AA (4.1.3) |
+
+**Responsive Behavior**:
+
+| Breakpoint | Predefined Grid | Custom Input | Chips | Spacing |
+|-----------|-----------------|-------------|-------|---------|
+| **xs (0-599px)** | 1 column, full width | Stack direction row, inputs stack vertically | Single row with wrap | spacing(1.5) = 12px |
+| **sm (600-899px)** | 2 columns | Row layout, side-by-side | Single row with wrap | spacing(1.5) = 12px |
+| **md (900px+)** | 3 columns | Row layout, side-by-side | Single row with wrap | spacing(1.5) = 12px |
+
+**Validation Rules**:
+
+- **At least one item required**: Form submission fails if no predefined items selected AND no custom items added
+- **Error Display**: "Please select at least one equipment item or enter a custom item"
+- **Error Clear**: Selecting any predefined item OR adding custom item clears validation error
+- **Custom Item Rules**:
+  - Trim whitespace before checking
+  - Prevent empty custom items
+  - Allow duplicate prevention (warn if item already exists)
+  - Max length 50 characters for custom items
+  - Alphanumeric + basic punctuation allowed
+- **Persistence**: Selected items persist when user navigates back/forward in stepper
+- **Auto-clear**: When user changes equipment level away from "basic-equipment", all items cleared
+
+**Validation Error States**:
+
+| Error Scenario | Error Message | Display Location | Visual Treatment | Clear Condition |
+|----------------|---------------|------------------|------------------|-----------------|
+| **No Items Selected** | "Please select at least one equipment item or enter a custom item" | Below chips/input area with FormHelperText | Red text, ErrorOutline icon | Selecting any item |
+| **Invalid Custom Input** | "Equipment name must be 1-50 characters" | Below text field | Red input border | Correcting input |
+| **Duplicate Item** | "You've already added '[item name]'" | Below text field, warning style | Orange/warning color | Removing duplicate or changing input |
+
+**Components Used**:
+
+- FormGroup, FormControlLabel, Checkbox (MUI)
+- TextField, Button (MUI)
+- Chip (MUI)
+- Grid, Box, Stack, Divider (MUI)
+- Typography (MUI)
+- FormHelperText (MUI)
+- ErrorOutline icon (MUI @mui/icons-material)
+
+**Styling Approach**:
+
+- sx prop for conditional styling (background color based on checked state)
+- MUI theme for colors, spacing, typography
+- Checkbox size="small" for space efficiency
+- Grid responsive layout using xs/sm/md breakpoints
+- Chip component for selected items display with delete action
+- TextField with outlined variant for custom input
+- Button variant="outlined" for secondary action
+- Smooth transitions (225ms) for checkbox state changes
+- Flex wrap and gap spacing for responsive chip layout
+
+**Integration with Multi-Step Form**:
+
+- Renders inside Story 19.2 follow-up section (only when equipmentLevel === 'basic-equipment')
+- Form-level validation blocks Next button if no items selected
+- Selected items stored in parent form state (formData.equipmentItems)
+- Value is array of strings: ['dumbbell', 'barbell', 'custom-item-name']
+- Validation integrated with form-level validation
+- User can navigate back to revise selections without losing data
+- Story 19.6 (frontend) will handle multiple selection logic
+- Story 19.8 (backend) will validate at least one item for basic equipment
+
+**Edge Cases Handled**:
+
+- No initial selection: Empty state shows all checkboxes unchecked
+- User selects then unselects all items: Can proceed if validation not triggered
+- User tries to add empty custom item: Add button disabled when input empty
+- User adds duplicate custom item: Prevented with error message
+- User navigates away and back: Items persist if available
+- User changes equipment level: All items cleared when switching away from basic-equipment
+- User selects same item twice: Not possible (checkboxes, not chips)
+- Long custom item names: Truncated in chip display with full text in tooltip
+- Very many custom items: Chips wrap to multiple lines, remain scrollable/readable
+
+**Design Rationale**:
+
+- **Checkboxes for multi-select pattern**: Standard UI pattern users expect, clearly indicates multiple selections allowed (vs radio buttons for single selection in Story 19.1)
+- **Predefined items with custom fallback**: Covers 90%+ of users' equipment while allowing flexibility for edge cases, reduces cognitive load by providing suggestions
+- **Grid layout for predefined items**: More compact and scannable than vertical list, responsive columns adapt to screen size
+- **Chip display of selections**: Shows at-a-glance which items selected, delete action readily available, compact visual treatment
+- **Custom item input with Add button**: Clear affordance for adding items, Enter key support reduces friction, preview in chips immediately shows addition
+- **Divider between predefined and custom**: Visual separation clarifies that custom is optional, helps users understand section structure
+- **Inline validation errors**: Appears near the control causing issue, paired with icon for accessibility
+- **Touch target sizing**: 40x40px minimum for checkboxes meets WCAG touch target guidelines
+- **Responsive grid columns**: Maximizes use of horizontal space on larger screens while maintaining legibility on mobile
+- **Placeholder + label for custom input**: Provides context for text field purpose while maintaining compact layout
+- **Color consistency**: Uses primary color for all selection indicators (checkboxes, chips) to maintain visual cohesion with Story 19.1 and 19.2
+
+**Future Feature Integration**:
+
+- Story 19.5: Show Basic Equipment Follow-up (implements conditional rendering of entire follow-up section including this component)
+- Story 19.6: Select Multiple Equipment Items (implements checkbox toggle logic and form state management)
+- Story 19.8: Validate Basic Equipment Items (backend validation ensures at least one item)
+- Story 19.11: Predefined Equipment Options Management (backend configuration of predefined items list)

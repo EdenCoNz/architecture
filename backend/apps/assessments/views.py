@@ -12,6 +12,7 @@ from rest_framework.serializers import BaseSerializer
 
 from apps.assessments.models import Assessment
 from apps.assessments.serializers import AssessmentSerializer
+from apps.assessments.services import EquipmentService
 
 
 class AssessmentViewSet(viewsets.ModelViewSet):
@@ -95,3 +96,23 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 {"detail": "No assessment found for this user."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+    @action(detail=False, methods=["get"], url_path="equipment-options")
+    def equipment_options(self, request: Request) -> Response:
+        """
+        Retrieve predefined equipment options.
+
+        This endpoint provides the list of predefined equipment items
+        that users can select when specifying basic equipment during assessment.
+        Options are configurable via system settings.
+
+        Story 19.11: Predefined Equipment Options Management
+
+        Args:
+            request: HTTP request object
+
+        Returns:
+            Response with list of equipment options
+        """
+        options = EquipmentService.get_predefined_options()
+        return Response({"options": options}, status=status.HTTP_200_OK)
