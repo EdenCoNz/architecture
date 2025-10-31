@@ -140,8 +140,11 @@ describe('AssessmentForm', () => {
       await user.click(submitButton);
 
       // Button should show loading state
-      expect(submitButton).toBeDisabled();
-      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+      // Use waitFor to handle async state updates
+      await waitFor(() => {
+        expect(submitButton).toBeDisabled();
+        expect(screen.getByRole('progressbar')).toBeInTheDocument();
+      });
     });
 
     it('should call onSubmit with form data when submitted', async () => {
