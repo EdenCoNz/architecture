@@ -46,10 +46,10 @@ Time 180s+:   Health check endpoint /api/v1/health/ becomes available
 #### 1. Extended Health Check Timings
 
 **Changes:**
-- `start_period: 90s` → `180s` (3 minutes)
-- `interval: 45s` → `30s` (more frequent checks after startup)
+- `start_period: 90s` → `200s` (3.3 minutes)
+- `interval: 45s` → `20s` (more frequent checks after startup)
 - `timeout: 5s` → `10s` (allow more time per check)
-- `retries: 3` → `5` (more retry attempts)
+- `retries: 5` → `3` (fewer retries needed with longer start_period)
 
 **Files Modified:**
 - `compose.staging.yml` (line 109-114)
@@ -57,28 +57,32 @@ Time 180s+:   Health check endpoint /api/v1/health/ becomes available
 
 **Rationale:**
 ```
-start_period: 180s  - Allows full startup sequence (DB wait + migrations + collectstatic)
-interval: 30s       - Checks every 30s after startup period
+start_period: 200s  - Allows full startup sequence (DB wait + migrations + collectstatic)
+interval: 20s       - Checks every 20s after startup period (faster detection when healthy)
 timeout: 10s        - Generous timeout for slow network/server
-retries: 5          - More attempts before marking unhealthy
+retries: 3          - Fewer retries needed with generous start_period
 ```
 
 **Total time before failure:**
 ```
-180s (start_period) + (5 retries × 30s interval) = 330 seconds (5.5 minutes)
+200s (start_period) + (3 retries × 20s interval) = 260 seconds (4.3 minutes)
 ```
 
 #### 2. Extended Workflow Monitoring Timeout
 
 **Change:**
-- `MAX_WAIT=120` → `360` (6 minutes)
+- `MAX_WAIT=120` → `600` (10 minutes)
 
 **File Modified:**
 - `.github/workflows/unified-ci-cd.yml` (lines 743, 1405)
 
 **Rationale:**
-- Workflow must wait longer than worst-case health check scenario (330s)
-- 360s provides buffer for system overhead and network latency
+- Workflow must wait for ALL services to become healthy sequentially:
+  - Backend: up to 260s (worst case)
+  - Frontend: 60s start_period + checks
+  - Proxy: 15s start_period + checks
+- Total: ~335s minimum + overhead
+- 600s (10 minutes) provides generous buffer for system overhead, network latency, and variability
 
 #### 3. Enhanced Entrypoint Logging
 
@@ -125,7 +129,7 @@ retries: 5          - More attempts before marking unhealthy
 ║            Production Initialization Complete                     ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║  Total startup time: 70s                                          ║
-║  Health checks will begin after start_period (180s)               ║
+║  Health checks will begin after start_period (200s)               ║
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
 
