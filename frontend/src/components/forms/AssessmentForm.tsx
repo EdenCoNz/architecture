@@ -38,8 +38,8 @@ export interface AssessmentFormData {
   experienceLevel: string | null;
   trainingDays: string | null;
   injuries: string | null;
-  equipment: string[];  // Will contain single value but kept as array for backward compatibility
-  equipmentItems?: string[];  // Story 19.5: Specific items selected for basic equipment
+  equipment: string[]; // Will contain single value but kept as array for backward compatibility
+  equipmentItems?: string[]; // Story 19.5: Specific items selected for basic equipment
 }
 
 interface AssessmentFormProps {
@@ -84,10 +84,10 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
     trainingDays: null,
     injuries: null,
     equipment: [],
-    equipmentItems: [],  // Story 19.5: Initialize equipment items
+    equipmentItems: [], // Story 19.5: Initialize equipment items
   });
 
-  const [customEquipmentInput, setCustomEquipmentInput] = useState('');  // Story 19.6: Custom equipment input
+  const [customEquipmentInput, setCustomEquipmentInput] = useState(''); // Story 19.6: Custom equipment input
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -263,7 +263,9 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
         injuries: formData.injuries === 'no' ? null : formData.injuries,
         equipment: formData.equipment,
         // Story 19.5: Include equipment items if basic equipment is selected
-        ...(formData.equipment.includes('basic-equipment') && formData.equipmentItems && formData.equipmentItems.length > 0
+        ...(formData.equipment.includes('basic-equipment') &&
+        formData.equipmentItems &&
+        formData.equipmentItems.length > 0
           ? { equipmentItems: formData.equipmentItems }
           : {}),
       };
@@ -685,9 +687,7 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
               <Card
                 elevation={formData.equipment.includes(equipment.value) ? 3 : 1}
                 sx={{
-                  border: formData.equipment.includes(equipment.value)
-                    ? '2px solid'
-                    : '1px solid',
+                  border: formData.equipment.includes(equipment.value) ? '2px solid' : '1px solid',
                   borderColor: formData.equipment.includes(equipment.value)
                     ? 'primary.main'
                     : 'divider',
@@ -770,9 +770,10 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
                     formData.equipmentItems && formData.equipmentItems.includes(item) ? 2 : 0
                   }
                   sx={{
-                    border: formData.equipmentItems && formData.equipmentItems.includes(item)
-                      ? '2px solid'
-                      : '1px solid',
+                    border:
+                      formData.equipmentItems && formData.equipmentItems.includes(item)
+                        ? '2px solid'
+                        : '1px solid',
                     borderColor:
                       formData.equipmentItems && formData.equipmentItems.includes(item)
                         ? 'primary.main'
@@ -885,9 +886,7 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
                           onClick={() => {
                             setFormData((prev) => ({
                               ...prev,
-                              equipmentItems: (prev.equipmentItems || []).filter(
-                                (i) => i !== item
-                              ),
+                              equipmentItems: (prev.equipmentItems || []).filter((i) => i !== item),
                             }));
                           }}
                           sx={{

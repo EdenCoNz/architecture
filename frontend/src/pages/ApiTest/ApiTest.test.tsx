@@ -335,7 +335,11 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
 
       // Mock API error response (500)
       vi.spyOn(apiService, 'testBackendConnection').mockRejectedValueOnce(
-        new apiService.ApiError('Backend returned error: 500 Internal Server Error', 500, 'Internal Server Error')
+        new apiService.ApiError(
+          'Backend returned error: 500 Internal Server Error',
+          500,
+          'Internal Server Error'
+        )
       );
 
       renderApiTest();
@@ -412,9 +416,9 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -436,9 +440,9 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -583,9 +587,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -604,9 +608,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -630,9 +634,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: backendMessage,
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: backendMessage,
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -653,9 +657,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response with custom message
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: customMessage,
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: customMessage,
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -676,9 +680,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -706,9 +710,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T14:30:45.123Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T14:30:45.123Z',
+      });
 
       renderApiTest();
 
@@ -827,7 +831,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       // First call fails
       const mockTestBackendConnection = vi.spyOn(apiService, 'testBackendConnection');
       mockTestBackendConnection
-        .mockRejectedValueOnce(new apiService.ApiError('Connection failed - unable to reach backend server'))
+        .mockRejectedValueOnce(
+          new apiService.ApiError('Connection failed - unable to reach backend server')
+        )
         .mockResolvedValueOnce({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
@@ -872,9 +878,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 
@@ -895,9 +901,9 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Mock successful API response
       vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        message: 'Backend is operational',
+        timestamp: '2025-10-25T12:00:00.000Z',
+      });
 
       renderApiTest();
 

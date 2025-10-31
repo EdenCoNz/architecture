@@ -84,7 +84,7 @@ export function getVersion(): string {
 
   // Use version injected by Vite from package.json (configured in vite.config.ts)
   // This is the primary method - version is baked into the build at compile time
-  // eslint-disable-next-line no-restricted-globals
+
   if (typeof __APP_VERSION__ !== 'undefined') {
     return __APP_VERSION__;
   }
@@ -146,18 +146,22 @@ export function logVersionInfo(environment?: string): void {
   const info = getVersionInfo(environment);
 
   // Create a visually distinct log group for easy identification
+  // eslint-disable-next-line no-console
   console.log(
     `%c🚀 ${info.name} v${info.version}`,
     'color: #1976d2; font-weight: bold; font-size: 14px;'
   );
 
+  // eslint-disable-next-line no-console
   console.log(`%cEnvironment: ${info.environment}`, 'color: #666; font-size: 12px;');
 
   if (info.buildDate) {
+    // eslint-disable-next-line no-console
     console.log(`%cBuild Date: ${info.buildDate}`, 'color: #666; font-size: 12px;');
   }
 
   // Add helpful message for support engineers
+  // eslint-disable-next-line no-console
   console.log(
     '%cℹ️ Access version programmatically: window.__APP_INFO__ or window.APP_VERSION',
     'color: #888; font-style: italic; font-size: 11px;'

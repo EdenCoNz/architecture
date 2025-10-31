@@ -278,7 +278,7 @@ describe('AssessmentForm', () => {
       await user.click(noEquipmentButton);
 
       // Verify only "No equipment" is selected
-      let noEquipmentCard = noEquipmentButton.closest('[class*="MuiCard"]');
+      const noEquipmentCard = noEquipmentButton.closest('[class*="MuiCard"]');
       expect(noEquipmentCard).toHaveStyle({ borderColor: expect.stringContaining('primary') });
     });
 
@@ -522,9 +522,7 @@ describe('AssessmentForm', () => {
         expect(screen.getByRole('button', { name: /^Dumbbell$/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Barbell$/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Kettlebell$/i })).toBeInTheDocument();
-        expect(
-          screen.getByRole('button', { name: /^Resistance Bands$/i })
-        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Resistance Bands$/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Pull-up Bar$/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Bench$/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Yoga Mat$/i })).toBeInTheDocument();

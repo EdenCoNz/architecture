@@ -54,6 +54,7 @@ describe('Version Utility', () => {
       logVersionInfo();
 
       // Should log at least once
+      // eslint-disable-next-line no-console
       expect(console.log).toHaveBeenCalled();
     });
 
@@ -63,6 +64,7 @@ describe('Version Utility', () => {
       const version = getVersion();
 
       // Check that version appears in one of the console.log calls
+      // eslint-disable-next-line no-console
       const logCalls = (console.log as unknown as ReturnType<typeof vi.spyOn>).mock.calls;
       const allLogOutputs = logCalls.map((call) => call.join(' ')).join(' ');
 
@@ -72,6 +74,7 @@ describe('Version Utility', () => {
     it('should include "Frontend" or "version" keyword in log output', () => {
       logVersionInfo();
 
+      // eslint-disable-next-line no-console
       const logCalls = (console.log as unknown as ReturnType<typeof vi.spyOn>).mock.calls;
       const allLogOutputs = logCalls.map((call) => call.join(' ')).join(' ');
 
@@ -188,7 +191,9 @@ describe('Version Utility', () => {
       exposeVersionToWindow();
 
       // Verify console logging happened
+      // eslint-disable-next-line no-console
       expect(console.log).toHaveBeenCalled();
+      // eslint-disable-next-line no-console
       const logCalls = (console.log as unknown as ReturnType<typeof vi.spyOn>).mock.calls;
       const allLogOutputs = logCalls.map((call) => call.join(' ')).join(' ');
       expect(allLogOutputs).toContain(version);
