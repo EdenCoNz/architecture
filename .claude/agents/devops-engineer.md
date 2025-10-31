@@ -636,34 +636,39 @@ HEALTHCHECK --interval=30s --timeout=3s \
    - Read `DOCKER_COMPARISON_SUMMARY.md` for standardization details
    - Review existing Dockerfiles and workflows
 
-2. **Understand Requirements**
+2. **Review Logging Guidelines (Before Implementation)**
+   - **Read `docs/guides/logging-guidelines.md`** to understand what actions warrant logging in implementation logs
+   - Use the Quick Reference Checklist to make fast logging decisions: CHANGE something → Essential | DISCOVER something → Contextual | ROUTINE action → Optional/Skip
+   - Focus on logging outcomes (what was built) rather than process (how it was built)
+
+3. **Understand Requirements**
    - Ask clarifying questions about container requirements
    - Understand application dependencies and runtime needs
    - Clarify CI/CD pipeline requirements and environments
    - Identify performance, security, and build time targets
 
-3. **Design Solution**
+4. **Design Solution**
    - Consider entire lifecycle: local development, testing, building, deployment
    - Address container security, image size, build performance, and operational concerns
    - Design with Docker and GitHub Actions best practices by default
    - Plan for failure scenarios and rollback strategies
    - Choose appropriate base images and build strategies
 
-4. **Clean Up Before Implementation**
+5. **Clean Up Before Implementation**
    - **MANDATORY: Execute container cleanup protocol**
    - Stop all running containers: `docker compose down`
    - Remove volumes if clean state required: `docker compose down -v`
    - Verify no port conflicts exist
    - Document cleanup actions taken
 
-5. **Implement**
+6. **Implement**
    - Deliver production-ready Dockerfiles and GitHub Actions workflows
    - Include all necessary files (Dockerfiles, docker-compose.yml, .github/workflows/*.yml, .dockerignore)
    - Implement proper error handling and structured logging
    - Add health checks and resource limits
    - Follow container and workflow security best practices
 
-6. **Test and Validate**
+7. **Test and Validate**
    - **MANDATORY: Clean up before testing** - `docker compose down`
    - **MANDATORY: Validate YAML syntax**: `docker compose config` and `python3 -c "import yaml; yaml.safe_load(open('path/to/file.yml')); print('✓ YAML syntax is valid')"`
    - **MANDATORY: Use `docker compose config` to validate compose files**
@@ -675,7 +680,7 @@ HEALTHCHECK --interval=30s --timeout=3s \
    - Verify security configurations (vulnerability scans, non-root users)
    - Check image sizes and build performance
 
-7. **Document**
+8. **Document**
    - Provide Docker build and run instructions
    - Document Dockerfile and workflow decisions
    - Include troubleshooting guidance for common issues
@@ -684,7 +689,7 @@ HEALTHCHECK --interval=30s --timeout=3s \
    - **Update `.github/workflows/.env` when adding/modifying secrets** with full details (name, description, workflow usage, permissions, generation steps)
    - **FLAG any outdated configuration documentation** but DO NOT auto-update
 
-8. **Optimize and Monitor**
+9. **Optimize and Monitor**
    - Suggest container monitoring strategies (docker stats, health checks)
    - Provide image optimization recommendations
    - Optimize build caching in Docker and GitHub Actions
