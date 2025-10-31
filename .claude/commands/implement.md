@@ -46,6 +46,8 @@ This command reads the user stories file, processes the execution order, and coo
 - Each agent MUST record their work in the implementation log
 - Update feature log when ALL stories are completed (both feature and fix modes)
 
+**Logging Standards**: All agents implementing stories must follow the logging guidelines at `docs/guides/logging-guidelines.md`. These guidelines define what to log (outcomes and decisions), what to omit (routine operations), and how to structure implementation logs for optimal value. When unsure about logging decisions, consult the Quick Decision Matrix in the guidelines.
+
 ## Workflow
 
 ### Step 0: Validate Arguments and Determine Execution Mode
@@ -165,14 +167,23 @@ Acceptance Criteria:
 
 Execute this implementation following best practices and ensure all acceptance criteria are met.
 
-IMPORTANT: After completing this user story, you MUST record your work in docs/features/{feature_id}/implementation-log.json with:
-- Story number and title
-- Timestamp of completion
-- All files created or modified
-- All actions taken (tool calls, decisions made)
-- Any issues encountered and how they were resolved
-- Status (completed/partial/blocked)
-- If the file already exists, append to it. If it doesn't exist, create it as a JSON array.
+IMPORTANT: After completing this user story, you MUST record your work in docs/features/{feature_id}/implementation-log.json.
+
+**Logging Guidelines**: Follow the comprehensive logging standards at docs/guides/logging-guidelines.md for full details on what to log, what to omit, and how to structure implementation logs.
+
+**What to Log** (see guidelines for complete details):
+- File changes (created/modified/deleted files with absolute paths)
+- Configuration updates (environment variables, settings, dependencies)
+- Key decisions (architectural choices, design patterns, significant trade-offs)
+- Issues encountered and solutions implemented
+- Discoveries that influenced your approach
+
+**What NOT to Log** (routine operations):
+- Reading files, searching code, or checking status
+- Routine validations that pass as expected
+- Step-by-step process details or tool call sequences
+
+**Quick Decision**: Ask yourself "Did this CHANGE something or DISCOVER something important?" If NO → Skip logging it.
 
 If this is a design story (ui-ux-designer agent) and you updated the design brief, also update docs/features/feature-log.json by appending to the "actions" array for the feature with matching featureID:
 {"actionType": "design", "completedAt": "{YYYY-MM-DDTHH:mm:ssZ}", "designBriefUpdated": true}
@@ -193,14 +204,25 @@ Acceptance Criteria:
 
 Execute this fix following best practices and ensure all acceptance criteria are met.
 
-IMPORTANT: After completing this fix story, you MUST record your work in docs/features/{feature_id}/issues/{issue_number}/implementation-log.json with:
-- Story number and title
-- Timestamp of completion
-- All files created or modified
-- All actions taken (tool calls, decisions made)
-- Any issues encountered and how they were resolved
-- Status (completed/partial/blocked)
-- If the file already exists, append to it. If it doesn't exist, create it as a JSON array.
+IMPORTANT: After completing this fix story, you MUST record your work in docs/features/{feature_id}/issues/{issue_number}/implementation-log.json.
+
+**Logging Guidelines**: Follow the comprehensive logging standards at docs/guides/logging-guidelines.md for full details on what to log, what to omit, and how to structure implementation logs.
+
+**What to Log** (see guidelines for complete details):
+- File changes (created/modified/deleted files with absolute paths)
+- Root cause (what caused the bug and why it occurred)
+- Solution implemented (what was changed and why it fixes the root cause)
+- Impact (users affected, frequency, severity)
+- Configuration updates (environment variables, settings, dependencies)
+- Key decisions or discoveries that influenced the fix
+
+**What NOT to Log** (routine operations):
+- Reading files during investigation or debugging steps
+- Trial-and-error attempts (log only successful approach)
+- Routine validations that pass as expected
+- Step-by-step process details or tool call sequences
+
+**Quick Decision**: Ask yourself "Did this CHANGE something or DISCOVER the root cause?" If NO → Skip logging it.
 
 **Token Optimization**: Each issue has its own implementation log, preventing the cumulative growth that led to Feature 7 having a 6,871-line log. Future fixes only read their own small log (~50-200 lines).
 ```
