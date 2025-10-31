@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/scripts/stop-push-and-close.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
