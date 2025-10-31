@@ -311,9 +311,9 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
     it('should show error message when backend is unreachable (network error)', async () => {
       const user = userEvent.setup();
 
-      // Mock network error using ApiError
-      vi.spyOn(apiService, 'testBackendConnection').mockRejectedValueOnce(
-        new apiService.ApiError('Connection failed - unable to reach backend server')
+      // Mock network error
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Failed to fetch')
       );
 
       renderApiTest();
@@ -334,9 +334,12 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       const user = userEvent.setup();
 
       // Mock API error response (500)
-      vi.spyOn(apiService, 'testBackendConnection').mockRejectedValueOnce(
-        new apiService.ApiError('Backend returned error: 500 Internal Server Error', 500, 'Internal Server Error')
-      );
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => ({ detail: 'Server error' }),
+      });
 
       renderApiTest();
 
@@ -358,8 +361,8 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       const user = userEvent.setup();
 
       // Mock timeout error
-      vi.spyOn(apiService, 'testBackendConnection').mockRejectedValueOnce(
-        new apiService.ApiError('Request timeout - backend took too long to respond')
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('The operation was aborted')
       );
 
       renderApiTest();
@@ -382,8 +385,8 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       const user = userEvent.setup();
 
       // Mock network error
-      vi.spyOn(apiService, 'testBackendConnection').mockRejectedValueOnce(
-        new apiService.ApiError('Connection failed - unable to reach backend server')
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Failed to fetch')
       );
 
       renderApiTest();
@@ -411,10 +414,14 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -435,10 +442,14 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -448,7 +459,7 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
 
       // Wait for request to complete
       await waitFor(() => {
-        // Service call verified via component state changes;
+        expect(global.fetch).toHaveBeenCalled();
       });
 
       // Button should have original text
@@ -463,15 +474,22 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       const user = userEvent.setup();
 
       // Mock successful API responses
-      const mockTestBackendConnection = vi.spyOn(apiService, 'testBackendConnection');
-      mockTestBackendConnection
+      (global.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: 'Backend is operational',
+            timestamp: '2025-10-25T12:00:00.000Z',
+          }),
         })
         .mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:01:00.000Z',
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: 'Backend is operational',
+            timestamp: '2025-10-25T12:01:00.000Z',
+          }),
         });
 
       renderApiTest();
@@ -482,7 +500,7 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
 
       // Wait for first request to complete
       await waitFor(() => {
-        // Service calls verified via component behavior;
+        expect(global.fetch).toHaveBeenCalledTimes(1);
       });
 
       // Button should be enabled again
@@ -495,7 +513,7 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
 
       // Verify second fetch was called
       await waitFor(() => {
-        // Service calls verified via component behavior;
+        expect(global.fetch).toHaveBeenCalledTimes(2);
       });
     });
   });
@@ -511,7 +529,7 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       });
 
       // Mock API response with delay
-      vi.spyOn(apiService, 'testBackendConnection').mockReturnValueOnce(delayedPromise as any);
+      (global.fetch as ReturnType<typeof vi.fn>).mockReturnValueOnce(delayedPromise);
 
       renderApiTest();
 
@@ -527,7 +545,7 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       // Try to click disabled button (should not send another request)
       // Note: userEvent.click on disabled button will fail, which is correct behavior
       // We verify only one request was sent
-      // Service calls verified via component behavior;
+      expect(global.fetch).toHaveBeenCalledTimes(1);
 
       // Resolve the promise to cleanup
       resolvePromise!({
@@ -544,9 +562,13 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
       const user = userEvent.setup();
 
       // Mock response with invalid JSON
-      vi.spyOn(apiService, 'testBackendConnection').mockRejectedValueOnce(
-        new apiService.ApiError('Invalid response format from backend')
-      );
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new Error('Unexpected token in JSON');
+        },
+      });
 
       renderApiTest();
 
@@ -564,16 +586,16 @@ describe('ApiTest Page - Story-10.3: API Call Functionality', () => {
 
 describe('ApiTest Page - Story-10.4: Display API Response', () => {
   // Mock fetch for all Story-10.4 tests
-  // Service layer mocking handles API calls
+  const originalFetch = global.fetch;
 
   beforeEach(() => {
     // Reset fetch mock before each test
-    // Service layer mocking
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
     // Restore original fetch after each test
-    // Service layer cleanup
+    global.fetch = originalFetch;
     vi.clearAllMocks();
   });
 
@@ -582,10 +604,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -603,10 +629,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -629,10 +659,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const backendMessage = 'Backend is operational';
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: backendMessage,
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -652,10 +686,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const customMessage = 'Custom test message from backend';
 
       // Mock successful API response with custom message
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: customMessage,
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -675,10 +713,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -705,10 +747,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T14:30:45.123Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -735,15 +781,22 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const secondTimestamp = '2025-10-25T12:01:00.000Z';
 
       // Mock successful API responses with different timestamps
-      const mockTestBackendConnection = vi.spyOn(apiService, 'testBackendConnection');
-      mockTestBackendConnection
+      (global.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: firstTimestamp,
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: 'Backend is operational',
+            timestamp: firstTimestamp,
+          }),
         })
         .mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: secondTimestamp,
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: 'Backend is operational',
+            timestamp: secondTimestamp,
+          }),
         });
 
       renderApiTest();
@@ -754,7 +807,7 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Wait for first response
       await waitFor(() => {
-        // Service calls verified via component behavior;
+        expect(global.fetch).toHaveBeenCalledTimes(1);
       });
 
       // Wait for button to be enabled again
@@ -767,7 +820,7 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Wait for second response
       await waitFor(() => {
-        // Service calls verified via component behavior;
+        expect(global.fetch).toHaveBeenCalledTimes(2);
       });
 
       // Verify display was updated (by checking results area changes)
@@ -782,15 +835,22 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // Mock successful API responses with incrementing timestamps
-      const mockTestBackendConnection = vi.spyOn(apiService, 'testBackendConnection');
-      mockTestBackendConnection
+      (global.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: 'Backend is operational',
+            timestamp: '2025-10-25T12:00:00.000Z',
+          }),
         })
         .mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:05:30.000Z',
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: 'Backend is operational',
+            timestamp: '2025-10-25T12:05:30.000Z',
+          }),
         });
 
       renderApiTest();
@@ -800,7 +860,7 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       // First click
       await user.click(button);
       await waitFor(() => {
-        // Service calls verified via component behavior;
+        expect(global.fetch).toHaveBeenCalledTimes(1);
       });
 
       // Wait for button to be ready
@@ -811,7 +871,7 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       // Second click
       await user.click(button);
       await waitFor(() => {
-        // Service calls verified via component behavior;
+        expect(global.fetch).toHaveBeenCalledTimes(2);
       });
 
       // Both timestamps should have been processed (we just verify the latest is shown)
@@ -825,12 +885,15 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // First call fails
-      const mockTestBackendConnection = vi.spyOn(apiService, 'testBackendConnection');
-      mockTestBackendConnection
-        .mockRejectedValueOnce(new apiService.ApiError('Connection failed - unable to reach backend server'))
+      (global.fetch as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce({
-          message: 'Backend is operational',
-          timestamp: '2025-10-25T12:00:00.000Z',
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: 'Backend is operational',
+            timestamp: '2025-10-25T12:00:00.000Z',
+          }),
         });
 
       renderApiTest();
@@ -855,7 +918,7 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Wait for success response
       await waitFor(() => {
-        // Service calls verified via component behavior;
+        expect(global.fetch).toHaveBeenCalledTimes(2);
       });
 
       // Error message should be gone, success message should be shown
@@ -871,10 +934,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -894,10 +961,14 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
       const user = userEvent.setup();
 
       // Mock successful API response
-      vi.spyOn(apiService, 'testBackendConnection').mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
           message: 'Backend is operational',
           timestamp: '2025-10-25T12:00:00.000Z',
-        });
+        }),
+      });
 
       renderApiTest();
 
@@ -911,7 +982,7 @@ describe('ApiTest Page - Story-10.4: Display API Response', () => {
 
       // Wait for response
       await waitFor(() => {
-        // Service call verified via component state changes;
+        expect(global.fetch).toHaveBeenCalled();
       });
 
       // Results area should still exist with updated content

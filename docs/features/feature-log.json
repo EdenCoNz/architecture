@@ -1386,6 +1386,19 @@
             "backend-developer"
           ],
           "description": "Fix CI/CD Pipeline failure - equipment migration test using outdated list format for equipment field instead of single string value"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 303,
+          "timestamp": "2025-11-01T17:20:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/303/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/303/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - ApiTest component test failures (18 failing tests in Story 10.3 and 10.4)"
         }
       ]
     }
