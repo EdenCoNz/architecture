@@ -1373,6 +1373,19 @@
             "backend-developer"
           ],
           "description": "Fix CI/CD Pipeline failures - docker-dev.sh script not accessible in test container (14 failures) and equipment migration details tracking missing (1 failure)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 302,
+          "timestamp": "2025-11-01T05:36:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/302/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/302/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failure - equipment migration test using outdated list format for equipment field instead of single string value"
         }
       ]
     }

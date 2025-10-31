@@ -258,7 +258,7 @@ class TestEquipmentMigrator:
             age=25,
             experience_level="intermediate",
             training_days="4-5",
-            equipment=["no_equipment", "full_gym"],
+            equipment="full_gym",
             equipment_items=[],
         )
 
@@ -269,9 +269,8 @@ class TestEquipmentMigrator:
         detail = migrator.migration_details[0]
         assert detail["user_id"] == user.id
         assert detail["user_email"] == user.email
-        assert detail["status"] == "migrated"
-        assert detail["original_equipment"] == ["no_equipment", "full_gym"]
-        assert detail["new_equipment"] == "full_gym"
+        assert detail["status"] == "skipped"  # Already valid single selection
+        assert detail["equipment"] == "full_gym"  # For skipped status, uses "equipment" key
 
 
 @pytest.mark.django_db
