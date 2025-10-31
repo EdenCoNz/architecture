@@ -76,6 +76,12 @@ class TestFrontendConfigEndpoint:
 
         AC: When environment variables are not set, the endpoint returns
         default configuration values.
+
+        Note: FRONTEND_API_URL defaults to empty string by design. This allows
+        the frontend to use same-origin requests through the nginx reverse proxy,
+        enabling the same container image to work across different network
+        configurations (localhost, network IP, production domain) without
+        rebuilding. The proxy routes /api/* to the backend based on its location.
         """
         # Clear any existing environment variables for this test
         env_vars_to_clear = [
@@ -98,7 +104,9 @@ class TestFrontendConfigEndpoint:
             data = response.json()
 
             # Check default values
-            assert data["api"]["url"] == "http://localhost:8000"
+            # FRONTEND_API_URL defaults to empty string - allows same-origin requests
+            # through nginx proxy, enabling same image to work on localhost and network IPs
+            assert data["api"]["url"] == ""
             assert data["api"]["timeout"] == 30000
             assert data["api"]["enableLogging"] is False
             assert data["app"]["name"] == "Frontend Application"
