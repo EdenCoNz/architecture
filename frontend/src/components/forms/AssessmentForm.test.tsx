@@ -282,62 +282,58 @@ describe('AssessmentForm', () => {
       expect(noEquipmentCard).toHaveStyle({ borderColor: expect.stringContaining('primary') });
     });
 
-    it(
-      'should deselect previous equipment level when selecting a new one (Story 19.4 AC 1)',
-      async () => {
-        const user = userEvent.setup();
-        const mockSubmit = vi.fn().mockResolvedValue({ success: true });
-        render(<AssessmentForm onSubmit={mockSubmit} />);
+    it('should deselect previous equipment level when selecting a new one (Story 19.4 AC 1)', async () => {
+      const user = userEvent.setup();
+      const mockSubmit = vi.fn().mockResolvedValue({ success: true });
+      render(<AssessmentForm onSubmit={mockSubmit} />);
 
-        // Fill in required fields first
-        await user.click(screen.getByRole('button', { name: /select football/i }));
-        await user.type(screen.getByLabelText(/age/i), '25');
-        await user.click(screen.getByRole('radio', { name: /intermediate/i }));
-        await user.click(screen.getByRole('button', { name: /4-5 days/i }));
-        await user.click(screen.getByRole('radio', { name: /no.*injur/i }));
+      // Fill in required fields first
+      await user.click(screen.getByRole('button', { name: /select football/i }));
+      await user.type(screen.getByLabelText(/age/i), '25');
+      await user.click(screen.getByRole('radio', { name: /intermediate/i }));
+      await user.click(screen.getByRole('button', { name: /4-5 days/i }));
+      await user.click(screen.getByRole('radio', { name: /no.*injur/i }));
 
-        // Select "No Equipment"
-        const noEquipmentButton = screen.getByRole('button', { name: /^No Equipment/i });
-        await user.click(noEquipmentButton);
+      // Select "No Equipment"
+      const noEquipmentButton = screen.getByRole('button', { name: /^No Equipment/i });
+      await user.click(noEquipmentButton);
 
-        // Submit and verify No Equipment was submitted
-        let submitButton = screen.getByRole('button', { name: /submit/i });
-        await user.click(submitButton);
+      // Submit and verify No Equipment was submitted
+      let submitButton = screen.getByRole('button', { name: /submit/i });
+      await user.click(submitButton);
 
-        await waitFor(() => {
-          expect(mockSubmit).toHaveBeenCalledWith(
-            expect.objectContaining({
-              equipment: ['no-equipment'],
-            })
-          );
-        });
+      await waitFor(() => {
+        expect(mockSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            equipment: ['no-equipment'],
+          })
+        );
+      });
 
-        mockSubmit.mockClear();
+      mockSubmit.mockClear();
 
-        // Now select "Basic Equipment"
-        const basicEquipmentButton = screen.getByRole('button', { name: /^Basic Equipment/i });
-        await user.click(basicEquipmentButton);
+      // Now select "Basic Equipment"
+      const basicEquipmentButton = screen.getByRole('button', { name: /^Basic Equipment/i });
+      await user.click(basicEquipmentButton);
 
-        // Story 19.6: When selecting basic equipment, need to select at least one item
-        const dumbbellButton = screen.getByRole('button', { name: /^Dumbbell$/i });
-        await user.click(dumbbellButton);
+      // Story 19.6: When selecting basic equipment, need to select at least one item
+      const dumbbellButton = screen.getByRole('button', { name: /^Dumbbell$/i });
+      await user.click(dumbbellButton);
 
-        // Submit again
-        submitButton = screen.getByRole('button', { name: /submit/i });
-        await user.click(submitButton);
+      // Submit again
+      submitButton = screen.getByRole('button', { name: /submit/i });
+      await user.click(submitButton);
 
-        // Verify only Basic Equipment is in the data (No Equipment was deselected)
-        await waitFor(() => {
-          expect(mockSubmit).toHaveBeenCalledWith(
-            expect.objectContaining({
-              equipment: ['basic-equipment'],
-              equipmentItems: expect.arrayContaining(['dumbbell']),
-            })
-          );
-        });
-      },
-      20000
-    ); // Increased timeout to 20s due to complex multi-step interaction
+      // Verify only Basic Equipment is in the data (No Equipment was deselected)
+      await waitFor(() => {
+        expect(mockSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            equipment: ['basic-equipment'],
+            equipmentItems: expect.arrayContaining(['dumbbell']),
+          })
+        );
+      });
+    }, 20000); // Increased timeout to 20s due to complex multi-step interaction
 
     it('should only allow one equipment level selected at a time (Story 19.4 AC 2)', async () => {
       const user = userEvent.setup();
