@@ -1425,6 +1425,19 @@
             "frontend-developer"
           ],
           "description": "Fix CI/CD Pipeline failures - ESLint prettier/prettier formatting violations (45 errors) and console.log usage violations (11 warnings)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 307,
+          "timestamp": "2025-11-01T09:18:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/307/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/307/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - Equipment selection test timeout when testing deselection behavior"
         }
       ]
     }
