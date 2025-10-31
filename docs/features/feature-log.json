@@ -1291,6 +1291,155 @@
           "implementationLog": "docs/features/18/implementation-log.json"
         }
       ]
+    },
+    {
+      "featureID": "19",
+      "title": "Equipment Assessment Single Selection with Conditional Follow-up",
+      "description": "Enable users to accurately specify their available training equipment through a single-selection equipment assessment with conditional follow-up prompts for basic equipment, allowing users to indicate specific equipment items from predefined options or custom entries",
+      "createdAt": "2025-10-31T00:00:00Z",
+      "userStoriesCreated": "2025-10-31T00:00:00Z",
+      "userStoriesImplemented": "2025-10-31T21:30:00Z",
+      "isSummarised": false,
+      "totalStories": 11,
+      "completedStories": [
+        "Story-19.1",
+        "Story-19.2",
+        "Story-19.3",
+        "Story-19.4",
+        "Story-19.5",
+        "Story-19.6",
+        "Story-19.7",
+        "Story-19.8",
+        "Story-19.9",
+        "Story-19.10",
+        "Story-19.11"
+      ],
+      "assignedAgents": [
+        "ui-ux-designer",
+        "frontend-developer",
+        "backend-developer"
+      ],
+      "executionPhases": 4,
+      "parallelPhases": 1,
+      "sequentialPhases": 3,
+      "filesPath": "docs/features/19/user-stories.md",
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-31T18:45:00Z",
+          "designBriefUpdated": true
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-31T19:15:00Z",
+          "designBriefUpdated": true
+        },
+        {
+          "actionType": "design",
+          "completedAt": "2025-10-31T19:45:00Z",
+          "designBriefUpdated": true
+        }
+      ],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-31T21:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 300,
+          "timestamp": "2025-11-01T02:00:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/300/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/300/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - startup scripts acceptance tests outdated (16 failures), equipment migration details tracking, and frontend config test expectations mismatch"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 301,
+          "timestamp": "2025-11-01T01:40:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/301/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/301/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "devops-engineer",
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - docker-dev.sh script not accessible in test container (14 failures) and equipment migration details tracking missing (1 failure)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 302,
+          "timestamp": "2025-11-01T05:36:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/302/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/302/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failure - equipment migration test using outdated list format for equipment field instead of single string value"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 303,
+          "timestamp": "2025-11-01T17:20:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/303/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/303/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - ApiTest component test failures (18 failing tests in Story 10.3 and 10.4)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 304,
+          "timestamp": "2025-11-01T17:45:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/304/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/304/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - AssessmentForm submit button loading state and equipment selection deselection timeout"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 305,
+          "timestamp": "2025-11-01T07:15:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/305/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/305/user-stories.md",
+          "totalStories": 2,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - ESLint prettier/prettier formatting violations (45 errors) and console.log usage violations (11 warnings)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 307,
+          "timestamp": "2025-11-01T09:18:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/19/issues/307/implementation-log.json",
+          "userStoriesPath": "docs/features/19/issues/307/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - Equipment selection test timeout when testing deselection behavior"
+        }
+      ]
     }
   ]
 }

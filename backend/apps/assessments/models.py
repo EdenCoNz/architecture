@@ -109,6 +109,14 @@ class Assessment(TimeStampedModel):
         help_text=_("Available training equipment"),
     )
 
+    # Equipment items for basic equipment (JSON array of item names)
+    equipment_items: models.JSONField = models.JSONField(
+        _("equipment items"),
+        default=list,
+        blank=True,
+        help_text=_("Specific equipment items when equipment is 'basic_equipment'"),
+    )
+
     class Meta:
         verbose_name = _("assessment")
         verbose_name_plural = _("assessments")

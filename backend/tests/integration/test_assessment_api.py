@@ -29,6 +29,7 @@ class TestAssessmentAPI:
             "training_days": "4-5",
             "injuries": "no",
             "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "barbell"],
         }
 
         response = client.post(url, data, format="json")
@@ -76,6 +77,7 @@ class TestAssessmentAPI:
             "training_days": "4-5",
             "injuries": "no",
             "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "resistance-bands"],
         }
 
         response = client.post(url, data, format="json")
@@ -167,6 +169,7 @@ class TestAssessmentAPI:
             "training_days": "4-5",
             "injuries": "no",
             "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell"],
         }
 
         response = client.post(url, data, format="json")
@@ -222,6 +225,7 @@ class TestAssessmentAPI:
             "training_days": "4-5",
             "injuries": "no",
             "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell"],
         }
         response = client.post(url, data, format="json")
         assert response.status_code == status.HTTP_201_CREATED
@@ -315,6 +319,7 @@ class TestAssessmentAPI:
             "training_days": "4-5",
             "injuries": "yes",
             "equipment": "basic_equipment",
+            "equipment_items": ["barbell", "bench"],
         }
 
         response = client.put(url, update_data, format="json")
@@ -414,6 +419,7 @@ class TestAssessmentAPI:
             "training_days": "4-5",
             "injuries": "no",
             "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell"],
         }
 
         response = client.post(url, data, format="json")
@@ -436,6 +442,7 @@ class TestAssessmentAPI:
             "training_days": "4-5",
             "injuries": "no",
             "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell"],
         }
 
         response = client.post(url, data, format="json")
@@ -509,6 +516,148 @@ class TestAssessmentAPI:
         assert "age" in errors
         assert "You must be at least 13 years old" in str(errors["age"])
 
+    def test_create_assessment_validates_single_equipment_selection(self) -> None:
+        """Test single equipment selection is enforced via API."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        url = reverse("assessment-list")
+        # Valid single selection
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "barbell"],
+        }
+
+        response = client.post(url, data, format="json")
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["equipment"] == "basic_equipment"
+
+    def test_create_assessment_rejects_multiple_equipment_selections(self) -> None:
+        """Test API rejects multiple equipment selections (Story 19.7)."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        url = reverse("assessment-list")
+        # Multiple selections as list
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": ["no_equipment", "basic_equipment"],
+        }
+
+        response = client.post(url, data, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        errors = response.data.get("errors", response.data)
+        assert "equipment" in errors
+        assert "Please select only one equipment level" in str(errors["equipment"])
+
+    def test_create_assessment_requires_equipment_level(self) -> None:
+        """Test API requires equipment level to be provided (Story 19.7)."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        url = reverse("assessment-list")
+        # Missing equipment field
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            # equipment missing
+        }
+
+        response = client.post(url, data, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        errors = response.data.get("errors", response.data)
+        assert "equipment" in errors
+        assert "Equipment level is required" in str(errors["equipment"])
+
+    def test_create_assessment_rejects_empty_string_equipment(self) -> None:
+        """Test API rejects empty string for equipment (Story 19.7)."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        url = reverse("assessment-list")
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "",
+        }
+
+        response = client.post(url, data, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        errors = response.data.get("errors", response.data)
+        assert "equipment" in errors
+        assert "Equipment level is required" in str(errors["equipment"])
+
+    def test_create_assessment_rejects_null_equipment(self) -> None:
+        """Test API rejects null value for equipment (Story 19.7)."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        url = reverse("assessment-list")
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": None,
+        }
+
+        response = client.post(url, data, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        errors = response.data.get("errors", response.data)
+        assert "equipment" in errors
+        assert "Equipment level is required" in str(errors["equipment"])
+
+    def test_create_assessment_accepts_all_valid_equipment_levels(self) -> None:
+        """Test API accepts all valid equipment levels (Story 19.7)."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        client = APIClient()
+        client.force_authenticate(user=user)
+        url = reverse("assessment-list")
+
+        valid_equipment_levels = ["no_equipment", "basic_equipment", "full_gym"]
+
+        for equipment in valid_equipment_levels:
+            # Clean up previous assessment
+            Assessment.objects.filter(user=user).delete()
+
+            data = {
+                "sport": "football",
+                "age": 25,
+                "experience_level": "intermediate",
+                "training_days": "4-5",
+                "injuries": "no",
+                "equipment": equipment,
+            }
+
+            # Add equipment_items only for basic_equipment
+            if equipment == "basic_equipment":
+                data["equipment_items"] = ["dumbbell"]
+
+            response = client.post(url, data, format="json")
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.data["equipment"] == equipment
+
 
 @pytest.mark.django_db
 class TestAssessmentRetrieval:
@@ -564,6 +713,7 @@ class TestAssessmentRetrieval:
             "training_days": "4-5",
             "injuries": "no",
             "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "barbell"],
         }
         assessment = Assessment.objects.create(user=user, **submitted_data)
 
@@ -580,6 +730,7 @@ class TestAssessmentRetrieval:
         assert response.data["training_days"] == submitted_data["training_days"]
         assert response.data["injuries"] == submitted_data["injuries"]
         assert response.data["equipment"] == submitted_data["equipment"]
+        assert response.data["equipment_items"] == submitted_data["equipment_items"]
         # Also verify metadata fields
         assert "id" in response.data
         assert "created_at" in response.data
@@ -756,6 +907,7 @@ class TestAssessmentRetrieval:
             "training_days": "4-5",
             "injuries": "yes",
             "equipment": "basic_equipment",
+            "equipment_items": ["kettlebell", "pull-up-bar"],
         }
         update_response = client.put(update_url, update_data, format="json")
         assert update_response.status_code == status.HTTP_200_OK

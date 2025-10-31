@@ -475,3 +475,13 @@ RATELIMIT_VIEW = "apps.core.middleware.ratelimit_view"
 
 # Content Security Policy (CSP) is now handled by SecurityHeadersMiddleware
 # Additional security headers are also handled by the middleware
+
+# Assessment Configuration (Story 19.11)
+# Predefined equipment options can be customized via environment variable.
+# Format: JSON array of objects with 'value' and 'label' keys
+# Example: PREDEFINED_EQUIPMENT_OPTIONS='[{"value":"dumbbell","label":"Dumbbell"}]'
+PREDEFINED_EQUIPMENT_OPTIONS = get_config(
+    "PREDEFINED_EQUIPMENT_OPTIONS",
+    default=None,
+    cast=lambda v: __import__("json").loads(v) if v else None,
+)

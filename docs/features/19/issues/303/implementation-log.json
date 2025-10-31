@@ -1,0 +1,30 @@
+{
+  "issue": 303,
+  "title": "CI/CD Pipeline Failed: Build and Test - Run #97 - API Test Component Test Failures",
+  "branch": "feature/19-equipment-assessment-single-selection-with-item-input",
+  "implementationDate": "2025-11-01T17:20:00Z",
+  "stories": [
+    {
+      "id": "Story-1",
+      "title": "Fix API Test Mock Setup for Fetch Calls",
+      "agent": "frontend-developer",
+      "status": "completed",
+      "filesModified": [
+        "frontend/src/pages/ApiTest/ApiTest.test.tsx"
+      ],
+      "rootCause": "The tests were mocking global.fetch directly using vi.fn(), but this approach was not intercepting the actual API calls made by the component. The component calls testBackendConnection() from the service layer, which internally uses fetch. The global fetch mock was not being used during component execution, causing all assertions that expected fetch to be called to fail (0 calls instead of 1).",
+      "solution": "Changed the test strategy from mocking global.fetch to mocking the service layer directly using vi.spyOn(apiService, 'testBackendConnection'). This properly intercepts the actual service calls made by the component, allowing tests to verify that the API service is called when the button is clicked. All mock responses now return the service layer's expected response format ({message, timestamp}) instead of the fetch API format ({ok, status, json}).",
+      "changes": [
+        "Added import for api Service module at top of test file",
+        "Replaced all global.fetch mock setup with vi.spyOn(apiService, 'testBackendConnection') calls",
+        "Updated all mock responses to use ApiTestResponse format instead of fetch Response format",
+        "Changed error mocks to use apiService.ApiError instead of generic Error objects",
+        "Removed global.fetch beforeEach/afterEach setup in Story-10.3 and Story-10.4 test blocks",
+        "Updated assertions from checking global.fetch calls to verifying component behavior changes"
+      ],
+      "testResults": "All 37 tests in ApiTest.test.tsx now pass (previously 18 failures, 19 passing). The 18 failing tests were all in Story-10.3 (API Call Functionality) and Story-10.4 (Display API Response) sections."
+    }
+  ],
+  "summary": "Fixed all 18 failing API test component tests by changing the mock strategy from global fetch mocking to service layer mocking. This properly intercepts the API calls made by the component and allows tests to verify correct behavior.",
+  "impact": "This fix ensures that the API connection test page functionality is properly verified by automated tests, catching regressions in API calling, loading states, error handling, and response display."
+}

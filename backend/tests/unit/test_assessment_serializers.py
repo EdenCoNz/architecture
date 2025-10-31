@@ -228,6 +228,7 @@ class TestAssessmentSerializer:
             training_days="2-3",
             injuries="no",
             equipment="no_equipment",
+            equipment_items=[],
         )
 
         # Update data
@@ -237,7 +238,8 @@ class TestAssessmentSerializer:
             "experience_level": "intermediate",
             "training_days": "4-5",
             "injuries": "yes",
-            "equipment": "basic_equipment",
+            "equipment": "full_gym",
+            "equipment_items": [],
         }
 
         serializer = AssessmentSerializer(assessment, data=update_data)
@@ -250,7 +252,7 @@ class TestAssessmentSerializer:
         assert updated.experience_level == "intermediate"
         assert updated.training_days == "4-5"
         assert updated.injuries == "yes"
-        assert updated.equipment == "basic_equipment"
+        assert updated.equipment == "full_gym"
 
     def test_serializer_excludes_user_field(self) -> None:
         """Test serializer doesn't expose user field in output."""
@@ -277,7 +279,8 @@ class TestAssessmentSerializer:
             "experience_level": "intermediate",
             "training_days": "4-5",
             "injuries": "no",
-            "equipment": "basic_equipment",
+            "equipment": "no_equipment",
+            "equipment_items": [],
             "created_at": "2020-01-01T00:00:00Z",  # Should be ignored
             "updated_at": "2020-01-01T00:00:00Z",  # Should be ignored
         }
@@ -543,3 +546,372 @@ class TestAssessmentSerializer:
         serializer_above = AssessmentSerializer(data=data_above)
         assert not serializer_above.is_valid()
         assert "age" in serializer_above.errors
+
+    def test_validate_equipment_single_selection_valid(self) -> None:
+        """Test equipment validation accepts single valid selection."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "full_gym",
+            "equipment_items": [],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "full_gym"
+
+    def test_validate_equipment_single_selection_no_equipment(self) -> None:
+        """Test equipment validation accepts single no_equipment selection."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "no_equipment",
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "no_equipment"
+
+    def test_validate_equipment_single_selection_full_gym(self) -> None:
+        """Test equipment validation accepts single full_gym selection."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "full_gym",
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "full_gym"
+
+    def test_validate_equipment_multiple_selections_list_rejected(self) -> None:
+        """Test equipment validation rejects multiple selections as list."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": ["no_equipment", "basic_equipment"],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment" in serializer.errors
+        assert "Please select only one equipment level" in str(serializer.errors["equipment"])
+
+    def test_validate_equipment_empty_string_rejected(self) -> None:
+        """Test equipment validation rejects empty string."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "",
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment" in serializer.errors
+        assert "Equipment level is required" in str(serializer.errors["equipment"])
+
+    def test_validate_equipment_null_rejected(self) -> None:
+        """Test equipment validation rejects null value."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": None,
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment" in serializer.errors
+        assert "Equipment level is required" in str(serializer.errors["equipment"])
+
+    def test_validate_basic_equipment_requires_items(self) -> None:
+        """Test basic equipment selection requires equipment items to be specified."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": [],  # No items provided
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment_items" in serializer.errors
+        assert "Please specify at least one equipment item" in str(
+            serializer.errors["equipment_items"]
+        )
+
+    def test_validate_basic_equipment_missing_items_field(self) -> None:
+        """Test basic equipment without items field is rejected."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            # equipment_items field missing entirely
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment_items" in serializer.errors
+        assert "Please specify at least one equipment item" in str(
+            serializer.errors["equipment_items"]
+        )
+
+    def test_validate_basic_equipment_with_single_item(self) -> None:
+        """Test basic equipment with single equipment item is accepted."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell"],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "basic_equipment"
+        assert serializer.validated_data["equipment_items"] == ["dumbbell"]
+
+    def test_validate_basic_equipment_with_multiple_items(self) -> None:
+        """Test basic equipment with multiple equipment items is accepted."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "barbell", "resistance bands"],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "basic_equipment"
+        assert len(serializer.validated_data["equipment_items"]) == 3
+        assert "dumbbell" in serializer.validated_data["equipment_items"]
+        assert "barbell" in serializer.validated_data["equipment_items"]
+        assert "resistance bands" in serializer.validated_data["equipment_items"]
+
+    def test_validate_basic_equipment_with_custom_items(self) -> None:
+        """Test basic equipment with custom equipment items is accepted."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "My Custom Equipment"],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "basic_equipment"
+        assert "My Custom Equipment" in serializer.validated_data["equipment_items"]
+
+    def test_validate_basic_equipment_with_predefined_and_custom_items(self) -> None:
+        """Test basic equipment with both predefined and custom items is accepted."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": [
+                "dumbbell",
+                "barbell",
+                "kettlebell",
+                "My Custom Band",
+                "Other Equipment",
+            ],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert len(serializer.validated_data["equipment_items"]) == 5
+        assert "dumbbell" in serializer.validated_data["equipment_items"]
+        assert "My Custom Band" in serializer.validated_data["equipment_items"]
+        assert "Other Equipment" in serializer.validated_data["equipment_items"]
+
+    def test_validate_no_equipment_clears_items(self) -> None:
+        """Test non-basic equipment clears items even if provided."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "no_equipment",
+            "equipment_items": ["dumbbell", "barbell"],  # Should be cleared
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "no_equipment"
+        assert serializer.validated_data["equipment_items"] == []
+
+    def test_validate_full_gym_clears_items(self) -> None:
+        """Test full_gym equipment clears items even if provided."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "full_gym",
+            "equipment_items": ["dumbbell", "barbell"],  # Should be cleared
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data["equipment"] == "full_gym"
+        assert serializer.validated_data["equipment_items"] == []
+
+    def test_create_assessment_with_basic_equipment_items(self) -> None:
+        """Test creating assessment with basic equipment and items."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "barbell", "Custom Item"],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert serializer.is_valid()
+        assessment = serializer.save(user=user)
+
+        assert assessment.equipment == "basic_equipment"
+        assert assessment.equipment_items == ["dumbbell", "barbell", "Custom Item"]
+        assert len(assessment.equipment_items) == 3
+
+    def test_update_assessment_equipment_and_items(self) -> None:
+        """Test updating assessment to add equipment items."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        assessment = Assessment.objects.create(
+            user=user,
+            sport="football",
+            age=25,
+            experience_level="beginner",
+            training_days="2-3",
+            injuries="no",
+            equipment="full_gym",
+            equipment_items=[],
+        )
+
+        # Update to basic equipment with items
+        update_data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "resistance bands"],
+        }
+
+        serializer = AssessmentSerializer(assessment, data=update_data)
+        assert serializer.is_valid()
+        updated = serializer.save()
+
+        assert updated.equipment == "basic_equipment"
+        assert updated.equipment_items == ["dumbbell", "resistance bands"]
+
+    def test_serialize_assessment_with_equipment_items(self) -> None:
+        """Test serializing assessment with equipment items to JSON."""
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        assessment = Assessment.objects.create(
+            user=user,
+            sport="football",
+            age=25,
+            experience_level="intermediate",
+            training_days="4-5",
+            injuries="no",
+            equipment="basic_equipment",
+            equipment_items=["dumbbell", "barbell", "Custom Equipment"],
+        )
+
+        serializer = AssessmentSerializer(assessment)
+        data = serializer.data
+
+        assert data["equipment"] == "basic_equipment"
+        assert len(data["equipment_items"]) == 3
+        assert "dumbbell" in data["equipment_items"]
+        assert "barbell" in data["equipment_items"]
+        assert "Custom Equipment" in data["equipment_items"]
+
+    def test_validate_equipment_items_empty_string_rejected(self) -> None:
+        """Test equipment items with empty strings are rejected."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "", "barbell"],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment_items" in serializer.errors
+
+    def test_validate_equipment_items_whitespace_only_rejected(self) -> None:
+        """Test equipment items with whitespace only are rejected."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": ["dumbbell", "   ", "barbell"],
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment_items" in serializer.errors
+
+    def test_validate_equipment_items_not_list_rejected(self) -> None:
+        """Test equipment items that are not a list are rejected."""
+        data = {
+            "sport": "football",
+            "age": 25,
+            "experience_level": "intermediate",
+            "training_days": "4-5",
+            "injuries": "no",
+            "equipment": "basic_equipment",
+            "equipment_items": "dumbbell",  # String instead of list
+        }
+
+        serializer = AssessmentSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "equipment_items" in serializer.errors

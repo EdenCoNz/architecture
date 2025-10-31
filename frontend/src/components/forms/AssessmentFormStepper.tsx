@@ -43,6 +43,7 @@ export interface AssessmentFormData {
   trainingDays: string | null;
   injuries: string | null;
   equipment: string[];
+  equipmentItems?: string[]; // Story 19.5: Specific items selected for basic equipment
 }
 
 interface AssessmentFormStepperProps {
