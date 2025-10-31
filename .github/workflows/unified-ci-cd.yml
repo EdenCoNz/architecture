@@ -740,7 +740,7 @@ jobs:
             # Give services a moment to initialize
             sleep 3
 
-            MAX_WAIT=120  # 2 minutes max wait
+            MAX_WAIT=360  # 6 minutes max wait (allows for migrations, collectstatic, and health checks)
             ELAPSED=0
             CHECK_INTERVAL=5
             PREVIOUS_UNHEALTHY=""
@@ -1402,7 +1402,7 @@ jobs:
             # Give services a moment to initialize
             sleep 3
 
-            MAX_WAIT=120  # 2 minutes max wait
+            MAX_WAIT=360  # 6 minutes max wait (allows for migrations, collectstatic, and health checks)
             ELAPSED=0
             CHECK_INTERVAL=5
             PREVIOUS_UNHEALTHY=""

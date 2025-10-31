@@ -1,34 +1,71 @@
 #!/bin/bash
 set -e
 
-echo "=== Backend Production Container ==="
+# Function to log with timestamp and duration
+log_step() {
+    local step_name="$1"
+    local step_start=$(date +%s)
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $step_name"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
 
-# Validate configuration first (critical for production)
-echo "Validating production configuration..."
-python manage.py check_config --quiet || exit 1
-echo "Configuration validated successfully!"
+log_complete() {
+    local step_name="$1"
+    local step_start="$2"
+    local step_end=$(date +%s)
+    local duration=$((step_end - step_start))
+    echo "✅ $step_name completed in ${duration}s"
+    echo ""
+}
+
+CONTAINER_START=$(date +%s)
+
+echo ""
+echo "╔═══════════════════════════════════════════════════════════════════╗"
+echo "║          Backend Production Container - Initialization           ║"
+echo "╚═══════════════════════════════════════════════════════════════════╝"
 echo ""
 
-echo "Waiting for PostgreSQL to be ready..."
+# Step 1: Validate configuration
+STEP_START=$(date +%s)
+log_step "STEP 1/5: Validating production configuration"
+python manage.py check_config --quiet || exit 1
+log_complete "Configuration validation" "$STEP_START"
 
-# Wait for database
+# Step 2: Wait for database
+STEP_START=$(date +%s)
+log_step "STEP 2/5: Waiting for PostgreSQL"
 python manage.py check_database --wait 60
+log_complete "Database connectivity" "$STEP_START"
 
-echo "Database is ready!"
-
-# Run production checks
-echo "Running deployment checks..."
+# Step 3: Run deployment checks
+STEP_START=$(date +%s)
+log_step "STEP 3/5: Running deployment checks"
 python manage.py check --deploy --fail-level WARNING
+log_complete "Deployment checks" "$STEP_START"
 
-# Apply migrations
-echo "Applying database migrations..."
+# Step 4: Apply migrations
+STEP_START=$(date +%s)
+log_step "STEP 4/5: Applying database migrations"
 python manage.py migrate --noinput
+log_complete "Database migrations" "$STEP_START"
 
-# Collect static files
-echo "Collecting static files..."
+# Step 5: Collect static files
+STEP_START=$(date +%s)
+log_step "STEP 5/5: Collecting static files"
 python manage.py collectstatic --noinput --clear
+log_complete "Static file collection" "$STEP_START"
 
-echo "Production setup complete!"
+CONTAINER_END=$(date +%s)
+TOTAL_DURATION=$((CONTAINER_END - CONTAINER_START))
+
+echo "╔═══════════════════════════════════════════════════════════════════╗"
+echo "║            Production Initialization Complete                     ║"
+echo "╠═══════════════════════════════════════════════════════════════════╣"
+echo "║  Total startup time: ${TOTAL_DURATION}s                                     "
+echo "║  Health checks will begin after start_period (180s)               ║"
+echo "╚═══════════════════════════════════════════════════════════════════╝"
 echo ""
 
 # Execute the command
