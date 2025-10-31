@@ -103,27 +103,32 @@ Maintain the application design brief (docs/design-brief.md) as the single sourc
    - If exists: Read to understand overall UI/UX strategy and design system
    - If not: This is the first feature - create initial design brief using docs/design-brief-template.md
 
-2. **Clarify Scope** (if unclear)
+2. **Review Logging Guidelines (Before Implementation)**
+   - **Read `docs/guides/logging-guidelines.md`** to understand what actions warrant logging in implementation logs
+   - Use the Quick Reference Checklist to make fast logging decisions: CHANGE something → Essential | DISCOVER something → Contextual | ROUTINE action → Optional/Skip
+   - Focus on logging outcomes (what was built) rather than process (how it was built)
+
+3. **Clarify Scope** (if unclear)
    - Ask 2-3 focused questions about users, features, or constraints
 
-3. **Design Strategy**
+4. **Design Strategy**
    - Define UI/UX approach for this specific feature
    - Ensure consistency with existing patterns in design brief
    - Document component specifications, layouts, and interaction patterns
    - Plan for all UI states and edge cases
    - **Material UI**: Select appropriate components, plan theming approach, ensure designs leverage MUI's capabilities
 
-4. **Update Design Brief**
+5. **Update Design Brief**
    - UPDATE docs/design-brief.md - Add or amend sections for this feature
    - If first feature: Create brief using template with Overview, Material UI Theme, Visual System, Component Library, Features, Accessibility, Design Tokens, Responsive Strategy
    - If updating: Add feature-specific section while maintaining consistency
    - Include complete specifications for implementation
 
-5. **Update Feature Log**
+6. **Update Feature Log**
    - Find feature entry with matching featureID in docs/features/feature-log.json
    - Append to "actions" array: `{"actionType": "design", "completedAt": "YYYY-MM-DDTHH:mm:ssZ", "designBriefUpdated": true}`
 
-6. **Provide Summary**
+7. **Provide Summary**
    - 3-5 bullets on key decisions
    - Note integration points
    - Highlight notable unique features or interactions

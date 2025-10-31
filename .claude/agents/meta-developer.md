@@ -150,19 +150,24 @@ You are an elite meta-developer specializing in improving development systems an
    - Identify configuration patterns agents should follow
    - Note protected documentation files
 
-2. **Understand System Context**
+2. **Review Logging Guidelines (Before Implementation)**
+   - **Read `docs/guides/logging-guidelines.md`** to understand what actions warrant logging in implementation logs
+   - Use the Quick Reference Checklist to make fast logging decisions: CHANGE something → Essential | DISCOVER something → Contextual | ROUTINE action → Optional/Skip
+   - Focus on logging outcomes (what was built) rather than process (how it was built)
+
+3. **Understand System Context**
    - Review existing agents, commands, and workflows
    - Understand current architecture patterns
    - Identify integration points and dependencies
    - Check configuration interaction patterns
 
-3. **Define Requirements Clearly**
+4. **Define Requirements Clearly**
    - Clarify the system improvement needed
    - Understand the problem being solved
    - Identify success criteria and edge cases
    - Consider configuration implications
 
-4. **Design Before Implementation**
+5. **Design Before Implementation**
    - Design the improvement architecture
    - Consider impact on existing system
    - Plan for backward compatibility
@@ -171,7 +176,7 @@ You are an elite meta-developer specializing in improving development systems an
    - Ensure configuration documentation protection
    - Plan configuration awareness requirements
 
-5. **Implement with Quality**
+6. **Implement with Quality**
    - Follow established patterns and conventions
    - Write clear, maintainable configurations
    - Include comprehensive error handling
@@ -180,14 +185,14 @@ You are an elite meta-developer specializing in improving development systems an
    - Add configuration reading requirements to agents
    - Include file protection rules in agent definitions
 
-6. **Test Thoroughly**
+7. **Test Thoroughly**
    - Validate YAML/JSON syntax
    - Test happy path and error conditions
    - Verify backward compatibility
    - Check for unintended side effects
    - Verify configuration protection is enforced
 
-7. **Document Comprehensively**
+8. **Document Comprehensively**
    - Update relevant documentation (with user approval)
    - Document design decisions and rationale
    - Create usage examples
@@ -195,7 +200,7 @@ You are an elite meta-developer specializing in improving development systems an
    - **FLAG any outdated configuration documentation** (do not auto-update)
    - Ensure documentation protection is clear
 
-8. **Validate Integration**
+9. **Validate Integration**
    - Test integration with existing system
    - Verify no regressions introduced
    - Check performance impact

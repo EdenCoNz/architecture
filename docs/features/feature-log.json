@@ -1215,6 +1215,44 @@
         }
       ],
       "summarisedAt": "2025-10-30T08:28:43.536354Z"
+    },
+    {
+      "featureID": "17",
+      "title": "Logging Guidelines & Standards",
+      "description": "Create comprehensive logging guidelines that define what to log, what to omit, and how to structure implementation logs for optimal value-to-noise ratio. These guidelines will help all agents understand when and how to document their work, ensuring implementation logs provide maximum value without overwhelming detail or unnecessary noise.",
+      "createdAt": "2025-10-31T00:00:00Z",
+      "userStoriesCreated": "2025-10-31T00:00:00Z",
+      "userStoriesImplemented": "2025-10-31T00:00:00Z",
+      "isSummarised": false,
+      "totalStories": 10,
+      "completedStories": [
+        "Story-17.1",
+        "Story-17.2",
+        "Story-17.3",
+        "Story-17.4",
+        "Story-17.5",
+        "Story-17.6",
+        "Story-17.7",
+        "Story-17.8",
+        "Story-17.9",
+        "Story-17.10"
+      ],
+      "assignedAgents": [
+        "meta-developer"
+      ],
+      "executionPhases": 6,
+      "parallelPhases": 2,
+      "sequentialPhases": 4,
+      "filesPath": "docs/features/17/user-stories.md",
+      "actions": [],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-10-31T00:00:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/17/implementation-log.json"
+        }
+      ]
     }
   ]
 }
