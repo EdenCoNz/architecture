@@ -6,7 +6,9 @@
 
 export { AssessmentForm } from './AssessmentForm';
 export { AssessmentFormStepper } from './AssessmentFormStepper';
+export { LoginForm } from './LoginForm';
 export type { AssessmentFormData } from './AssessmentForm';
+export type { LoginFormProps } from './LoginForm';
 
 // export { default as Input } from './Input';
 // export { default as Select } from './Select';

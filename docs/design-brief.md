@@ -3037,4 +3037,314 @@ const equipmentItems = [
 - Story 19.5: Show Basic Equipment Follow-up (implements conditional rendering of entire follow-up section including this component)
 - Story 19.6: Select Multiple Equipment Items (implements checkbox toggle logic and form state management)
 - Story 19.8: Validate Basic Equipment Items (backend validation ensures at least one item)
+
+---
+
+### Feature: Basic Login Form (Feature #20)
+
+**Purpose**: Enable users to access the application by providing their name and email address through a simple, visually clear login form that requires minimal cognitive effort and provides confidence in data entry without password authentication or verification.
+
+**Design Decisions**:
+- **Minimal form pattern**: Two-field form (name + email) reduces friction, follows established form patterns from existing features
+- **MUI TextField outlined variant**: Consistent with existing form inputs (Assessment Form), provides clear field boundaries and visual hierarchy
+- **Single primary action**: One contained button eliminates decision paralysis, clear call-to-action for proceeding
+- **Inline validation with helper text**: Real-time feedback on email format, error states with clear messaging
+- **Full-width layout on mobile**: Maximizes touch target size, reduces horizontal scrolling on small screens
+- **Centered card layout**: Focuses attention on login task, reduces visual noise during authentication flow
+
+**User Flow**:
+- User lands on login page → Sees centered login form → Enters name → Enters email → Clicks "Continue" → Redirected to main application (or error feedback if validation fails)
+
+#### Story 20.2: Login Form Interface Design
+
+**Purpose**: Create a visually clear and intuitive login form interface that allows users to easily identify input requirements, understand expected formats, and confidently submit their credentials.
+
+**Component Specifications**:
+
+| Aspect | Specification |
+|--------|--------------|
+| **Container Component** | MUI Card with elevation={3} for prominence |
+| **Card Width** | xs: 100% (mobile), sm: 480px (tablet+), max-width: 90vw |
+| **Card Padding** | CardContent with spacing(4) = 32px all sides |
+| **Layout Component** | Stack with spacing={3} (24px) vertical rhythm |
+| **Input Components** | MUI TextField variant="outlined" size="medium" fullWidth |
+| **Input Spacing** | spacing(3) = 24px between form fields |
+| **Action Button** | MUI Button variant="contained" color="primary" size="large" fullWidth |
+| **Button Height** | 48px (large size ensures minimum touch target) |
+| **Typography Hierarchy** | h5 (24px) for title, body1 (16px) for inputs, body2 (14px) for helper text |
+| **Alignment** | Centered horizontally on page, vertically centered or top-aligned based on viewport height |
+
+**Field Specifications**:
+
+| Field | Label | Placeholder | Type | Validation | Helper Text (Default) | Error Text |
+|-------|-------|-------------|------|------------|----------------------|-----------|
+| **Name** | "Name" | "Enter your full name" | text | Required, min 1 char | "" | "Name is required" |
+| **Email** | "Email Address" | "you@example.com" | email | Required, valid email format | "" | "Please enter a valid email address" |
+
+**Interactive States - Light Theme**:
+
+| State | Border Color | Background | Label Color | Helper Text Color | Icon/Indicator |
+|-------|-------------|-----------|------------|------------------|---------------|
+| **Default (Empty)** | rgba(0,0,0,0.23) | transparent | text.secondary | text.secondary | None |
+| **Focus** | primary.main (#1976d2) | transparent | primary.main | text.secondary | Blue left border accent (2px) |
+| **Filled (Valid)** | rgba(0,0,0,0.23) | transparent | text.primary | text.secondary | None |
+| **Hover (Empty)** | rgba(0,0,0,0.87) | transparent | text.secondary | text.secondary | None |
+| **Error** | error.main (#d32f2f) | transparent | error.main | error.main | ErrorOutline icon (20px) |
+| **Disabled** | rgba(0,0,0,0.12) | rgba(0,0,0,0.02) | rgba(0,0,0,0.38) | rgba(0,0,0,0.38) | None |
+
+**Interactive States - Dark Theme**:
+
+| State | Border Color | Background | Label Color | Helper Text Color | Icon/Indicator |
+|-------|-------------|-----------|------------|------------------|---------------|
+| **Default (Empty)** | rgba(255,255,255,0.23) | transparent | text.secondary | text.secondary | None |
+| **Focus** | primary.main (#90caf9) | transparent | primary.main | text.secondary | Blue left border accent (2px) |
+| **Filled (Valid)** | rgba(255,255,255,0.23) | transparent | text.primary | text.secondary | None |
+| **Hover (Empty)** | rgba(255,255,255,0.7) | transparent | text.secondary | text.secondary | None |
+| **Error** | error.main (#f44336) | transparent | error.main | error.main | ErrorOutline icon (20px) |
+| **Disabled** | rgba(255,255,255,0.12) | rgba(255,255,255,0.02) | rgba(255,255,255,0.38) | rgba(255,255,255,0.38) | None |
+
+**Button States - Light Theme**:
+
+| State | Background | Text Color | Elevation | Border | Cursor | Transition |
+|-------|-----------|-----------|----------|--------|--------|-----------|
+| **Default** | primary.main (#1976d2) | #ffffff | 2 | none | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Hover** | primary.dark (#1565c0) | #ffffff | 4 | none | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Active/Pressed** | primary.dark (#1565c0) | #ffffff | 8 | none | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Focus (Keyboard)** | primary.main (#1976d2) | #ffffff | 2 | 2px outline primary | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Loading** | primary.main (#1976d2) | transparent | 2 | none | default | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Disabled** | rgba(0,0,0,0.12) | rgba(0,0,0,0.26) | 0 | none | not-allowed | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+
+**Button States - Dark Theme**:
+
+| State | Background | Text Color | Elevation | Border | Cursor | Transition |
+|-------|-----------|-----------|----------|--------|--------|-----------|
+| **Default** | primary.main (#90caf9) | rgba(0,0,0,0.87) | 2 | none | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Hover** | primary.light (#bbdefb) | rgba(0,0,0,0.87) | 4 | none | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Active/Pressed** | primary.light (#bbdefb) | rgba(0,0,0,0.87) | 8 | none | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Focus (Keyboard)** | primary.main (#90caf9) | rgba(0,0,0,0.87) | 2 | 2px outline primary | pointer | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Loading** | primary.main (#90caf9) | transparent | 2 | none | default | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+| **Disabled** | rgba(255,255,255,0.12) | rgba(255,255,255,0.3) | 0 | none | not-allowed | 225ms cubic-bezier(0.4, 0, 0.2, 1) |
+
+**All UI States**:
+
+| State | Condition | Visual Treatment | User Action | Next Step |
+|-------|-----------|------------------|-------------|-----------|
+| **Initial Load** | User lands on login page | Empty form, both fields unfocused, button enabled | User can focus name field | Name field gains focus state |
+| **Name Field Focus** | User clicks/tabs to name field | Blue focus border, label moves to top, placeholder visible | User types name | Text appears in field |
+| **Name Field Filled** | User has entered text | Text displays, label at top, border returns to default | User can proceed to email | Tab or click to email field |
+| **Name Field Empty Error** | User leaves name empty and tries to submit | Red error border, error text below field: "Name is required" | User must enter name | Error clears when user types |
+| **Email Field Focus** | User clicks/tabs to email field | Blue focus border, label moves to top, placeholder visible | User types email | Text appears in field |
+| **Email Field Filled (Valid)** | User has entered valid email format | Text displays, label at top, border returns to default | User can submit form | Click Continue button |
+| **Email Field Filled (Invalid)** | User enters invalid email and leaves field | Red error border, error text: "Please enter a valid email address" | User corrects email format | Error clears when valid |
+| **Email Field Empty Error** | User leaves email empty and tries to submit | Red error border, error text: "Email is required" | User must enter email | Error clears when user types |
+| **Form Submitting** | User clicks Continue with valid inputs | Button shows loading spinner, button disabled, fields disabled | User waits for response | Success redirect or error message |
+| **Submission Success** | Backend accepts login | Brief success feedback (optional), redirect to main app | User automatically redirected | User sees main application |
+| **Submission Error (Network)** | Network failure during submit | Alert/Snackbar: "Connection error. Please try again." | User can retry submission | Click Continue again |
+| **Submission Error (Server)** | Server returns error (e.g., invalid email) | Alert/Snackbar with specific error message from server | User corrects issue | Resubmit form |
+
+**Layout Structure**:
+
+```jsx
+{/* Story 20.2: Login Form Interface */}
+<Box
+  sx={{
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'background.default',
+    p: 2,
+  }}
+>
+  <Card
+    elevation={3}
+    sx={{
+      width: '100%',
+      maxWidth: { xs: '100%', sm: '480px' },
+      maxHeight: '90vh',
+    }}
+  >
+    <CardContent sx={{ p: 4 }}>
+      <Stack spacing={3}>
+        {/* Title */}
+        <Box>
+          <Typography variant="h5" component="h1" fontWeight={500} gutterBottom>
+            Welcome
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Enter your details to continue
+          </Typography>
+        </Box>
+
+        {/* Form Fields */}
+        <Stack component="form" spacing={3} onSubmit={handleSubmit} noValidate>
+          {/* Name Field */}
+          <TextField
+            id="name"
+            name="name"
+            label="Name"
+            placeholder="Enter your full name"
+            variant="outlined"
+            fullWidth
+            required
+            autoComplete="name"
+            autoFocus
+            value={formData.name}
+            onChange={handleNameChange}
+            error={!!errors.name}
+            helperText={errors.name}
+            disabled={isSubmitting}
+            inputProps={{
+              'aria-label': 'Name',
+              'aria-required': 'true',
+              'aria-invalid': !!errors.name,
+              'aria-describedby': errors.name ? 'name-error' : undefined,
+            }}
+          />
+
+          {/* Email Field */}
+          <TextField
+            id="email"
+            name="email"
+            label="Email Address"
+            placeholder="you@example.com"
+            type="email"
+            variant="outlined"
+            fullWidth
+            required
+            autoComplete="email"
+            value={formData.email}
+            onChange={handleEmailChange}
+            error={!!errors.email}
+            helperText={errors.email}
+            disabled={isSubmitting}
+            inputProps={{
+              'aria-label': 'Email Address',
+              'aria-required': 'true',
+              'aria-invalid': !!errors.email,
+              'aria-describedby': errors.email ? 'email-error' : undefined,
+            }}
+          />
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            size="large"
+            fullWidth
+            disabled={isSubmitting}
+            sx={{
+              mt: 2,
+              height: 48,
+              textTransform: 'none',
+              fontSize: '1rem',
+              fontWeight: 500,
+            }}
+          >
+            {isSubmitting ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              'Continue'
+            )}
+          </Button>
+        </Stack>
+      </Stack>
+    </CardContent>
+  </Card>
+</Box>
+```
+
+**Responsive Behavior**:
+
+| Breakpoint | Card Width | Card Padding | Vertical Alignment | Layout Changes |
+|-----------|-----------|-------------|-------------------|----------------|
+| **xs (0-599px)** | 100% width (minus 16px margin) | 32px | Centered vertically | Full-width fields, stacked layout |
+| **sm (600-899px)** | 480px fixed width | 32px | Centered vertically | Fixed-width card, stacked layout |
+| **md (900px+)** | 480px fixed width | 32px | Centered vertically | Fixed-width card, stacked layout |
+
+**Validation Rules**:
+
+| Field | Rule | Trigger | Error Message | Validation Type |
+|-------|------|---------|--------------|----------------|
+| **Name** | Required (min 1 char after trim) | onBlur, onSubmit | "Name is required" | Client-side |
+| **Name** | Max 100 characters | onChange | "Name must be less than 100 characters" | Client-side |
+| **Email** | Required | onBlur, onSubmit | "Email is required" | Client-side |
+| **Email** | Valid email format (regex) | onBlur, onSubmit | "Please enter a valid email address" | Client-side |
+| **Email** | Max 254 characters | onChange | "Email must be less than 254 characters" | Client-side |
+
+**Email Validation Regex**:
+```javascript
+/^[^\s@]+@[^\s@]+\.[^\s@]+$/
+```
+
+**Accessibility Features**:
+
+| Feature | Implementation | WCAG Guideline | Purpose |
+|---------|---------------|----------------|---------|
+| **Focus Management** | Auto-focus on name field on page load | 2.4.3 Focus Order | Keyboard users start input immediately |
+| **Keyboard Navigation** | Tab order: Name → Email → Continue button | 2.4.3 Focus Order | Predictable tab sequence |
+| **Error Identification** | aria-invalid, aria-describedby on error fields | 3.3.1 Error Identification | Screen readers announce errors |
+| **Labels** | Explicit labels with htmlFor matching input IDs | 3.3.2 Labels or Instructions | Clear field identification |
+| **Required Fields** | aria-required="true" on required inputs | 3.3.2 Labels or Instructions | Indicates mandatory fields |
+| **Error Messages** | Role="alert" on error text, associated with field | 3.3.3 Error Suggestion | Screen readers announce validation errors |
+| **Color Contrast** | Error red: 5.1:1 contrast (WCAG AA) | 1.4.3 Contrast (Minimum) | Readable error states |
+| **Touch Targets** | Button 48px height minimum | 2.5.5 Target Size | Meets minimum touch target |
+| **Loading State** | aria-busy="true" during submission | 4.1.3 Status Messages | Announces loading state |
+
+**Error Handling Patterns**:
+
+1. **Inline Field Errors**: Display immediately below field with error border and icon
+2. **Form-level Errors**: Display in Snackbar at top of viewport for server/network errors
+3. **Real-time Validation**: Email format validated onBlur (not onChange to avoid premature errors)
+4. **Required Field Validation**: Triggered onBlur and onSubmit
+5. **Error Recovery**: Errors clear when user corrects input (onChange clears error if valid)
+
+**Loading States**:
+
+| Phase | Visual Indicator | Button State | Fields State | Duration |
+|-------|-----------------|--------------|-------------|----------|
+| **Idle** | None | Enabled, "Continue" text | Enabled | N/A |
+| **Validating** | None | Enabled (validation fast) | Enabled | <100ms |
+| **Submitting** | Spinner in button center | Disabled, spinner visible | Disabled | Variable |
+| **Success** | Optional success icon/message | Disabled | Disabled | <500ms before redirect |
+| **Error** | Snackbar with error message | Enabled, "Continue" text | Enabled | Until dismissed |
+
+**Design Rationale**:
+
+- **Centered card layout**: Focuses user attention on single task, reduces visual clutter during authentication flow, follows established pattern from Feature 11 (Onboarding)
+- **Two-field minimum**: Balances user identification needs with minimal friction, no password reduces barrier to entry
+- **Email validation client-side**: Immediate feedback prevents submission errors, reduces server load from invalid submissions
+- **Auto-focus on name field**: Reduces time-to-first-input, keyboard users can start typing immediately
+- **Full-width button**: Clear primary action, large touch target (48px), visually prominent
+- **Loading spinner in button**: Keeps user informed during async operations, prevents double-submission
+- **Outlined TextField variant**: Consistent with existing form patterns (Assessment Form), clear field boundaries
+- **Placeholder text with examples**: Guides users on expected format without cluttering interface
+- **Helper text for errors only**: Reduces visual noise when form valid, shows guidance when needed
+- **Material elevation on card**: Creates depth hierarchy, separates form from background
+- **Responsive card width**: Full-width on mobile maximizes space, fixed width on desktop prevents excessive line length
+
+**Integration with Existing Patterns**:
+
+- **Form Pattern Consistency**: Matches Stack spacing and TextField usage from Assessment Form (Feature 11)
+- **Button Treatment**: Follows primary button pattern (contained variant, full-width on mobile)
+- **Typography Scale**: Uses h5 for page title, body1 for inputs (consistent with existing features)
+- **Color System**: Uses theme.palette.primary for actions, error for validation, text.secondary for helper text
+- **Spacing System**: 8px grid system (spacing(3) = 24px, spacing(4) = 32px)
+
+**Future Enhancement Considerations**:
+
+- Social login buttons (Google, GitHub) could be added below primary action with divider
+- "Remember me" checkbox could extend session persistence (Feature 20.8 dependency)
+- Password field could be added for enhanced security (future authentication upgrade)
+- Multi-step form could split name/email into separate screens (for mobile optimization)
+- Progressive disclosure could hide email field until name is valid (reduces cognitive load)
+
+**Contrast Validation**:
+
+All color combinations meet WCAG AA standards:
+- Primary button text on primary.main: 4.65:1 (WCAG AA Pass)
+- Error text on white background: 5.1:1 (WCAG AA Pass)
+- Helper text (text.secondary) on white: 7.7:1 (WCAG AAA Pass)
+- Focus border (primary.main) on white: 4.65:1 (WCAG AA Pass for UI components)
 - Story 19.11: Predefined Equipment Options Management (backend configuration of predefined items list)

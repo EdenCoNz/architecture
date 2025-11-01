@@ -5,6 +5,7 @@ URL configuration for authentication endpoints.
 from django.urls import path
 
 from .views import (
+    BasicLoginView,
     ChangePasswordView,
     CurrentUserView,
     CustomTokenRefreshView,
@@ -19,6 +20,7 @@ urlpatterns = [
     # Authentication endpoints
     path("register/", UserRegistrationView.as_view(), name="register"),
     path("login/", UserLoginView.as_view(), name="login"),
+    path("basic/", BasicLoginView.as_view(), name="basic_login"),
     path("logout/", UserLogoutView.as_view(), name="logout"),
     path("token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     # User profile endpoints
