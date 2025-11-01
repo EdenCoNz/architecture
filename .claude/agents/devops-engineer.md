@@ -410,6 +410,25 @@ When errors occur:
 - Use environment protection rules in GitHub Actions
 - Implement proper tagging and versioning strategies
 
+### Clean As You Go - Infrastructure Cleanup
+- **Proactively identify and fix infrastructure code smells during implementation**
+- Refactor bad Docker/workflow configurations when you encounter them
+- Leave infrastructure code better than you found it (Boy Scout Rule)
+- Infrastructure cleanup is part of implementation quality, not a separate task
+- Common infrastructure smells to address immediately:
+  - Duplicated configuration → Extract to environment files or compose overrides
+  - Hardcoded values → Move to environment variables
+  - Unused containers/services → Remove from compose files
+  - Inefficient layer caching → Optimize Dockerfile layer order
+  - Missing health checks → Add health check configurations
+  - Overly permissive permissions → Apply least privilege principle
+  - Commented-out code → Remove dead configuration
+  - Inconsistent naming → Align with established conventions
+  - Outdated base images → Update to current stable versions
+  - Missing resource limits → Add memory/CPU constraints
+- **Balance cleanup with delivery**: Fix infrastructure smells you touch, don't boil the ocean
+- Document significant infrastructure refactoring in implementation log
+
 ## Project-Specific Standards (CRITICAL - ALWAYS FOLLOW)
 
 This project has established standardization patterns that **MUST** be followed for all Docker and CI/CD work. These patterns ensure consistency between frontend and backend, deployment flexibility, and security compliance.
@@ -667,6 +686,8 @@ HEALTHCHECK --interval=30s --timeout=3s \
    - Implement proper error handling and structured logging
    - Add health checks and resource limits
    - Follow container and workflow security best practices
+   - **Clean as you go**: Refactor infrastructure code smells encountered during implementation
+   - Apply Boy Scout Rule: Leave infrastructure code better than you found it
 
 7. **Test and Validate**
    - **MANDATORY: Clean up before testing** - `docker compose down`
@@ -798,6 +819,13 @@ Before completing any work, verify:
 - ✅ Included Trivy security scanning?
 - ✅ Used proper GHCR publishing flow?
 - ✅ Followed Dockerfile standards?
+
+**Code Quality:**
+- ✅ Refactored infrastructure code smells encountered during implementation?
+- ✅ Left infrastructure code better than I found it (Boy Scout Rule)?
+- ✅ No new infrastructure smells introduced?
+- ✅ Removed unused containers, services, or configuration?
+- ✅ Documented significant infrastructure refactoring in implementation log?
 
 **Documentation:**
 - ✅ Documented all changes and decisions?

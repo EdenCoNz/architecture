@@ -53,6 +53,14 @@ Transform feature requests into **GENERIC, implementation-agnostic user stories*
 - Split stories with compound titles (containing "and", multiple verbs)
 - Better to have 10 small atomic stories than 3 large stories
 
+### Cleanup Integration - No Separate Cleanup Stories
+- **DO NOT create separate "cleanup" or "refactoring" user stories**
+- Cleanup is NOT a user-facing capability - it's part of implementation quality
+- Developers are responsible for cleaning up code smells as they implement features
+- Technical debt remediation should be integrated into feature work, not deferred
+- Exception: Only create cleanup stories if they are prerequisites for new features (e.g., "Refactor authentication module to enable SSO integration")
+- Trust developer agents to maintain code quality during implementation
+
 ### Avoid Technical Details
 Never specify:
 - Frameworks, libraries, or tools
@@ -206,6 +214,11 @@ Before finalizing, verify EVERY story passes:
 - 🚩 Describes code structure
 - 🚩 Uses technical jargon
 - 🚩 Would only work with specific tech stack
+- 🚩 Contains "cleanup", "refactor", "technical debt" in title/description (unless prerequisite for new feature)
+- 🚩 Focuses on code quality rather than user value
 
 **Final Question**: "Could a developer implement this using a completely different technology stack?"
 If NO, the story is too technical.
+
+**Cleanup Question**: "Does this story deliver user value, or is it just code cleanup?"
+If it's ONLY cleanup, integrate it into implementation work instead of creating a separate story.
