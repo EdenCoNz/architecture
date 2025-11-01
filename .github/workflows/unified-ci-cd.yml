@@ -783,6 +783,13 @@ jobs:
           echo "## Verifying Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          # Validate that SERVER_HOST is defined
+          if [[ -z "${SERVER_HOST:-}" ]]; then
+            echo "❌ ERROR: SERVER_HOST secret is not configured" >> $GITHUB_STEP_SUMMARY
+            echo "Please configure the SERVER_HOST secret in the 'Staging' environment settings" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
           # First, test basic connectivity to the server
           echo "### Testing basic connectivity" >> $GITHUB_STEP_SUMMARY
 
@@ -823,12 +830,13 @@ jobs:
             CURL_EXIT_CODE=0
 
             # Execute curl and capture both output and exit code
+            CURL_RESPONSE=$(mktemp)
             if curl --connect-timeout 5 \
                     --max-time 10 \
                     -s -S \
-                    -w "\nHTTP_CODE:%{http_code}\nCONNECT_CODE:%{exitcode}" \
+                    -w "\nHTTP_CODE:%{http_code}" \
                     -o "$CURL_OUTPUT" \
-                    "$HEALTH_URL" 2>&1; then
+                    "$HEALTH_URL" > "$CURL_RESPONSE" 2>&1; then
               CURL_EXIT_CODE=0
             else
               CURL_EXIT_CODE=$?
@@ -841,8 +849,15 @@ jobs:
               BODY=""
             fi
 
-            # Extract HTTP code from the curl output
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "$HEALTH_URL" 2>/dev/null || echo "000")
+            # Extract HTTP code from the curl write-out
+            if [[ -f "$CURL_RESPONSE" ]]; then
+              HTTP_CODE=$(grep "^HTTP_CODE:" "$CURL_RESPONSE" | cut -d: -f2 || echo "000")
+            else
+              HTTP_CODE="000"
+            fi
+
+            # Clean up temp file
+            rm -f "$CURL_RESPONSE"
 
             echo "HTTP Status: $HTTP_CODE (curl exit code: $CURL_EXIT_CODE)" >> $GITHUB_STEP_SUMMARY
 
