@@ -285,6 +285,7 @@ Provide a summary with the following sections:
 
 8. **Output**:
 ## Post UpdateVersion Push
+
 **Payload**:
 {
     "frontendVersion":{new-version},

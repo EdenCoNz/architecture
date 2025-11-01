@@ -14,7 +14,7 @@ from config.env_config import check_configuration_on_startup
 # Application version using semantic versioning (MAJOR.MINOR.PATCH)
 # This version is used by all backend services and can be imported
 # from any module: from config import __version__
-__version__ = "1.0.6"
+__version__ = "1.0.10"
 
 # Ensure required directories exist before Django initializes
 # This prevents FileNotFoundError when logging configuration is loaded

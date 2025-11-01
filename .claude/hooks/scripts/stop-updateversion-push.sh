@@ -34,10 +34,11 @@ echo "First 3 lines of transcript:" >> "$DEBUG_LOG"
 head -n 3 "$TRANSCRIPT_PATH" >> "$DEBUG_LOG" 2>&1
 
 # Check if the "Post UpdateVersion Push" pattern exists in the output with proper JSON structure
+# Supports both plain JSON and JSON wrapped in markdown code fences
 HAS_HOOK=$(jq -s -r '
   [.[] | select(.message.role == "assistant") | .message.content[]? | select(.type == "text") | .text]
   | last
-  | if . != null and (. | test("## Post UpdateVersion Push\\s*\\n\\*\\*Payload\\*\\*:\\s*\\n\\{[\\s\\S]*?\\}")) then "true" else "false" end
+  | if . != null and (. | test("## Post UpdateVersion Push\\s*\\n\\*\\*Payload\\*\\*:\\s*\\n(```json\\s*\\n)?\\{[\\s\\S]*?\\}(\\s*\\n```)?")) then "true" else "false" end
 ' "$TRANSCRIPT_PATH" 2>>"$DEBUG_LOG")
 
 echo "Has Post UpdateVersion Push hook: '$HAS_HOOK'" >> "$DEBUG_LOG"
@@ -51,10 +52,11 @@ if [ "$HAS_HOOK" != "true" ]; then
 fi
 
 # Extract the JSON payload from the last assistant message
+# Supports both plain JSON and JSON wrapped in markdown code fences
 PAYLOAD_JSON=$(jq -s -r '
   [.[] | select(.message.role == "assistant") | .message.content[]? | select(.type == "text") | .text]
   | last
-  | capture("## Post UpdateVersion Push\\s*\\n\\*\\*Payload\\*\\*:\\s*\\n(?<json>\\{[\\s\\S]*?\\})") // {}
+  | capture("## Post UpdateVersion Push\\s*\\n\\*\\*Payload\\*\\*:\\s*\\n(```json\\s*\\n)?(?<json>\\{[\\s\\S]*?\\})(\\s*\\n```)?") // {}
   | .json // ""
 ' "$TRANSCRIPT_PATH" 2>>"$DEBUG_LOG")
 
