@@ -30,6 +30,7 @@ SECURE_REDIRECT_EXEMPT = [
     r"^api/v1/health/$",  # Health check endpoint (Story #188)
     r"^api/v1/health/ready/$",  # Readiness probe endpoint
     r"^api/v1/health/live/$",  # Liveness probe endpoint
+    r"^api/v1/status/$",  # Status endpoint (Issue #350)
 ]
 SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
