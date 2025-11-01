@@ -74,7 +74,6 @@ jobs:
     name: Collect Diagnostics - ${{ inputs.environment }}
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-    environment: ${{ inputs.environment }}
 
     steps:
       - name: Set deployment parameters
