@@ -76,6 +76,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -184,6 +189,7 @@ jobs:
           FRONTEND_VERSION=$(node -p "require('./frontend/package.json').version")
           echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
           echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "Extracted frontend version: $FRONTEND_VERSION"
 
       - name: Build frontend development container
         uses: docker/build-push-action@v5
@@ -433,6 +439,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       # Extract versions for deployment (same as build-and-test)
       - name: Extract backend version
         id: backend_version
@@ -463,6 +474,8 @@ jobs:
           echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
 
+          echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
           echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
           echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
@@ -982,6 +995,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -1078,6 +1096,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       # Extract versions for deployment (same as build-and-test)
       - name: Extract backend version
         id: backend_version
@@ -1108,6 +1131,8 @@ jobs:
           echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
 
+          echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
           echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
           echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
