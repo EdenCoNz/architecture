@@ -9,7 +9,7 @@ import { Box } from '@mui/material';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts';
 import { Header } from './components/layout';
-import { NotFound, ApiTest, Onboarding, About } from './pages';
+import { NotFound, ApiTest, Onboarding, About, Login } from './pages';
 import './styles/global.css';
 
 function App() {
@@ -45,6 +45,9 @@ function App() {
             <Routes>
               {/* Onboarding route as default - Feature #14 Story 14.1 */}
               <Route path="/" element={<Onboarding />} />
+
+              {/* Login route - Feature #20 Story 20.3 */}
+              <Route path="/login" element={<Login />} />
 
               {/* About route - Feature #14 Story 14.4 */}
               <Route path="/about" element={<About />} />

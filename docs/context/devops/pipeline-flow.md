@@ -6,6 +6,21 @@ Unified CI/CD pipeline with sequential stages: Build → Test → Stage → E2E 
 
 **Trigger**: Push to `main` or `feature/**` branches, Pull Requests to `main`
 
+### Deployment Strategy
+
+- **Feature branches (`feature/*`)**: Deploy to staging for testing and validation
+  - Pipeline: Build → Test → **Deploy to Staging** → E2E Test
+  - Allows developers to test features in staging environment before merging
+  - No production deployment from feature branches
+
+- **Main branch (`main`)**: Full deployment pipeline including production
+  - Pipeline: Build → Test → Deploy to Staging → E2E Test → **Deploy to Production**
+  - Production deployment only after all tests pass
+
+- **Pull Requests**: Build and test only, no deployments
+  - Pipeline: Build → Test
+  - Ensures code quality before merge
+
 ---
 
 ## Pipeline Flow
@@ -47,7 +62,7 @@ Unified CI/CD pipeline with sequential stages: Build → Test → Stage → E2E 
 
 ### Stage 2: Deploy to Staging (20 min timeout)
 
-**Condition**: Only on `main` branch push, after successful build
+**Condition**: On `main` branch OR `feature/*` branches push, after successful build
 
 1. **Connect to server** via Tailscale VPN
 2. **Setup SSH** authentication
@@ -74,7 +89,7 @@ Unified CI/CD pipeline with sequential stages: Build → Test → Stage → E2E 
 
 ### Stage 3: E2E Testing (30 min timeout)
 
-**Condition**: After successful staging deployment
+**Condition**: After successful staging deployment (from main or feature branches)
 
 1. **Connect to staging** via Tailscale
 2. **Create test config** pointing to staging server
@@ -89,7 +104,7 @@ Unified CI/CD pipeline with sequential stages: Build → Test → Stage → E2E 
 
 ### Stage 4: Deploy to Production (20 min timeout)
 
-**Condition**: After successful staging deploy AND E2E tests pass
+**Condition**: ONLY from `main` branch, after successful staging deploy AND E2E tests pass
 
 1. **Connect to production server** via Tailscale
 2. **Setup SSH** authentication

@@ -153,6 +153,94 @@ class UserLoginSerializer(serializers.Serializer):
             raise ValidationError({"non_field_errors": ["Email and password are required."]})
 
 
+class BasicLoginSerializer(serializers.Serializer):
+    """
+    Serializer for basic login/registration.
+    Allows users to authenticate using only name and email.
+    """
+
+    name = serializers.CharField(
+        required=True, max_length=255, help_text="User's full name (first and last name)"
+    )
+    email = serializers.EmailField(
+        required=True, max_length=254, help_text="User's email address (unique identifier)"
+    )
+
+    def validate_name(self, value: str) -> str:
+        """
+        Validate and sanitize name to prevent XSS attacks.
+        """
+        if not value or not value.strip():
+            raise ValidationError("This field may not be blank.")
+        return sanitize_html_input(value)
+
+    def validate_email(self, value: str) -> str:
+        """
+        Validate email format and normalize to lowercase.
+        """
+        if not value:
+            raise ValidationError("This field is required.")
+        # Normalize email to lowercase for consistency
+        return value.lower()
+
+    def parse_name(self, full_name: str) -> tuple[str, str]:
+        """
+        Split full name into first and last name.
+
+        Args:
+            full_name: User's full name
+
+        Returns:
+            Tuple of (first_name, last_name)
+        """
+        full_name = full_name.strip()
+        parts = full_name.split(" ", 1)
+
+        if len(parts) == 1:
+            return parts[0], ""
+
+        return parts[0], parts[1]
+
+    def create_or_update_user(self, validated_data: Dict[str, Any]) -> tuple[Any, bool]:
+        """
+        Create or update user for basic login.
+
+        Args:
+            validated_data: Validated name and email
+
+        Returns:
+            Tuple of (user, is_new_user)
+        """
+        email = validated_data["email"]
+        name = validated_data["name"]
+
+        first_name, last_name = self.parse_name(name)
+
+        # Sanitize name fields
+        first_name = sanitize_html_input(first_name)
+        last_name = sanitize_html_input(last_name)
+
+        # Check if user exists
+        try:
+            user = User.objects.get(email=email)
+            # Update name if changed
+            user.first_name = first_name
+            user.last_name = last_name
+            user.save()
+            is_new_user = False
+        except User.DoesNotExist:
+            # Create new user without password
+            user = User.objects.create(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                is_active=True,
+            )
+            is_new_user = True
+
+        return user, is_new_user
+
+
 class ChangePasswordSerializer(serializers.Serializer):
     """
     Serializer for password change endpoint.

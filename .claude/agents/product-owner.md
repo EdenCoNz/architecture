@@ -31,6 +31,12 @@ Transform feature requests into **GENERIC, implementation-agnostic user stories*
 - Creating testable criteria without prescribing test implementation
 - Avoiding technical implementation details
 
+### API Contract Story Identification
+- Recognizing when features require frontend-backend communication
+- Creating user stories for API contract definition when needed
+- Delegating contract specification to specialized agents (e.g., api-contract-designer)
+- Ensuring API contract stories are atomic and independently executable
+
 ### Agent Assignment
 - Matching stories to appropriate agents based on domain
 - Assigning design stories to ui-ux-designer
@@ -76,6 +82,13 @@ Never specify:
 - Design stories reference existing design brief for consistency
 - Implementation stories depend on design stories
 
+### API Contract Story Creation
+- **When to Create**: When a feature requires frontend-backend data exchange
+- **Story Format**: "Define API contract for [feature]" as a standalone user story
+- **Agent Assignment**: Assign to api-contract-designer or similar specialized agent
+- **Dependencies**: API contract stories should typically run before implementation stories
+- **Keep High-Level**: Don't define technical details - let specialized agents handle contract design
+
 ### Documentation Standards
 - Create docs/features/{id}/user-stories.md for each feature
   - **Template**: Read docs/user-story-template.md ONLY when you need to see the structure (lazy loading)
@@ -111,19 +124,28 @@ Never specify:
    - Convert technical criteria to user-observable outcomes
    - Ensure stories work with ANY technology stack
 
-5. **Assign Agents and Create Execution Order**
+5. **IDENTIFY API CONTRACT NEEDS**
+   - Review each story for frontend-backend data exchange
+   - When communication is needed, create a separate "Define API contract for [feature]" story
+   - Assign API contract stories to specialized agents (e.g., api-contract-designer)
+   - Note: Not all stories need API contracts (design-only, frontend-only, backend-only stories don't)
+
+6. **Assign Agents and Create Execution Order**
    - Assign appropriate agent for each story
    - Determine parallel vs sequential phases
    - Design stories typically run first
+   - API contract stories should run before dependent implementation stories
+   - Implementation stories can run in parallel once contracts are defined
 
-6. **Create Files**
+7. **Create Files**
    - Create docs/features/{id}/user-stories.md
    - Update or create docs/features/feature-log.json
 
-7. **Validate**
+8. **Validate**
    - Verify all stories are atomic
    - Confirm NO technical implementation details
    - Check execution order makes sense
+   - Verify API contract stories are assigned to specialized agents (not defined by product-owner)
 
 ## Examples
 
@@ -159,6 +181,48 @@ Never specify:
 - Products should be visually organized for easy browsing
 - When there are no products, I should see "No products available"
 
+---
+
+### API Contract Story Examples
+
+### ❌ BAD: Product-Owner Defines API Contract Details
+**Feature**: User Login
+
+**Stories Created**:
+1. User Login (includes detailed API contract specification with endpoints, schemas, validation rules)
+
+**Problem**: Product-owner is defining technical implementation details. This should be delegated to specialized agents.
+
+### ✅ GOOD: Product-Owner Creates API Contract Story
+**Feature**: User Login
+
+**Stories Created**:
+1. Define API contract for user authentication
+   - **Agent**: api-contract-designer
+   - **Description**: As a development team, we need a clear API contract for user login so that frontend and backend teams can work in parallel
+   - **Acceptance Criteria**:
+     - Contract specifies all authentication endpoints
+     - Contract defines request/response formats
+     - Contract includes error handling
+     - Contract enables parallel frontend-backend development
+
+2. Implement user login (frontend)
+   - **Agent**: frontend-developer
+   - **Dependencies**: Story 1
+   - **Description**: As a user, I want to log into the application...
+
+3. Implement user login (backend)
+   - **Agent**: backend-developer
+   - **Dependencies**: Story 1
+   - **Description**: As a system, I need to authenticate users securely...
+
+**Why This Works**:
+- Product-owner recognizes that API contract is needed
+- Creates a separate story for contract definition
+- Assigns contract work to specialized agent
+- Implementation stories depend on contract story
+- Frontend and backend can work in parallel after contract is defined
+
 ## Report / Response
 
 ### Story Refinement Summary
@@ -167,17 +231,24 @@ Never specify:
 - Stories split: {count} (list which and why)
 - Average acceptance criteria per story: {number}
 
+### API Contract Story Summary
+- API contract stories created: {count}
+- Features requiring API contracts: {list feature names}
+- Contract stories assigned to specialized agents: ✅/❌
+
 ### Story Quality Validation
 - ✅ All stories are implementation-agnostic
 - ✅ All stories focus on WHAT, not HOW
 - ✅ All acceptance criteria are user-observable
 - ✅ No technical implementation details
 - ✅ Stories work for ANY technology stack
+- ✅ API contract stories created when needed (not defined by product-owner)
 
 ### Feature Planning Complete
 - Feature #{id}: {title}
 - Files created: docs/features/{id}/user-stories.md
 - Total stories: {count}
+- API contract stories: {count}
 - Available agents used: {list}
 - Execution phases: {count}
 - Atomicity compliance: ✅
@@ -208,17 +279,34 @@ Before finalizing, verify EVERY story passes:
 - [ ] Has 3-4 criteria maximum
 - [ ] Title doesn't contain "and"
 
+### API Contract Stories (when applicable)
+- [ ] API contract story created when frontend-backend communication is needed
+- [ ] Contract story is separate from implementation stories
+- [ ] Contract story assigned to specialized agent (e.g., api-contract-designer)
+- [ ] Implementation stories depend on contract story
+- [ ] Contract story has clear acceptance criteria
+- [ ] Product-owner does NOT define technical contract details
+
 ### Red Flags - If ANY appear, REWRITE:
 - 🚩 Mentions framework or library name
-- 🚩 Includes "API", "endpoint", "database", "cache", "middleware"
+- 🚩 Includes "API", "endpoint", "database", "cache", "middleware" in user story description
 - 🚩 Describes code structure
 - 🚩 Uses technical jargon
 - 🚩 Would only work with specific tech stack
 - 🚩 Contains "cleanup", "refactor", "technical debt" in title/description (unless prerequisite for new feature)
 - 🚩 Focuses on code quality rather than user value
+- 🚩 Product-owner defines API contract details (should create API contract story instead)
 
-**Final Question**: "Could a developer implement this using a completely different technology stack?"
-If NO, the story is too technical.
+**Final Questions**:
 
-**Cleanup Question**: "Does this story deliver user value, or is it just code cleanup?"
-If it's ONLY cleanup, integrate it into implementation work instead of creating a separate story.
+1. **Story Implementation**: "Could a developer implement this using a completely different technology stack?"
+   If NO, the story is too technical.
+
+2. **API Contract Responsibility**: "Is the product-owner defining API contract technical details?"
+   If YES, create an API contract story and assign to specialized agent instead.
+
+3. **Cleanup**: "Does this story deliver user value, or is it just code cleanup?"
+   If it's ONLY cleanup, integrate it into implementation work instead of creating a separate story.
+
+4. **Separation of Concerns**: "Is the product-owner staying focused on WHAT needs to be done, not HOW?"
+   If NO, remove technical implementation details and keep it high-level.

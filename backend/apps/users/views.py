@@ -15,6 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from .serializers import (
+    BasicLoginSerializer,
     ChangePasswordSerializer,
     UserLoginSerializer,
     UserRegistrationSerializer,
@@ -442,6 +443,216 @@ class CurrentUserView(APIView):
         """
         serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@method_decorator(ratelimit(key="ip", rate="10/m", method="POST"), name="dispatch")
+class BasicLoginView(APIView):
+    """
+    View for basic login/registration without password.
+    Creates or updates user accounts using only name and email.
+    Rate limited to 10 requests per minute per IP address.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = BasicLoginSerializer
+
+    @extend_schema(
+        summary="Basic Login",
+        description=(
+            "Authenticate or register a user using only their name and email address. "
+            "If the email exists, the user's name is updated. If the email is new, "
+            "a new user account is created. Returns JWT tokens for session management."
+        ),
+        request=BasicLoginSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="BasicLoginSuccessResponse",
+                    fields={
+                        "message": drf_serializers.CharField(),
+                        "user": UserSerializer(),
+                        "access": drf_serializers.CharField(help_text="JWT access token"),
+                        "refresh": drf_serializers.CharField(help_text="JWT refresh token"),
+                        "is_new_user": drf_serializers.BooleanField(
+                            help_text="Indicates if this is a new user"
+                        ),
+                    },
+                ),
+                description="Login successful (existing user)",
+                examples=[
+                    OpenApiExample(
+                        "Existing User Success",
+                        value={
+                            "message": "Login successful.",
+                            "user": {
+                                "id": 42,
+                                "email": "john.doe@example.com",
+                                "first_name": "John",
+                                "last_name": "Doe",
+                                "is_active": True,
+                                "date_joined": "2025-10-15T14:30:00Z",
+                            },
+                            "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "is_new_user": False,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            201: OpenApiResponse(
+                response=inline_serializer(
+                    name="BasicLoginCreatedResponse",
+                    fields={
+                        "message": drf_serializers.CharField(),
+                        "user": UserSerializer(),
+                        "access": drf_serializers.CharField(help_text="JWT access token"),
+                        "refresh": drf_serializers.CharField(help_text="JWT refresh token"),
+                        "is_new_user": drf_serializers.BooleanField(
+                            help_text="Indicates if this is a new user"
+                        ),
+                    },
+                ),
+                description="New user created and logged in",
+                examples=[
+                    OpenApiExample(
+                        "New User Success",
+                        value={
+                            "message": "Account created successfully.",
+                            "user": {
+                                "id": 43,
+                                "email": "jane.smith@example.com",
+                                "first_name": "Jane",
+                                "last_name": "Smith",
+                                "is_active": True,
+                                "date_joined": "2025-11-02T10:30:00Z",
+                            },
+                            "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "is_new_user": True,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                description="Validation error",
+                examples=[
+                    OpenApiExample(
+                        "Missing Required Fields",
+                        value={
+                            "name": ["This field is required."],
+                            "email": ["This field is required."],
+                        },
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Invalid Email Format",
+                        value={"email": ["Enter a valid email address."]},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Empty Name",
+                        value={"name": ["This field may not be blank."]},
+                        response_only=True,
+                    ),
+                ],
+            ),
+            403: OpenApiResponse(
+                description="Inactive account",
+                examples=[
+                    OpenApiExample(
+                        "Inactive Account",
+                        value={
+                            "error": "This account has been deactivated. Please contact support."
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            429: OpenApiResponse(
+                description="Rate limit exceeded",
+                examples=[
+                    OpenApiExample(
+                        "Rate Limited",
+                        value={"error": "Too many login attempts. Please try again later."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            500: OpenApiResponse(
+                description="Internal server error",
+                examples=[
+                    OpenApiExample(
+                        "Server Error",
+                        value={"error": "An unexpected error occurred. Please try again later."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Basic Login Example",
+                value={"name": "John Doe", "email": "john.doe@example.com"},
+                request_only=True,
+            )
+        ],
+        tags=["Authentication"],
+    )
+    def post(self, request):
+        """
+        Handle basic login request.
+        Creates or updates user and returns JWT tokens.
+        """
+        serializer = self.serializer_class(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Create or update user
+            user, is_new_user = serializer.create_or_update_user(serializer.validated_data)
+
+            # Check if account is active
+            if not user.is_active:
+                return Response(
+                    {"error": "This account has been deactivated. Please contact support."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+
+            # Serialize user data
+            user_serializer = UserSerializer(user)
+
+            # Determine response status and message
+            status_code = status.HTTP_201_CREATED if is_new_user else status.HTTP_200_OK
+            message = "Account created successfully." if is_new_user else "Login successful."
+
+            return Response(
+                {
+                    "message": message,
+                    "user": user_serializer.data,
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                    "is_new_user": is_new_user,
+                },
+                status=status_code,
+            )
+
+        except Exception as e:
+            # Log the exception for debugging
+            import logging
+
+            logger = logging.getLogger("apps.users")
+            logger.error(f"Basic login error: {str(e)}", exc_info=True)
+
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 @method_decorator(ratelimit(key="user", rate="5/h", method="POST"), name="dispatch")
