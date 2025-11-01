@@ -614,9 +614,46 @@ jobs:
           ENV_EOF
 
           # ================================================================
-          # STEP 1: Stop Existing Containers
+          # STEP 1: Clean Cache Volumes
           # ================================================================
-          echo "#### Step 1: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 1: Cleaning cache volumes" >> $GITHUB_STEP_SUMMARY
+          echo "Removing stale cache volumes to prevent serving outdated content..." >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} "
+            cd ${DEPLOY_DIR}
+
+            echo '=== Cache Volume Cleanup ==='
+            echo 'Removing cache-only volumes to prevent stale content:'
+            echo ''
+
+            # Remove nginx cache volumes (static and media file caches)
+            # These can serve stale content after deployments if not cleared
+            docker volume rm app-staging_proxy_cache_static 2>/dev/null && echo '✅ Removed proxy_cache_static' || echo 'ℹ️  proxy_cache_static not found (first deployment or already clean)'
+            docker volume rm app-staging_proxy_cache_media 2>/dev/null && echo '✅ Removed proxy_cache_media' || echo 'ℹ️  proxy_cache_media not found (first deployment or already clean)'
+
+            # Remove Redis data volume to flush all cache entries
+            # This prevents old application state from persisting across deployments
+            docker volume rm app-staging_redis_data 2>/dev/null && echo '✅ Removed redis_data (cache will be rebuilt)' || echo 'ℹ️  redis_data not found (first deployment or already clean)'
+
+            echo ''
+            echo '=== Preserved Data Volumes ==='
+            echo 'The following volumes are PRESERVED (user data):'
+            echo '  - postgres_data (database - contains user data)'
+            echo '  - backend_media (user uploads)'
+            echo '  - backend_static (collected static files - will be regenerated)'
+            echo '  - proxy_logs (nginx access/error logs for debugging)'
+            echo ''
+          " | tee -a $GITHUB_STEP_SUMMARY
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "✅ Cache volumes cleaned successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 2: Stop Existing Containers
+          # ================================================================
+          echo "#### Step 2: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
           echo "Stopping any running containers to release file locks and ensure clean deployment..." >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -628,9 +665,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 2: Create Deployment directories
+          # STEP 3: Create Deployment directories
           # ================================================================
-          echo "#### Step 2: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 3: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
           echo "Ensuring all required directories exist on the server..." >> $GITHUB_STEP_SUMMARY
 
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
@@ -640,9 +677,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 3: Transfer Configuration Files
+          # STEP 4: Transfer Configuration Files
           # ================================================================
-          echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 4: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
           echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
 
           # Ensure directories are writable and wait for file locks to be released
@@ -691,9 +728,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 4: Deploy Containers on Server
+          # STEP 5: Deploy Containers on Server
           # ================================================================
-          echo "#### Step 4: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 5: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
           echo "Connecting to server to pull images and start containers..." >> $GITHUB_STEP_SUMMARY
           echo "This step includes real-time health monitoring and will show detailed logs if any issues occur." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -804,6 +841,63 @@ jobs:
                 echo "==================================================================="
                 echo ""
                 docker compose -f docker-compose.yml -f compose.staging.yml ps
+                echo ""
+
+                # ============================================================
+                # POST-DEPLOYMENT: Redis Cache Flush
+                # ============================================================
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "STEP 6: Flushing Redis Cache"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "Clearing all cached data to prevent serving stale application state..."
+                echo ""
+
+                # Flush Redis cache (requires password authentication)
+                docker compose -f docker-compose.yml -f compose.staging.yml exec -T redis \\
+                  redis-cli -a "\${REDIS_PASSWORD}" FLUSHALL 2>&1 | grep -v "Warning: Using a password" || true
+
+                echo "✅ Redis cache flushed successfully"
+                echo ""
+
+                # ============================================================
+                # POST-DEPLOYMENT: Docker Image Cleanup
+                # ============================================================
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "STEP 7: Cleaning Up Old Docker Images"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "Removing unused images and build cache to free disk space..."
+                echo "Retention: Keeping images from last 72 hours for rollback capability"
+                echo ""
+
+                # Show disk space before cleanup
+                echo "Disk space before cleanup:"
+                df -h / | tail -1 || true
+                echo ""
+
+                # Remove dangling and unused images older than 72 hours
+                # This keeps recent images for quick rollback while freeing space
+                PRUNED_IMAGES=\$(docker image prune -af --filter "until=72h" 2>&1) || true
+                echo "\$PRUNED_IMAGES"
+                echo ""
+
+                # Remove unused build cache older than 72 hours
+                PRUNED_CACHE=\$(docker builder prune -af --filter "until=72h" 2>&1) || true
+                echo "\$PRUNED_CACHE"
+                echo ""
+
+                # Show disk space after cleanup
+                echo "Disk space after cleanup:"
+                df -h / | tail -1 || true
+                echo ""
+
+                # Extract and display space reclaimed
+                RECLAIMED=\$(echo "\$PRUNED_IMAGES\$PRUNED_CACHE" | grep -o "Total reclaimed space: [^[:space:]]*" | tail -1 || echo "Total reclaimed space: 0B")
+                echo "✅ Cleanup complete: \$RECLAIMED"
+                echo ""
+
+                echo "==================================================================="
+                echo "✅ DEPLOYMENT COMPLETE - ALL POST-DEPLOYMENT TASKS FINISHED"
+                echo "==================================================================="
                 exit 0
               fi
 
@@ -1270,9 +1364,46 @@ jobs:
           ENV_EOF
 
           # ================================================================
-          # STEP 1: Stop Existing Containers
+          # STEP 1: Clean Cache Volumes
           # ================================================================
-          echo "#### Step 1: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 1: Cleaning cache volumes" >> $GITHUB_STEP_SUMMARY
+          echo "Removing stale cache volumes to prevent serving outdated content..." >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} "
+            cd ${DEPLOY_DIR}
+
+            echo '=== Cache Volume Cleanup ==='
+            echo 'Removing cache-only volumes to prevent stale content:'
+            echo ''
+
+            # Remove nginx cache volumes (static and media file caches)
+            # These can serve stale content after deployments if not cleared
+            docker volume rm app-production_proxy_cache_static 2>/dev/null && echo '✅ Removed proxy_cache_static' || echo 'ℹ️  proxy_cache_static not found (first deployment or already clean)'
+            docker volume rm app-production_proxy_cache_media 2>/dev/null && echo '✅ Removed proxy_cache_media' || echo 'ℹ️  proxy_cache_media not found (first deployment or already clean)'
+
+            # Remove Redis data volume to flush all cache entries
+            # This prevents old application state from persisting across deployments
+            docker volume rm app-production_redis_data 2>/dev/null && echo '✅ Removed redis_data (cache will be rebuilt)' || echo 'ℹ️  redis_data not found (first deployment or already clean)'
+
+            echo ''
+            echo '=== Preserved Data Volumes ==='
+            echo 'The following volumes are PRESERVED (user data):'
+            echo '  - postgres_data (database - contains user data)'
+            echo '  - backend_media (user uploads)'
+            echo '  - backend_static (collected static files - will be regenerated)'
+            echo '  - proxy_logs (nginx access/error logs for debugging)'
+            echo ''
+          " | tee -a $GITHUB_STEP_SUMMARY
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "✅ Cache volumes cleaned successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 2: Stop Existing Containers
+          # ================================================================
+          echo "#### Step 2: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
           echo "Stopping any running containers to release file locks and ensure clean deployment..." >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -1284,9 +1415,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 2: Create Deployment Directories
+          # STEP 3: Create Deployment Directories
           # ================================================================
-          echo "#### Step 2: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 3: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
           echo "Ensuring all required directories exist on the server..." >> $GITHUB_STEP_SUMMARY
 
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
@@ -1296,9 +1427,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 3: Transfer Configuration Files
+          # STEP 4: Transfer Configuration Files
           # ================================================================
-          echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 4: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
           echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
 
           # Ensure directories are writable and wait for file locks to be released
@@ -1347,9 +1478,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 4: Deploy Containers on Server
+          # STEP 5: Deploy Containers on Server
           # ================================================================
-          echo "#### Step 4: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 5: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
           echo "Connecting to server to pull images and start containers..." >> $GITHUB_STEP_SUMMARY
           echo "This step includes real-time health monitoring and will show detailed logs if any issues occur." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1460,6 +1591,63 @@ jobs:
                 echo "==================================================================="
                 echo ""
                 docker compose -f docker-compose.yml -f compose.production.yml ps
+                echo ""
+
+                # ============================================================
+                # POST-DEPLOYMENT: Redis Cache Flush
+                # ============================================================
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "STEP 6: Flushing Redis Cache"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "Clearing all cached data to prevent serving stale application state..."
+                echo ""
+
+                # Flush Redis cache (requires password authentication)
+                docker compose -f docker-compose.yml -f compose.production.yml exec -T redis \\
+                  redis-cli -a "\${REDIS_PASSWORD}" FLUSHALL 2>&1 | grep -v "Warning: Using a password" || true
+
+                echo "✅ Redis cache flushed successfully"
+                echo ""
+
+                # ============================================================
+                # POST-DEPLOYMENT: Docker Image Cleanup
+                # ============================================================
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "STEP 7: Cleaning Up Old Docker Images"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "Removing unused images and build cache to free disk space..."
+                echo "Retention: Keeping images from last 72 hours for rollback capability"
+                echo ""
+
+                # Show disk space before cleanup
+                echo "Disk space before cleanup:"
+                df -h / | tail -1 || true
+                echo ""
+
+                # Remove dangling and unused images older than 72 hours
+                # This keeps recent images for quick rollback while freeing space
+                PRUNED_IMAGES=\$(docker image prune -af --filter "until=72h" 2>&1) || true
+                echo "\$PRUNED_IMAGES"
+                echo ""
+
+                # Remove unused build cache older than 72 hours
+                PRUNED_CACHE=\$(docker builder prune -af --filter "until=72h" 2>&1) || true
+                echo "\$PRUNED_CACHE"
+                echo ""
+
+                # Show disk space after cleanup
+                echo "Disk space after cleanup:"
+                df -h / | tail -1 || true
+                echo ""
+
+                # Extract and display space reclaimed
+                RECLAIMED=\$(echo "\$PRUNED_IMAGES\$PRUNED_CACHE" | grep -o "Total reclaimed space: [^[:space:]]*" | tail -1 || echo "Total reclaimed space: 0B")
+                echo "✅ Cleanup complete: \$RECLAIMED"
+                echo ""
+
+                echo "==================================================================="
+                echo "✅ DEPLOYMENT COMPLETE - ALL POST-DEPLOYMENT TASKS FINISHED"
+                echo "==================================================================="
                 exit 0
               fi
 
