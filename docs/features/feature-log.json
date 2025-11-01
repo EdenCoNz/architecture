@@ -1484,6 +1484,19 @@
           "timestamp": "2025-11-02T00:00:00Z",
           "status": "completed",
           "implementationLog": "docs/features/20/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 342,
+          "timestamp": "2025-11-02T09:56:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/20/issues/342/implementation-log.json",
+          "userStoriesPath": "docs/features/20/issues/342/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix Login component test failures - Router context missing causing useNavigate() errors (22 test failures)"
         }
       ]
     }

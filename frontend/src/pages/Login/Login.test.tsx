@@ -17,7 +17,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import Login from './Login';
 import * as apiService from '../../services/api';
 
@@ -37,18 +37,28 @@ vi.mock('../../services/api', () => ({
 }));
 
 // Mock the navigate function
+// This mock is set up AFTER importing react-router-dom to allow MemoryRouter to work properly
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
     ...actual,
     useNavigate: () => mockNavigate,
   };
 });
 
-// Helper to render with Router
+// Helper to render with Router context
+// Uses MemoryRouter which is designed for testing and provides complete Router context
+// MemoryRouter is preferred over BrowserRouter for tests because:
+// - It doesn't depend on browser history API
+// - Provides isolated routing state for each test
+// - Works reliably in both local and CI environments
 const renderWithRouter = (component: React.ReactElement) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+  return render(
+    <MemoryRouter initialEntries={['/login']}>
+      {component}
+    </MemoryRouter>
+  );
 };
 
 describe('Login Page', () => {
