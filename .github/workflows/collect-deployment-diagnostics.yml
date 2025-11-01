@@ -5,8 +5,8 @@ name: Collect Deployment Diagnostics
 # ==============================================================================
 #
 # This workflow collects comprehensive diagnostic information from a deployment
-# server when a deployment fails. It can be called from other workflows or
-# triggered manually for debugging purposes.
+# server when a deployment fails. It is called from the unified CI/CD pipeline
+# to gather detailed diagnostics when deployments encounter issues.
 #
 # Features:
 #   - Container status and health checks
@@ -46,26 +46,6 @@ on:
       SSH_PRIVATE_KEY:
         required: true
 
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment (staging/production)'
-        required: true
-        type: choice
-        options:
-          - staging
-          - production
-      deployment_directory:
-        description: 'Deployment directory path on server'
-        required: false
-        type: string
-        default: ''
-      compose_file:
-        description: 'Docker Compose override file name'
-        required: false
-        type: string
-        default: ''
-
 permissions:
   contents: read
 
@@ -74,6 +54,7 @@ jobs:
     name: Collect Diagnostics - ${{ inputs.environment }}
     runs-on: ubuntu-22.04
     timeout-minutes: 15
+    environment: ${{ inputs.environment }}
 
     steps:
       - name: Set deployment parameters
