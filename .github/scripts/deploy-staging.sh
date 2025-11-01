@@ -1,4 +1,4 @@
-#!/bin/bash -euo pipefail
+#!/bin/bash
 
 # ==============================================================================
 # Staging Deployment Script
@@ -12,15 +12,17 @@
 # 5. Post-deployment tasks (Redis cache flush, Docker image cleanup)
 # ==============================================================================
 
-set -e
+# Enable strict error handling:
+# -e: Exit immediately if any command fails
+# -u: Treat undefined variables as errors
+# -o pipefail: Return exit code of the first failing command in a pipeline
+set -euo pipefail
 
 # Required environment variables (passed from GitHub Actions):
-# - SERVER_USER
-# - DEPLOY_DIR
-# - REGISTRY
-# - GITHUB_ACTOR
-# - GITHUB_TOKEN
-# - REDIS_PASSWORD
+# - REGISTRY: Container registry URL (e.g., ghcr.io)
+# - GITHUB_ACTOR: GitHub username for registry authentication
+# - GITHUB_TOKEN: GitHub token for registry authentication
+# - REDIS_PASSWORD: Redis password for cache flush operation
 
 echo ""
 echo "==================================================================="
