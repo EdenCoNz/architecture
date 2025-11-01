@@ -783,55 +783,138 @@ jobs:
           echo "## Verifying Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          # First, test basic connectivity to the server
+          echo "### Testing basic connectivity" >> $GITHUB_STEP_SUMMARY
+
+          # Try to ping the server (if available) or use nc to test port
+          if command -v nc &> /dev/null; then
+            if nc -zv -w5 "${SERVER_HOST}" 80 2>&1; then
+              echo "✅ Port 80 is reachable on ${SERVER_HOST//?/*}" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Cannot reach port 80 on ${SERVER_HOST//?/*}" >> $GITHUB_STEP_SUMMARY
+              echo "This might indicate a Tailscale connectivity issue or nginx not running" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
           # Health check with retry logic and better error handling
           MAX_RETRIES=12
           RETRY_DELAY=5
           HEALTH_URL="http://${SERVER_HOST}/api/v1/status/"
 
+          # Debug: Print sanitized URL (mask the host)
+          echo "### Health Check" >> $GITHUB_STEP_SUMMARY
+          echo "Target endpoint: http://[MASKED_HOST]/api/v1/status/" >> $GITHUB_STEP_SUMMARY
           echo "Waiting for staging environment to be ready..." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Attempt $i/$MAX_RETRIES: Checking health endpoint..." >> $GITHUB_STEP_SUMMARY
 
-            # Use status endpoint which always returns 200 and provides detailed info
-            RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_URL" 2>&1)
-            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-            BODY=$(echo "$RESPONSE" | sed '$d')
+            # Use curl with timeout and better error handling
+            # --connect-timeout: max time for connection
+            # --max-time: max time for entire operation
+            # -f: fail silently on server errors
+            # -s: silent mode
+            # -S: show error on failure
+            # -w: write out http_code
+            CURL_OUTPUT=$(mktemp)
+            CURL_EXIT_CODE=0
 
-            echo "HTTP Status: $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+            # Execute curl and capture both output and exit code
+            if curl --connect-timeout 5 \
+                    --max-time 10 \
+                    -s -S \
+                    -w "\nHTTP_CODE:%{http_code}\nCONNECT_CODE:%{exitcode}" \
+                    -o "$CURL_OUTPUT" \
+                    "$HEALTH_URL" 2>&1; then
+              CURL_EXIT_CODE=0
+            else
+              CURL_EXIT_CODE=$?
+            fi
 
-            if [[ "$HTTP_CODE" == "200" ]]; then
+            # Read the response body
+            if [[ -f "$CURL_OUTPUT" ]]; then
+              BODY=$(cat "$CURL_OUTPUT")
+            else
+              BODY=""
+            fi
+
+            # Extract HTTP code from the curl output
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "$HEALTH_URL" 2>/dev/null || echo "000")
+
+            echo "HTTP Status: $HTTP_CODE (curl exit code: $CURL_EXIT_CODE)" >> $GITHUB_STEP_SUMMARY
+
+            # Handle different response scenarios
+            if [[ "$HTTP_CODE" == "000" ]]; then
+              echo "⚠️ Failed to connect to health endpoint (connection refused, timeout, or DNS failure)" >> $GITHUB_STEP_SUMMARY
+              echo "Debug: curl exit code was $CURL_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+
+              # Common curl exit codes for debugging
+              case $CURL_EXIT_CODE in
+                6) echo "Debug: Could not resolve host" >> $GITHUB_STEP_SUMMARY ;;
+                7) echo "Debug: Failed to connect to host" >> $GITHUB_STEP_SUMMARY ;;
+                28) echo "Debug: Operation timeout" >> $GITHUB_STEP_SUMMARY ;;
+                35) echo "Debug: SSL connect error" >> $GITHUB_STEP_SUMMARY ;;
+                52) echo "Debug: Server returned nothing (no headers, no data)" >> $GITHUB_STEP_SUMMARY ;;
+                56) echo "Debug: Failure in receiving network data" >> $GITHUB_STEP_SUMMARY ;;
+                *) echo "Debug: Unknown curl error" >> $GITHUB_STEP_SUMMARY ;;
+              esac
+            elif [[ "$HTTP_CODE" == "200" ]]; then
               # Parse the status from JSON response
-              STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+              if [[ -n "$BODY" ]]; then
+                STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 
-              if [[ "$STATUS" == "healthy" ]]; then
-                echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "Response details:" >> $GITHUB_STEP_SUMMARY
-                echo '```json' >> $GITHUB_STEP_SUMMARY
-                echo "$BODY" | head -n 20 >> $GITHUB_STEP_SUMMARY
-                echo '```' >> $GITHUB_STEP_SUMMARY
-                exit 0
+                if [[ "$STATUS" == "healthy" ]]; then
+                  echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "Response details:" >> $GITHUB_STEP_SUMMARY
+                  echo '```json' >> $GITHUB_STEP_SUMMARY
+                  echo "$BODY" | head -n 20 >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+
+                  # Clean up temp file
+                  rm -f "$CURL_OUTPUT"
+                  exit 0
+                else
+                  echo "⚠️ Service responded but status is: $STATUS" >> $GITHUB_STEP_SUMMARY
+                  echo "Response body (first 500 chars):" >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                  echo "$BODY" | head -c 500 >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                fi
               else
-                echo "⚠️ Service responded but status is: $STATUS" >> $GITHUB_STEP_SUMMARY
-                echo "Response: $BODY" >> $GITHUB_STEP_SUMMARY
+                echo "⚠️ Received 200 OK but no response body" >> $GITHUB_STEP_SUMMARY
               fi
             else
               echo "⚠️ Health endpoint returned HTTP $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
               if [[ -n "${BODY:-}" ]]; then
-                echo "Response: ${BODY}" >> $GITHUB_STEP_SUMMARY
+                echo "Response body (first 500 chars):" >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                echo "$BODY" | head -c 500 >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
               fi
             fi
 
+            # Clean up temp file
+            rm -f "$CURL_OUTPUT"
+
             if [[ $i -lt $MAX_RETRIES ]]; then
               echo "Waiting ${RETRY_DELAY}s before retry..." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
               sleep $RETRY_DELAY
             fi
           done
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "❌ Staging environment health check failed after $MAX_RETRIES attempts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Troubleshooting tips:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Check if the server is accessible via Tailscale VPN" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify the containers are running on the staging server" >> $GITHUB_STEP_SUMMARY
+          echo "- Check nginx and backend container logs for errors" >> $GITHUB_STEP_SUMMARY
+          echo "- Ensure the SERVER_HOST secret is correctly configured" >> $GITHUB_STEP_SUMMARY
           exit 1
 
   # ============================================================================
