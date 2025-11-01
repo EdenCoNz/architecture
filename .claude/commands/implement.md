@@ -27,6 +27,7 @@ This command reads the user stories file, processes the execution order, and coo
 - User stories path: `docs/features/$FEATURE_ID/user-stories.md`
 - Implementation log path: `docs/features/$FEATURE_ID/implementation-log.json`
 - Feature log path: `docs/features/feature-log.json`
+- API contract path: `docs/features/$FEATURE_ID/api-contract.md` (optional, checked at runtime)
 
 ### Fix Mode Variables (when mode="fix")
 - `$ISSUE_NUMBER` - The GitHub issue number from the second argument
@@ -131,6 +132,32 @@ This command reads the user stories file, processes the execution order, and coo
 2. Parse the Execution Order section
 3. Identify all phases and their execution mode (sequential/parallel)
 
+### Step 2.5: Check for API Contracts (Contract-First Development)
+
+**For FEATURE_MODE only** (fixes typically don't need new contracts):
+
+1. **Check if API contract exists**:
+   - Look for `docs/features/{feature_id}/api-contract.md`
+   - Set `$HAS_API_CONTRACT` flag to true/false
+
+2. **If API contract exists**:
+   - Note contract path for use in agent prompts
+   - Contract will be passed to frontend-developer and backend-developer agents
+   - Agents MUST implement according to contract specifications
+   - Agents should NOT deviate from contract without explicit discussion
+
+3. **If no API contract exists**:
+   - Agents will define API contracts ad-hoc during implementation (current behavior)
+   - Consider creating an API contract story for complex features with significant API interactions
+
+**When to Create API Contracts** (Story pattern in user-stories.md):
+- Features with multiple API endpoints
+- Features requiring parallel frontend-backend development
+- Features with complex request/response validation
+- Features where integration risk is high
+
+See "Update user-stories template with contract story pattern" section for how to add API contract stories.
+
 ### Step 3: Execute User Stories
 
 For each phase in the execution order:
@@ -164,6 +191,26 @@ Implement the following user story from docs/features/{feature_id}/user-stories.
 
 Acceptance Criteria:
 [List all acceptance criteria]
+
+{{IF API_CONTRACT_EXISTS}}
+API Contract: docs/features/{feature_id}/api-contract.md
+
+IMPORTANT - CONTRACT-FIRST DEVELOPMENT:
+- An API contract has been defined for this feature
+- You MUST read the API contract before implementing any API interactions
+- Implement API calls/endpoints EXACTLY as specified in the contract
+- DO NOT deviate from the contract without explicit user approval
+- If the contract is ambiguous or incomplete, flag it to the user
+- Use TypeScript types from the contract (if provided)
+- Validate your implementation against the contract specifications
+
+The API contract is your source of truth for:
+- Endpoint paths and HTTP methods
+- Request/response schemas and types
+- Validation rules
+- Error response formats
+- Example payloads
+{{ENDIF}}
 
 Execute this implementation following best practices and ensure all acceptance criteria are met.
 
