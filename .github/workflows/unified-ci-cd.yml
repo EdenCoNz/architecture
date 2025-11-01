@@ -740,12 +740,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Execute deployment script on server
+          # Use single quotes to prevent variable expansion on the client side
+          # and properly escape variables for the remote shell
           ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
             "cd ${DEPLOY_DIR} && \
-            REGISTRY=${REGISTRY} \
-            GITHUB_ACTOR=${GITHUB_ACTOR} \
-            GITHUB_TOKEN=${GITHUB_TOKEN} \
-            REDIS_PASSWORD=${REDIS_PASSWORD} \
+            REGISTRY='${REGISTRY}' \
+            GITHUB_ACTOR='${GITHUB_ACTOR}' \
+            GITHUB_TOKEN='${GITHUB_TOKEN}' \
+            REDIS_PASSWORD='${REDIS_PASSWORD//\'/\'\\\'\'}' \
             bash deploy-staging.sh"
 
           # Capture exit code from SSH session
@@ -1274,12 +1276,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Execute deployment script on server
+          # Use single quotes to prevent variable expansion on the client side
+          # and properly escape variables for the remote shell
           ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
             "cd ${DEPLOY_DIR} && \
-            REGISTRY=${REGISTRY} \
-            GITHUB_ACTOR=${GITHUB_ACTOR} \
-            GITHUB_TOKEN=${GITHUB_TOKEN} \
-            REDIS_PASSWORD=${REDIS_PASSWORD} \
+            REGISTRY='${REGISTRY}' \
+            GITHUB_ACTOR='${GITHUB_ACTOR}' \
+            GITHUB_TOKEN='${GITHUB_TOKEN}' \
+            REDIS_PASSWORD='${REDIS_PASSWORD//\'/\'\\\'\'}' \
             bash deploy-production.sh"
 
           # Capture exit code from SSH session
