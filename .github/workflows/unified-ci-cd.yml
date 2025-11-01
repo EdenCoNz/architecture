@@ -779,6 +779,7 @@ jobs:
         if: steps.deploy.outcome == 'success'
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
           echo "## Verifying Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -790,8 +791,11 @@ jobs:
             exit 1
           fi
 
-          # First, test basic connectivity to the server
-          echo "### Testing basic connectivity" >> $GITHUB_STEP_SUMMARY
+          # ================================================================
+          # STEP 1: Test Basic Network Connectivity
+          # ================================================================
+          echo "### Step 1: Testing Network Connectivity" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           # Try to ping the server (if available) or use nc to test port
           if command -v nc &> /dev/null; then
@@ -800,39 +804,114 @@ jobs:
             else
               echo "❌ Cannot reach port 80 on ${SERVER_HOST//?/*}" >> $GITHUB_STEP_SUMMARY
               echo "This might indicate a Tailscale connectivity issue or nginx not running" >> $GITHUB_STEP_SUMMARY
+              exit 1
             fi
           fi
-
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Health check with retry logic and better error handling
-          MAX_RETRIES=12
-          RETRY_DELAY=5
+          # ================================================================
+          # STEP 2: Wait for Container Health Checks to Complete
+          # ================================================================
+          # Backend has start_period: 200s in staging, meaning health checks
+          # don't even start counting until 200 seconds have elapsed.
+          # We need to wait for Docker health checks to pass first before
+          # trying the HTTP endpoint.
+          # ================================================================
+          echo "### Step 2: Waiting for Container Health Checks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note**: Backend container has 200s start period for migrations and collectstatic" >> $GITHUB_STEP_SUMMARY
+          echo "Checking container status on remote server..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # SSH to server and monitor container health status
+          # Maximum wait time: 300 seconds (5 minutes) - longer than backend start_period
+          MAX_CONTAINER_WAIT=300
+          CONTAINER_CHECK_INTERVAL=15
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $MAX_CONTAINER_WAIT ]; do
+            echo "Container health check (${ELAPSED}s / ${MAX_CONTAINER_WAIT}s elapsed)..." >> $GITHUB_STEP_SUMMARY
+
+            # Get container health status from remote server
+            CONTAINER_STATUS=$(ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+              "cd /home/${SERVER_USER}/deployments/app-staging && \
+               docker compose -f docker-compose.yml -f compose.staging.yml ps --format json 2>/dev/null | \
+               jq -r 'select(.Service == \"backend\" or .Service == \"proxy\") | \"\(.Service):\(.Health)\"' 2>/dev/null" || echo "error")
+
+            if [[ "$CONTAINER_STATUS" == "error" ]]; then
+              echo "⚠️ Could not retrieve container status from server" >> $GITHUB_STEP_SUMMARY
+            else
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "$CONTAINER_STATUS" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+
+              # Check if backend and proxy are both healthy
+              BACKEND_HEALTHY=$(echo "$CONTAINER_STATUS" | grep "backend:healthy" || echo "")
+              PROXY_HEALTHY=$(echo "$CONTAINER_STATUS" | grep "proxy:healthy" || echo "")
+
+              if [[ -n "$BACKEND_HEALTHY" && -n "$PROXY_HEALTHY" ]]; then
+                echo "✅ All critical containers are healthy!" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                break
+              else
+                # Show which containers are still starting
+                if [[ -z "$BACKEND_HEALTHY" ]]; then
+                  BACKEND_STATUS=$(echo "$CONTAINER_STATUS" | grep "backend:" | cut -d: -f2 || echo "unknown")
+                  echo "⏳ Backend: $BACKEND_STATUS" >> $GITHUB_STEP_SUMMARY
+                fi
+                if [[ -z "$PROXY_HEALTHY" ]]; then
+                  PROXY_STATUS=$(echo "$CONTAINER_STATUS" | grep "proxy:" | cut -d: -f2 || echo "unknown")
+                  echo "⏳ Proxy: $PROXY_STATUS" >> $GITHUB_STEP_SUMMARY
+                fi
+              fi
+            fi
+
+            if [[ $ELAPSED -ge $MAX_CONTAINER_WAIT ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "❌ Containers did not become healthy within ${MAX_CONTAINER_WAIT}s" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Final container status:**" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+                "cd /home/${SERVER_USER}/deployments/app-staging && \
+                 docker compose -f docker-compose.yml -f compose.staging.yml ps" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+
+            sleep $CONTAINER_CHECK_INTERVAL
+            ELAPSED=$((ELAPSED + CONTAINER_CHECK_INTERVAL))
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+
+          # ================================================================
+          # STEP 3: Verify Health Endpoint via HTTP
+          # ================================================================
+          # Now that containers are healthy, verify the health endpoint
+          # responds correctly via HTTP
+          # ================================================================
+          echo "### Step 3: Verifying Health Endpoint via HTTP" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Health check with retry logic
+          # Shorter timeout now since containers are already healthy
+          MAX_HTTP_RETRIES=6
+          HTTP_RETRY_DELAY=10
           HEALTH_URL="http://${SERVER_HOST}/api/v1/status/"
 
-          # Debug: Print sanitized URL (mask the host)
-          echo "### Health Check" >> $GITHUB_STEP_SUMMARY
           echo "Target endpoint: http://[MASKED_HOST]/api/v1/status/" >> $GITHUB_STEP_SUMMARY
-          echo "Waiting for staging environment to be ready..." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "Attempt $i/$MAX_RETRIES: Checking health endpoint..." >> $GITHUB_STEP_SUMMARY
+          for i in $(seq 1 $MAX_HTTP_RETRIES); do
+            echo "HTTP health check attempt $i/$MAX_HTTP_RETRIES..." >> $GITHUB_STEP_SUMMARY
 
             # Use curl with timeout and better error handling
-            # --connect-timeout: max time for connection
-            # --max-time: max time for entire operation
-            # -f: fail silently on server errors
-            # -s: silent mode
-            # -S: show error on failure
-            # -w: write out http_code
             CURL_OUTPUT=$(mktemp)
+            CURL_RESPONSE=$(mktemp)
             CURL_EXIT_CODE=0
 
-            # Execute curl and capture both output and exit code
-            CURL_RESPONSE=$(mktemp)
-            if curl --connect-timeout 5 \
-                    --max-time 10 \
+            if curl --connect-timeout 10 \
+                    --max-time 15 \
                     -s -S \
                     -w "\nHTTP_CODE:%{http_code}" \
                     -o "$CURL_OUTPUT" \
@@ -849,32 +928,30 @@ jobs:
               BODY=""
             fi
 
-            # Extract HTTP code from the curl write-out
+            # Extract HTTP code
             if [[ -f "$CURL_RESPONSE" ]]; then
               HTTP_CODE=$(grep "^HTTP_CODE:" "$CURL_RESPONSE" | cut -d: -f2 || echo "000")
             else
               HTTP_CODE="000"
             fi
 
-            # Clean up temp file
+            # Clean up temp files
             rm -f "$CURL_RESPONSE"
 
             echo "HTTP Status: $HTTP_CODE (curl exit code: $CURL_EXIT_CODE)" >> $GITHUB_STEP_SUMMARY
 
             # Handle different response scenarios
             if [[ "$HTTP_CODE" == "000" ]]; then
-              echo "⚠️ Failed to connect to health endpoint (connection refused, timeout, or DNS failure)" >> $GITHUB_STEP_SUMMARY
+              echo "⚠️ Failed to connect to health endpoint" >> $GITHUB_STEP_SUMMARY
               echo "Debug: curl exit code was $CURL_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
 
               # Common curl exit codes for debugging
               case $CURL_EXIT_CODE in
-                6) echo "Debug: Could not resolve host" >> $GITHUB_STEP_SUMMARY ;;
-                7) echo "Debug: Failed to connect to host" >> $GITHUB_STEP_SUMMARY ;;
+                7) echo "Debug: Failed to connect to host (containers may still be initializing)" >> $GITHUB_STEP_SUMMARY ;;
                 28) echo "Debug: Operation timeout" >> $GITHUB_STEP_SUMMARY ;;
-                35) echo "Debug: SSL connect error" >> $GITHUB_STEP_SUMMARY ;;
-                52) echo "Debug: Server returned nothing (no headers, no data)" >> $GITHUB_STEP_SUMMARY ;;
-                56) echo "Debug: Failure in receiving network data" >> $GITHUB_STEP_SUMMARY ;;
-                *) echo "Debug: Unknown curl error" >> $GITHUB_STEP_SUMMARY ;;
+                52) echo "Debug: Server returned nothing (backend may be restarting)" >> $GITHUB_STEP_SUMMARY ;;
+                56) echo "Debug: Failure receiving network data" >> $GITHUB_STEP_SUMMARY ;;
+                *) echo "Debug: Unexpected curl error" >> $GITHUB_STEP_SUMMARY ;;
               esac
             elif [[ "$HTTP_CODE" == "200" ]]; then
               # Parse the status from JSON response
@@ -882,7 +959,7 @@ jobs:
                 STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 
                 if [[ "$STATUS" == "healthy" ]]; then
-                  echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
+                  echo "✅ Staging environment is healthy and responding!" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "Response details:" >> $GITHUB_STEP_SUMMARY
                   echo '```json' >> $GITHUB_STEP_SUMMARY
@@ -902,6 +979,8 @@ jobs:
               else
                 echo "⚠️ Received 200 OK but no response body" >> $GITHUB_STEP_SUMMARY
               fi
+            elif [[ "$HTTP_CODE" == "502" ]] || [[ "$HTTP_CODE" == "503" ]] || [[ "$HTTP_CODE" == "504" ]]; then
+              echo "⚠️ Backend unavailable (HTTP $HTTP_CODE) - may still be starting" >> $GITHUB_STEP_SUMMARY
             else
               echo "⚠️ Health endpoint returned HTTP $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
               if [[ -n "${BODY:-}" ]]; then
@@ -915,21 +994,31 @@ jobs:
             # Clean up temp file
             rm -f "$CURL_OUTPUT"
 
-            if [[ $i -lt $MAX_RETRIES ]]; then
-              echo "Waiting ${RETRY_DELAY}s before retry..." >> $GITHUB_STEP_SUMMARY
+            if [[ $i -lt $MAX_HTTP_RETRIES ]]; then
+              echo "Waiting ${HTTP_RETRY_DELAY}s before retry..." >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              sleep $RETRY_DELAY
+              sleep $HTTP_RETRY_DELAY
             fi
           done
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "❌ Staging environment health check failed after $MAX_RETRIES attempts" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Staging environment health check failed after $MAX_HTTP_RETRIES HTTP attempts" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Troubleshooting tips:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Check if the server is accessible via Tailscale VPN" >> $GITHUB_STEP_SUMMARY
-          echo "- Verify the containers are running on the staging server" >> $GITHUB_STEP_SUMMARY
-          echo "- Check nginx and backend container logs for errors" >> $GITHUB_STEP_SUMMARY
-          echo "- Ensure the SERVER_HOST secret is correctly configured" >> $GITHUB_STEP_SUMMARY
+          echo "**Troubleshooting:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Containers are healthy but HTTP endpoint is not responding" >> $GITHUB_STEP_SUMMARY
+          echo "- Check nginx routing configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- Check backend application logs for errors" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify CORS/CSRF settings allow the health endpoint" >> $GITHUB_STEP_SUMMARY
+
+          # Fetch logs from server for debugging
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend logs (last 50 lines):**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "cd /home/${SERVER_USER}/deployments/app-staging && \
+             docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=50 backend" >> $GITHUB_STEP_SUMMARY || echo "Failed to fetch backend logs"
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
           exit 1
 
   # ============================================================================
