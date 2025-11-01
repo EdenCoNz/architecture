@@ -65,6 +65,13 @@ jobs:
     name: Build and Test Complete Stack
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    outputs:
+      backend_version: ${{ steps.backend_version.outputs.version }}
+      frontend_version: ${{ steps.frontend_version.outputs.version }}
+      registry_path: ${{ steps.registry.outputs.registry_path }}
+      registry: ${{ steps.registry.outputs.registry }}
+      repository_owner: ${{ steps.registry.outputs.repository_owner }}
+      sanitized_ref: ${{ steps.sanitized_ref.outputs.ref }}
 
     defaults:
       run:
@@ -80,6 +87,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -110,10 +119,12 @@ jobs:
         run: |
           REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
           # Docker registry repository names must be lowercase
-          REGISTRY_PATH="${REGISTRY}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          REPOSITORY_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          REGISTRY_PATH="${REGISTRY}/${REPOSITORY_OWNER}"
 
           echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
+          echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
 
           echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -328,7 +339,6 @@ jobs:
           file: ./backend/Dockerfile
           target: production
           push: true
-          no-cache: true
           tags: |
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}
             ${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
@@ -439,47 +449,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      # Extract versions for deployment (same as build-and-test)
-      - name: Extract backend version
-        id: backend_version
-        run: |
-          BACKEND_VERSION=$(grep -E "^__version__\s*=\s*" backend/config/__init__.py | cut -d'"' -f2)
-          echo "version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
-          echo "Backend version: $BACKEND_VERSION" >> $GITHUB_STEP_SUMMARY
-
-      - name: Extract frontend version
-        id: frontend_version
-        run: |
-          FRONTEND_VERSION=$(node -p "require('./frontend/package.json').version")
-          echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
-          echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
-
       # ----------------------------------------------------------------
-      # Configure Registry for Deployment
+      # Use shared versions from build-and-test job
       # ----------------------------------------------------------------
-      - name: Configure container registry
-        id: registry
+      - name: Display deployment versions
         run: |
-          REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
-          # Docker registry repository names must be lowercase
-          REPOSITORY_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          REGISTRY_PATH="${REGISTRY}/${REPOSITORY_OWNER}"
-
-          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
-          echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
-          echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
-
           echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
-          echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
-          echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry**: ${{ needs.build-and-test.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository Owner**: ${{ needs.build-and-test.outputs.repository_owner }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend Version**: ${{ needs.build-and-test.outputs.backend_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend Version**: ${{ needs.build-and-test.outputs.frontend_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend Image**: ${{ needs.build-and-test.outputs.registry_path }}/backend:${{ needs.build-and-test.outputs.backend_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend Image**: ${{ needs.build-and-test.outputs.registry_path }}/frontend:${{ needs.build-and-test.outputs.frontend_version }}" >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
       # Connect to Staging Server via Tailscale
@@ -514,7 +496,7 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REGISTRY: ${{ steps.registry.outputs.registry }}
+          REGISTRY: ${{ needs.build-and-test.outputs.registry }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: |
           echo "## Deploying to Staging" >> $GITHUB_STEP_SUMMARY
@@ -523,15 +505,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-staging"
-          REGISTRY_PATH="${{ steps.registry.outputs.registry_path }}"
+          REGISTRY_PATH="${{ needs.build-and-test.outputs.registry_path }}"
 
           # Log deployment details for visibility
           echo "**Deployment Details:**" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Server**: ${SERVER_HOST}" >> $GITHUB_STEP_SUMMARY
           echo "- **Deploy Directory**: ${DEPLOY_DIR}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Registry**: ${{ steps.registry.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Image**: ${REGISTRY_PATH}/backend:${{ needs.build-and-test.outputs.backend_version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Image**: ${REGISTRY_PATH}/frontend:${{ needs.build-and-test.outputs.frontend_version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ needs.build-and-test.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           echo "### Deployment Progress" >> $GITHUB_STEP_SUMMARY
@@ -590,16 +572,16 @@ jobs:
           cat > /tmp/deployment/.env << ENV_EOF
           # Docker Compose Environment Variables (Staging)
           # Container registry configuration
-          CONTAINER_REGISTRY=${{ steps.registry.outputs.registry }}
-          REPOSITORY_OWNER=${{ steps.registry.outputs.repository_owner }}
+          CONTAINER_REGISTRY=${{ needs.build-and-test.outputs.registry }}
+          REPOSITORY_OWNER=${{ needs.build-and-test.outputs.repository_owner }}
 
           # Application versions
-          BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
-          FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
+          BACKEND_VERSION=${{ needs.build-and-test.outputs.backend_version }}
+          FRONTEND_VERSION=${{ needs.build-and-test.outputs.frontend_version }}
 
           # Full image paths with registry (using SHA-tagged images for immutability)
-          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
-          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
+          BACKEND_IMAGE=${{ needs.build-and-test.outputs.registry_path }}/backend:${{ needs.build-and-test.outputs.backend_version }}-${{ github.sha }}
+          FRONTEND_IMAGE=${{ needs.build-and-test.outputs.registry_path }}/frontend:${{ needs.build-and-test.outputs.frontend_version }}-${{ github.sha }}
 
           # Security configuration
           SECRET_KEY="${SECRET_KEY}"
@@ -701,33 +683,30 @@ jobs:
             fi
           "
 
-          echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
+          echo "Creating deployment package..." >> $GITHUB_STEP_SUMMARY
+          # Prepare deployment package directory structure
+          mkdir -p /tmp/deployment-pkg/backend /tmp/deployment-pkg/frontend /tmp/deployment-pkg/nginx
+          cp docker-compose.yml compose.staging.yml /tmp/deployment-pkg/
+          cp /tmp/deployment/.env /tmp/deployment-pkg/
+          cp nginx/nginx.production.conf /tmp/deployment-pkg/nginx/
+          cp /tmp/deployment/backend/.env.docker /tmp/deployment/backend/.env.staging /tmp/deployment-pkg/backend/
+          cp /tmp/deployment/frontend/.env.docker /tmp/deployment/frontend/.env.staging /tmp/deployment-pkg/frontend/
+          cp .github/scripts/deploy-staging.sh /tmp/deployment-pkg/
+
+          # Create tarball
+          tar czf /tmp/deployment-staging.tar.gz -C /tmp/deployment-pkg .
+
+          echo "Transferring deployment package..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
-            docker-compose.yml compose.staging.yml \
-            /tmp/deployment/.env \
+            /tmp/deployment-staging.tar.gz \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
 
-          echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            nginx/nginx.production.conf \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.production.conf
-
-          echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            /tmp/deployment/backend/.env.docker \
-            /tmp/deployment/backend/.env.staging \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/backend/
-
-          echo "Transferring frontend environment files..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            /tmp/deployment/frontend/.env.docker \
-            /tmp/deployment/frontend/.env.staging \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
-
-          echo "Transferring deployment script..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            .github/scripts/deploy-staging.sh \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/deploy-staging.sh
+          echo "Extracting deployment package on server..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "cd ${DEPLOY_DIR} && \
+             tar xzf deployment-staging.tar.gz && \
+             rm deployment-staging.tar.gz && \
+             chmod +x deploy-staging.sh"
 
           echo "✅ All configuration files transferred successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -824,9 +803,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # SSH to server and monitor container health status
-          # Maximum wait time: 300 seconds (5 minutes) - longer than backend start_period
-          MAX_CONTAINER_WAIT=300
-          CONTAINER_CHECK_INTERVAL=15
+          # Maximum wait time: 240 seconds (4 minutes) - sufficient for backend start_period
+          MAX_CONTAINER_WAIT=240
+          CONTAINER_CHECK_INTERVAL=10
           ELAPSED=0
 
           while [ $ELAPSED -lt $MAX_CONTAINER_WAIT ]; do
@@ -895,7 +874,7 @@ jobs:
 
           # Health check with retry logic
           # Shorter timeout now since containers are already healthy
-          MAX_HTTP_RETRIES=6
+          MAX_HTTP_RETRIES=4
           HTTP_RETRY_DELAY=10
           HEALTH_URL="http://${SERVER_HOST}/api/v1/status/"
 
@@ -1030,7 +1009,7 @@ jobs:
   collect-staging-diagnostics:
     name: Collect Staging Diagnostics
     needs: [deploy-staging]
-    if: failure() && needs.deploy-staging.result == 'failure'
+    if: failure() && needs.deploy-staging.result == 'failure' && github.event_name != 'workflow_dispatch'
     uses: ./.github/workflows/collect-deployment-diagnostics.yml
     with:
       environment: Staging
@@ -1065,6 +1044,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -1162,47 +1143,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      # Extract versions for deployment (same as build-and-test)
-      - name: Extract backend version
-        id: backend_version
-        run: |
-          BACKEND_VERSION=$(grep -E "^__version__\s*=\s*" backend/config/__init__.py | cut -d'"' -f2)
-          echo "version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
-          echo "Backend version: $BACKEND_VERSION" >> $GITHUB_STEP_SUMMARY
-
-      - name: Extract frontend version
-        id: frontend_version
-        run: |
-          FRONTEND_VERSION=$(node -p "require('./frontend/package.json').version")
-          echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
-          echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
-
       # ----------------------------------------------------------------
-      # Configure Registry for Deployment
+      # Use shared versions from build-and-test job
       # ----------------------------------------------------------------
-      - name: Configure container registry
-        id: registry
+      - name: Display deployment versions
         run: |
-          REGISTRY="${CONTAINER_REGISTRY:-ghcr.io}"
-          # Docker registry repository names must be lowercase
-          REPOSITORY_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          REGISTRY_PATH="${REGISTRY}/${REPOSITORY_OWNER}"
-
-          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
-          echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
-          echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
-
           echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
-          echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
-          echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry**: ${{ needs.build-and-test.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository Owner**: ${{ needs.build-and-test.outputs.repository_owner }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend Version**: ${{ needs.build-and-test.outputs.backend_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend Version**: ${{ needs.build-and-test.outputs.frontend_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend Image**: ${{ needs.build-and-test.outputs.registry_path }}/backend:${{ needs.build-and-test.outputs.backend_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend Image**: ${{ needs.build-and-test.outputs.registry_path }}/frontend:${{ needs.build-and-test.outputs.frontend_version }}" >> $GITHUB_STEP_SUMMARY
 
       # ----------------------------------------------------------------
       # Connect to Production Server via Tailscale
@@ -1237,7 +1190,7 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REGISTRY: ${{ steps.registry.outputs.registry }}
+          REGISTRY: ${{ needs.build-and-test.outputs.registry }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: |
           echo "## Deploying to Production" >> $GITHUB_STEP_SUMMARY
@@ -1246,15 +1199,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-production"
-          REGISTRY_PATH="${{ steps.registry.outputs.registry_path }}"
+          REGISTRY_PATH="${{ needs.build-and-test.outputs.registry_path }}"
 
           # Log deployment details for visibility
           echo "**Deployment Details:**" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Server**: ${SERVER_HOST}" >> $GITHUB_STEP_SUMMARY
           echo "- **Deploy Directory**: ${DEPLOY_DIR}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend Image**: ${REGISTRY_PATH}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Registry**: ${{ steps.registry.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Image**: ${REGISTRY_PATH}/backend:${{ needs.build-and-test.outputs.backend_version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Image**: ${REGISTRY_PATH}/frontend:${{ needs.build-and-test.outputs.frontend_version }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ needs.build-and-test.outputs.registry }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           echo "### Deployment Progress" >> $GITHUB_STEP_SUMMARY
@@ -1313,16 +1266,16 @@ jobs:
           cat > /tmp/deployment/.env << ENV_EOF
           # Docker Compose Environment Variables (Production)
           # Container registry configuration
-          CONTAINER_REGISTRY=${{ steps.registry.outputs.registry }}
-          REPOSITORY_OWNER=${{ steps.registry.outputs.repository_owner }}
+          CONTAINER_REGISTRY=${{ needs.build-and-test.outputs.registry }}
+          REPOSITORY_OWNER=${{ needs.build-and-test.outputs.repository_owner }}
 
           # Application versions
-          BACKEND_VERSION=${{ steps.backend_version.outputs.version }}
-          FRONTEND_VERSION=${{ steps.frontend_version.outputs.version }}
+          BACKEND_VERSION=${{ needs.build-and-test.outputs.backend_version }}
+          FRONTEND_VERSION=${{ needs.build-and-test.outputs.frontend_version }}
 
           # Full image paths with registry (using SHA-tagged images for immutability)
-          BACKEND_IMAGE=${{ steps.registry.outputs.registry_path }}/backend:${{ steps.backend_version.outputs.version }}-${{ github.sha }}
-          FRONTEND_IMAGE=${{ steps.registry.outputs.registry_path }}/frontend:${{ steps.frontend_version.outputs.version }}-${{ github.sha }}
+          BACKEND_IMAGE=${{ needs.build-and-test.outputs.registry_path }}/backend:${{ needs.build-and-test.outputs.backend_version }}-${{ github.sha }}
+          FRONTEND_IMAGE=${{ needs.build-and-test.outputs.registry_path }}/frontend:${{ needs.build-and-test.outputs.frontend_version }}-${{ github.sha }}
 
           # Security configuration
           SECRET_KEY="${SECRET_KEY}"
@@ -1424,33 +1377,30 @@ jobs:
             fi
           "
 
-          echo "Transferring compose files..." >> $GITHUB_STEP_SUMMARY
+          echo "Creating deployment package..." >> $GITHUB_STEP_SUMMARY
+          # Prepare deployment package directory structure
+          mkdir -p /tmp/deployment-pkg/backend /tmp/deployment-pkg/frontend /tmp/deployment-pkg/nginx
+          cp docker-compose.yml compose.production.yml /tmp/deployment-pkg/
+          cp /tmp/deployment/.env /tmp/deployment-pkg/
+          cp nginx/nginx.production.conf /tmp/deployment-pkg/nginx/
+          cp /tmp/deployment/backend/.env.docker /tmp/deployment/backend/.env.production /tmp/deployment-pkg/backend/
+          cp /tmp/deployment/frontend/.env.docker /tmp/deployment/frontend/.env.production /tmp/deployment-pkg/frontend/
+          cp .github/scripts/deploy-production.sh /tmp/deployment-pkg/
+
+          # Create tarball
+          tar czf /tmp/deployment-production.tar.gz -C /tmp/deployment-pkg .
+
+          echo "Transferring deployment package..." >> $GITHUB_STEP_SUMMARY
           scp -i ~/.ssh/id_ed25519 \
-            docker-compose.yml compose.production.yml \
-            /tmp/deployment/.env \
+            /tmp/deployment-production.tar.gz \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/
 
-          echo "Transferring nginx configuration..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            nginx/nginx.production.conf \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/nginx/nginx.production.conf
-
-          echo "Transferring backend environment files..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            /tmp/deployment/backend/.env.docker \
-            /tmp/deployment/backend/.env.production \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/backend/
-
-          echo "Transferring frontend environment files..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            /tmp/deployment/frontend/.env.docker \
-            /tmp/deployment/frontend/.env.production \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
-
-          echo "Transferring deployment script..." >> $GITHUB_STEP_SUMMARY
-          scp -i ~/.ssh/id_ed25519 \
-            .github/scripts/deploy-production.sh \
-            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/deploy-production.sh
+          echo "Extracting deployment package on server..." >> $GITHUB_STEP_SUMMARY
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "cd ${DEPLOY_DIR} && \
+             tar xzf deployment-production.tar.gz && \
+             rm deployment-production.tar.gz && \
+             chmod +x deploy-production.sh"
 
           echo "✅ All configuration files transferred successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1507,7 +1457,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Health check with retry logic and better error handling
-          MAX_RETRIES=12
+          MAX_RETRIES=8
           RETRY_DELAY=5
           HEALTH_URL="http://${SERVER_HOST}/api/v1/status/"
 
@@ -1580,7 +1530,7 @@ jobs:
   collect-production-diagnostics:
     name: Collect Production Diagnostics
     needs: [deploy-production]
-    if: failure() && needs.deploy-production.result == 'failure'
+    if: failure() && needs.deploy-production.result == 'failure' && github.event_name != 'workflow_dispatch'
     uses: ./.github/workflows/collect-deployment-diagnostics.yml
     with:
       environment: Production
