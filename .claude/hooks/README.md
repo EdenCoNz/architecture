@@ -62,6 +62,45 @@ Hooks are configured in `.claude/settings.json` and trigger automatically when c
 - Warns if frontend and backend versions don't match
 - Continues with operation even if versions differ
 
+### 3. stop-feature-push-PR.sh
+
+**Purpose**: Automatically creates a GitHub Pull Request after the `/push` command completes successfully for a feature branch.
+
+**Trigger Pattern**: `## Post Feature Push Create PR`
+
+**Payload Structure**:
+```json
+{
+    "featureID": "5",
+    "featureTitle": "User Authentication System",
+    "featureBranch": "feature/5-user-authentication-system"
+}
+```
+
+**Actions**:
+1. Validates that feature branch exists on remote
+2. Reads user stories from `docs/features/{featureID}/user-stories.md`
+3. Extracts feature overview and user stories list
+4. Creates PR using `gh pr create` with standardized title format
+5. PR body includes feature summary, user stories, and test plan
+
+**Prerequisites**:
+- `git` command available
+- `gh` (GitHub CLI) installed and authenticated
+- Feature branch pushed to remote repository
+- User stories file exists at `docs/features/{featureID}/user-stories.md` (optional, will use minimal description if missing)
+
+**PR Format**:
+- Title: `Feature {featureID}: {featureTitle}`
+- Body: Includes overview, user stories implemented, test plan checklist, and Claude Code attribution
+- Target: Repository default branch (usually `main`)
+
+**Error Handling**:
+- Validates all required payload fields (featureID, featureTitle, featureBranch)
+- Checks that feature branch exists on remote before creating PR
+- Provides manual PR creation command if automatic creation fails
+- Continues gracefully if user stories file is missing
+
 ## Hook Configuration
 
 Hooks are registered in `.claude/settings.json`:
@@ -79,6 +118,10 @@ Hooks are registered in `.claude/settings.json`:
           {
             "type": "command",
             "command": "./.claude/hooks/scripts/stop-updateversion-push.sh"
+          },
+          {
+            "type": "command",
+            "command": "./.claude/hooks/scripts/stop-feature-push-PR.sh"
           }
         ]
       }
@@ -135,6 +178,9 @@ tail -f /tmp/stop-updateversion-push-debug.log
 
 # View fix/push/close hook logs
 tail -f /tmp/stop-hook-debug.log
+
+# View feature PR creation hook logs
+tail -f /tmp/stop-feature-push-PR-debug.log
 ```
 
 Log entries include:
