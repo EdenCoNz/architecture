@@ -79,12 +79,14 @@ jobs:
     steps:
       - name: Set deployment parameters
         id: params
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
           # Set defaults based on environment if not provided
           ENVIRONMENT="${{ inputs.environment }}"
 
           if [ -z "${{ inputs.deployment_directory }}" ]; then
-            DEPLOY_DIR="/home/${{ secrets.SERVER_USER }}/deployments/app-${ENVIRONMENT}"
+            DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-${ENVIRONMENT}"
           else
             DEPLOY_DIR="${{ inputs.deployment_directory }}"
           fi
