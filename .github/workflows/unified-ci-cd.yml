@@ -967,7 +967,6 @@ jobs:
     uses: ./.github/workflows/collect-deployment-diagnostics.yml
     with:
       environment: staging
-      deployment_directory: /home/${{ secrets.SERVER_USER }}/deployments/app-staging
       compose_file: compose.staging.yml
     secrets:
       SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -1638,7 +1637,6 @@ jobs:
     uses: ./.github/workflows/collect-deployment-diagnostics.yml
     with:
       environment: production
-      deployment_directory: /home/${{ secrets.SERVER_USER }}/deployments/app-production
       compose_file: compose.production.yml
     secrets:
       SERVER_USER: ${{ secrets.SERVER_USER }}

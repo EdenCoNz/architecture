@@ -26,9 +26,10 @@ on:
         required: true
         type: string
       deployment_directory:
-        description: 'Deployment directory path on server'
-        required: true
+        description: 'Deployment directory path on server (optional - defaults to /home/$SERVER_USER/deployments/app-$environment)'
+        required: false
         type: string
+        default: ''
       compose_file:
         description: 'Docker Compose override file name (e.g., compose.staging.yml)'
         required: true
