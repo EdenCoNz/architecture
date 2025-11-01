@@ -10,6 +10,11 @@ name: Unified CI/CD Pipeline
 #   3. E2E Testing - Run E2E tests against staging environment
 #   4. Deploy to Production - Deploy to production after E2E validation
 #
+# Deployment Strategy:
+#   - feature/* branches: Build → Test → Deploy to Staging → E2E Test
+#   - main branch: Build → Test → Deploy to Staging → E2E Test → Deploy to Production
+#   - Pull requests: Build → Test only (no deployment)
+#
 # Features:
 #   - Single docker-compose build for entire application
 #   - Sequential deployment with quality gates
@@ -422,8 +427,8 @@ jobs:
     needs: [build-and-test]
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    # Only deploy from main branch (via push or manual trigger)
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # Deploy from main branch OR feature branches (via push or manual trigger)
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')) && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     environment:
       name: Staging
       url: https://staging.edenco.online
@@ -1054,6 +1059,8 @@ jobs:
     needs: [deploy-staging]
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    # Run E2E tests when staging deployment succeeds (main or feature branches)
+    if: success()
     environment:
       name: Staging
 
