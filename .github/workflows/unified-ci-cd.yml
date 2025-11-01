@@ -846,7 +846,7 @@ jobs:
     if: failure() && needs.deploy-staging.result == 'failure'
     uses: ./.github/workflows/collect-deployment-diagnostics.yml
     with:
-      environment: staging
+      environment: Staging
       compose_file: compose.staging.yml
     secrets:
       SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -1396,7 +1396,7 @@ jobs:
     if: failure() && needs.deploy-production.result == 'failure'
     uses: ./.github/workflows/collect-deployment-diagnostics.yml
     with:
-      environment: production
+      environment: Production
       compose_file: compose.production.yml
     secrets:
       SERVER_USER: ${{ secrets.SERVER_USER }}
