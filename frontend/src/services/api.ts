@@ -232,37 +232,36 @@ export async function submitBasicLogin(name: string, email: string): Promise<Bas
       // Handle rate limiting (429)
       // AC: Clear feedback when rate limit is exceeded
       if (response.status === 429) {
-        const errorMessage = errorData && typeof errorData === 'object' && 'error' in errorData
-          ? (errorData.error as string)
-          : 'Too many login attempts. Please wait a moment and try again.';
+        const errorMessage =
+          errorData && typeof errorData === 'object' && 'error' in errorData
+            ? (errorData.error as string)
+            : 'Too many login attempts. Please wait a moment and try again.';
         throw new ApiError(errorMessage, response.status, response.statusText);
       }
 
       // Handle service unavailable (503)
       // AC: When system is unavailable, show message indicating service is temporarily unavailable
       if (response.status === 503) {
-        const errorMessage = errorData && typeof errorData === 'object' && 'error' in errorData
-          ? (errorData.error as string)
-          : 'The service is temporarily unavailable. Please try again in a few moments.';
+        const errorMessage =
+          errorData && typeof errorData === 'object' && 'error' in errorData
+            ? (errorData.error as string)
+            : 'The service is temporarily unavailable. Please try again in a few moments.';
         throw new ApiError(errorMessage, response.status, response.statusText);
       }
 
       // Handle internal server error (500)
       // AC: When system returns an error, provide clear feedback
       if (response.status === 500) {
-        const errorMessage = errorData && typeof errorData === 'object' && 'error' in errorData
-          ? (errorData.error as string)
-          : 'Something went wrong on our end. Please try again in a few moments.';
+        const errorMessage =
+          errorData && typeof errorData === 'object' && 'error' in errorData
+            ? (errorData.error as string)
+            : 'Something went wrong on our end. Please try again in a few moments.';
         throw new ApiError(errorMessage, response.status, response.statusText);
       }
 
       // Handle other errors (403, etc.)
       if (errorData && typeof errorData === 'object' && 'error' in errorData) {
-        throw new ApiError(
-          errorData.error as string,
-          response.status,
-          response.statusText
-        );
+        throw new ApiError(errorData.error as string, response.status, response.statusText);
       }
 
       // Fallback error message
@@ -287,13 +286,21 @@ export async function submitBasicLogin(name: string, email: string): Promise<Bas
       // Handle abort/timeout errors
       // AC: When request times out, show message explaining the connection issue
       if (error.name === 'AbortError') {
-        throw new ApiError('The connection is taking too long. Please check your internet connection and try again.');
+        throw new ApiError(
+          'The connection is taking too long. Please check your internet connection and try again.'
+        );
       }
 
       // Handle network errors
       // AC: When there's a network error, show message explaining the connection issue
-      if (error.message.includes('fetch') || error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
-        throw new ApiError('Unable to connect to the server. Please check your internet connection and try again.');
+      if (
+        error.message.includes('fetch') ||
+        error.message.includes('NetworkError') ||
+        error.message.includes('Failed to fetch')
+      ) {
+        throw new ApiError(
+          'Unable to connect to the server. Please check your internet connection and try again.'
+        );
       }
 
       // Handle JSON parsing errors

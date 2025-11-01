@@ -255,12 +255,7 @@ export function isValidationError(error: unknown): error is ValidationErrorRespo
  * Type guard to check if response is a token error
  */
 export function isTokenError(error: unknown): error is TokenErrorResponse {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'detail' in error &&
-    'code' in error
-  );
+  return typeof error === 'object' && error !== null && 'detail' in error && 'code' in error;
 }
 
 /**
@@ -318,9 +313,7 @@ export type ApiResult<T> = ApiResponse<T> | ApiError;
 /**
  * Function signature for basic login
  */
-export type BasicLoginFunction = (
-  request: BasicLoginRequest
-) => Promise<BasicLoginResponse>;
+export type BasicLoginFunction = (request: BasicLoginRequest) => Promise<BasicLoginResponse>;
 
 /**
  * Function signature for getting current user
@@ -330,9 +323,7 @@ export type GetCurrentUserFunction = () => Promise<CurrentUserResponse>;
 /**
  * Function signature for refreshing token
  */
-export type RefreshTokenFunction = (
-  request: TokenRefreshRequest
-) => Promise<TokenRefreshResponse>;
+export type RefreshTokenFunction = (request: TokenRefreshRequest) => Promise<TokenRefreshResponse>;
 
 /**
  * Function signature for logout

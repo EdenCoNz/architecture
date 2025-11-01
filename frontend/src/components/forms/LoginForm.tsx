@@ -8,11 +8,9 @@
  * Implements validation per API contract and accessibility best practices.
  */
 
-import { useState } from 'react';
-import type { FormEvent, ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { Box, TextField, Typography, Button, CircularProgress } from '@mui/material';
-import type { FormErrors } from '../../types';
-import { VALIDATION_CONSTRAINTS } from '../../types';
+import { VALIDATION_CONSTRAINTS, type FormErrors } from '../../types';
 
 /**
  * Props for LoginForm component
@@ -89,11 +87,7 @@ const validateEmail = (email: string): string | undefined => {
  * - When email field is empty on submit, shows "Email is required" message
  * - When email format is invalid on submit, shows "Enter a valid email address" message
  */
-export function LoginForm({
-  onSubmit,
-  isSubmitting = false,
-  externalError,
-}: LoginFormProps) {
+export function LoginForm({ onSubmit, isSubmitting = false, externalError }: LoginFormProps) {
   // Form field values
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

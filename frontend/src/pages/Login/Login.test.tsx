@@ -54,11 +54,7 @@ vi.mock('react-router-dom', async () => {
 // - Provides isolated routing state for each test
 // - Works reliably in both local and CI environments
 const renderWithRouter = (component: React.ReactElement) => {
-  return render(
-    <MemoryRouter initialEntries={['/login']}>
-      {component}
-    </MemoryRouter>
-  );
+  return render(<MemoryRouter initialEntries={['/login']}>{component}</MemoryRouter>);
 };
 
 describe('Login Page', () => {
@@ -218,9 +214,7 @@ describe('Login Page', () => {
 
       // Should display error message
       await waitFor(() => {
-        expect(
-          screen.getByText(/invalid credentials.*check your email/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/invalid credentials.*check your email/i)).toBeInTheDocument();
       });
 
       // Should not navigate
@@ -307,14 +301,12 @@ describe('Login Page', () => {
 
       // Should display service unavailable message
       await waitFor(() => {
-        expect(
-          screen.getByText(/service is temporarily unavailable/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/service is temporarily unavailable/i)).toBeInTheDocument();
       });
 
       // Should display prominently with error styling (use getAllByRole to handle multiple alerts)
       const errorAlerts = screen.getAllByRole('alert');
-      const errorAlert = errorAlerts.find(alert =>
+      const errorAlert = errorAlerts.find((alert) =>
         alert.textContent?.includes('service is temporarily unavailable')
       );
       expect(errorAlert).toBeInTheDocument();
@@ -382,7 +374,7 @@ describe('Login Page', () => {
       // Should display error with proper accessibility attributes
       await waitFor(() => {
         const errorAlerts = screen.getAllByRole('alert');
-        const errorAlert = errorAlerts.find(alert =>
+        const errorAlert = errorAlerts.find((alert) =>
           alert.textContent?.includes('Test error message')
         );
         expect(errorAlert).toBeInTheDocument();
@@ -410,7 +402,7 @@ describe('Login Page', () => {
       });
 
       // Error should still be visible after a short delay (not auto-dismissed)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       expect(screen.getByText(/persistent error message/i)).toBeInTheDocument();
 
       // Error should remain until user modifies form
@@ -488,9 +480,7 @@ describe('Login Page', () => {
 
       // Should display rate limiting message
       await waitFor(() => {
-        expect(
-          screen.getByText(/too many login attempts.*wait a moment/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/too many login attempts.*wait a moment/i)).toBeInTheDocument();
       });
     });
 
@@ -513,9 +503,7 @@ describe('Login Page', () => {
 
       // Should display server error message
       await waitFor(() => {
-        expect(
-          screen.getByText(/something went wrong on our end/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/something went wrong on our end/i)).toBeInTheDocument();
       });
     });
 
@@ -538,9 +526,7 @@ describe('Login Page', () => {
 
       // Should display validation error message
       await waitFor(() => {
-        expect(
-          screen.getByText(/enter a valid email address/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/enter a valid email address/i)).toBeInTheDocument();
       });
     });
   });

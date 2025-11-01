@@ -10,13 +10,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Container,
-  Typography,
-  Paper,
-  Alert,
-} from '@mui/material';
+import { Box, Container, Typography, Paper, Alert } from '@mui/material';
 import { LoginForm } from '../../components/forms';
 import { submitBasicLogin, ApiError } from '../../services/api';
 
@@ -67,12 +61,6 @@ export function Login() {
       // Store user data (optional, for quick access)
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      // Log success for debugging
-      console.log('Login successful:', {
-        email: data.user.email,
-        isNewUser: data.is_new_user,
-      });
-
       // AC3: Redirect to home page on success
       navigate('/');
     } catch (err) {
@@ -118,21 +106,11 @@ export function Login() {
           }}
         >
           {/* Page title */}
-          <Typography
-            component="h1"
-            variant="h4"
-            align="center"
-            sx={{ fontWeight: 500 }}
-          >
+          <Typography component="h1" variant="h4" align="center" sx={{ fontWeight: 500 }}>
             Welcome
           </Typography>
 
-          <Typography
-            variant="body1"
-            align="center"
-            color="text.secondary"
-            sx={{ mb: 2 }}
-          >
+          <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 2 }}>
             Enter your name and email to get started
           </Typography>
 
@@ -150,12 +128,7 @@ export function Login() {
         </Paper>
 
         {/* Footer text */}
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          align="center"
-          sx={{ mt: 4 }}
-        >
+        <Typography variant="caption" color="text.secondary" align="center" sx={{ mt: 4 }}>
           By logging in, you agree to our terms of service and privacy policy.
         </Typography>
       </Box>
