@@ -103,14 +103,15 @@ services:
     restart: always
 
     # Optimized health check for staging
-    # Longer start_period than production to account for lower resource allocation
+    # Extended start_period to allow migrations and collectstatic to complete
+    # Migrations can take 30-120s, collectstatic 10-30s, plus 60s database wait
     # Use 127.0.0.1 instead of localhost to force IPv4 (Django binds to 0.0.0.0 IPv4 by default)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/v1/health/"]
-      interval: 45s
-      timeout: 5s
+      interval: 20s
+      timeout: 10s
       retries: 3
-      start_period: 90s
+      start_period: 200s
 
     # Structured logging with rotation
     logging:

@@ -120,12 +120,13 @@ describe('AssessmentForm', () => {
 
     it('should show loading state during form submission', async () => {
       const user = userEvent.setup();
-      const mockSubmit = vi.fn(
-        () =>
-          new Promise<{ success: boolean }>((resolve) =>
-            setTimeout(() => resolve({ success: true }), 100)
-          )
-      );
+      // Use a promise that doesn't auto-resolve to keep loading state active
+      let resolveSubmit: (value: { success: boolean }) => void;
+      const submitPromise = new Promise<{ success: boolean }>((resolve) => {
+        resolveSubmit = resolve;
+      });
+      const mockSubmit = vi.fn(() => submitPromise);
+
       render(<AssessmentForm onSubmit={mockSubmit} />);
 
       // Fill in all required fields
@@ -139,12 +140,17 @@ describe('AssessmentForm', () => {
       const submitButton = screen.getByRole('button', { name: /submit/i });
       await user.click(submitButton);
 
-      // Button should show loading state
-      // Use waitFor to handle async state updates
-      await waitFor(() => {
-        expect(submitButton).toBeDisabled();
-        expect(screen.getByRole('progressbar')).toBeInTheDocument();
-      });
+      // Wait for the progress bar to appear - this confirms we're in loading state
+      await screen.findByRole('progressbar');
+
+      // Button should be disabled during loading
+      expect(submitButton).toBeDisabled();
+
+      // Button text should indicate loading
+      expect(submitButton).toHaveTextContent(/submitting/i);
+
+      // Resolve the promise to clean up
+      resolveSubmit!({ success: true });
     });
 
     it('should call onSubmit with form data when submitted', async () => {

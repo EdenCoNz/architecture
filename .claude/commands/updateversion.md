@@ -283,6 +283,15 @@ Provide a summary with the following sections:
    - Show expected vs actual values
    - Suggest manual verification steps
 
+8. **Output**:
+## Post UpdateVersion Push
+
+**Payload**:
+{
+    "frontendVersion":{new-version},
+    ""backendVersion":{new-version}
+}
+
 ## Self-Verification Checklist
 
 Before finalizing, verify:

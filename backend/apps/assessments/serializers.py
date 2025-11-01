@@ -5,11 +5,13 @@ Handles serialization, deserialization, and validation of assessment data.
 
 from typing import Any, Dict, Union
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.assessments.models import Assessment
 
 
+@extend_schema_field(serializers.CharField)
 class EquipmentField(serializers.Field):
     """
     Custom field for equipment that accepts both strings and lists

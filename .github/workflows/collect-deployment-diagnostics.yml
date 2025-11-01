@@ -1,0 +1,248 @@
+name: Collect Deployment Diagnostics
+
+# ==============================================================================
+# Reusable Workflow - Deployment Diagnostics Collection
+# ==============================================================================
+#
+# This workflow collects comprehensive diagnostic information from a deployment
+# server when a deployment fails. It is called from the unified CI/CD pipeline
+# to gather detailed diagnostics when deployments encounter issues.
+#
+# Features:
+#   - Container status and health checks
+#   - Detailed container inspection with resource metrics
+#   - System resources (disk, memory, Docker usage)
+#   - Network diagnostics and Docker events
+#   - Environment configuration (secrets redacted)
+#   - Complete container logs (300 lines per service)
+#
+# ==============================================================================
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Deployment environment (staging/production)'
+        required: true
+        type: string
+      deployment_directory:
+        description: 'Deployment directory path on server (optional - defaults to /home/$SERVER_USER/deployments/app-$environment)'
+        required: false
+        type: string
+        default: ''
+      compose_file:
+        description: 'Docker Compose override file name (e.g., compose.staging.yml)'
+        required: true
+        type: string
+    secrets:
+      SERVER_USER:
+        required: true
+      SERVER_HOST:
+        required: true
+      TS_OAUTH_CLIENT_ID:
+        required: true
+      TS_OAUTH_SECRET:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  collect-diagnostics:
+    name: Collect Diagnostics - ${{ inputs.environment }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Set deployment parameters
+        id: params
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          # Set defaults based on environment if not provided
+          ENVIRONMENT="${{ inputs.environment }}"
+
+          if [ -z "${{ inputs.deployment_directory }}" ]; then
+            DEPLOY_DIR="/home/${SERVER_USER}/deployments/app-${ENVIRONMENT}"
+          else
+            DEPLOY_DIR="${{ inputs.deployment_directory }}"
+          fi
+
+          if [ -z "${{ inputs.compose_file }}" ]; then
+            COMPOSE_FILE="compose.${ENVIRONMENT}.yml"
+          else
+            COMPOSE_FILE="${{ inputs.compose_file }}"
+          fi
+
+          echo "deploy_dir=${DEPLOY_DIR}" >> $GITHUB_OUTPUT
+          echo "compose_file=${COMPOSE_FILE}" >> $GITHUB_OUTPUT
+
+          echo "## Diagnostic Collection Parameters" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${ENVIRONMENT}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment Directory**: ${DEPLOY_DIR}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Compose File**: ${COMPOSE_FILE}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${SERVER_HOST} >> ~/.ssh/known_hosts
+
+      - name: Collect deployment diagnostics
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          DEPLOY_DIR: ${{ steps.params.outputs.deploy_dir }}
+          COMPOSE_FILE: ${{ steps.params.outputs.compose_file }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "## Deployment Failed - Diagnostic Logs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The deployment to ${{ inputs.environment }} failed. Collecting comprehensive diagnostic information..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # SSH to server and collect comprehensive diagnostic logs
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
+            set +e  # Don't exit on errors in diagnostic collection
+            cd ${DEPLOY_DIR}
+
+            echo "==================================================================="
+            echo "$(echo ${ENVIRONMENT} | tr '[:lower:]' '[:upper:]') DEPLOYMENT FAILURE - DIAGNOSTIC REPORT"
+            echo "==================================================================="
+            echo "Timestamp: \$(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "Deploy Directory: \$(pwd)"
+            echo "==================================================================="
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "1. CONTAINER STATUS"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f ${COMPOSE_FILE} ps
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "2. HEALTH CHECK STATUS (JSON FORMAT)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker compose -f docker-compose.yml -f ${COMPOSE_FILE} ps --format json | \\
+              jq -r 'select(.Health != "") | "Service: \(.Service)\nStatus: \(.State)\nHealth: \(.Health)\n---"' 2>/dev/null || \\
+              echo "Unable to parse health status"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "3. DETAILED CONTAINER INSPECTION"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            for service in proxy backend frontend db redis; do
+              echo "--- Inspecting: \$service ---"
+              CONTAINER_ID=\$(docker compose -f docker-compose.yml -f ${COMPOSE_FILE} ps -q "\$service" 2>/dev/null)
+
+              if [ -n "\$CONTAINER_ID" ]; then
+                echo "Container ID: \$CONTAINER_ID"
+                echo ""
+
+                # Container state
+                echo "State:"
+                docker inspect "\$CONTAINER_ID" | jq -r '.[0].State |
+                  "  Status: \(.Status)\n  Running: \(.Running)\n  Paused: \(.Paused)\n  Restarting: \(.Restarting)\n  OOMKilled: \(.OOMKilled)\n  Dead: \(.Dead)\n  Pid: \(.Pid)\n  ExitCode: \(.ExitCode)\n  Error: \(.Error // "none")\n  StartedAt: \(.StartedAt)\n  FinishedAt: \(.FinishedAt)"' 2>/dev/null || echo "Failed to inspect state"
+                echo ""
+
+                # Health check details (if available)
+                echo "Health Check:"
+                docker inspect "\$CONTAINER_ID" | jq -r '.[0].State.Health // "No health check configured" |
+                  if type == "object" then
+                    "  Status: \(.Status)\n  FailingStreak: \(.FailingStreak)\n  Log (last 3 checks):\n\(.Log[-3:] | map("    [\(.Start)] Exit: \(.ExitCode) - \(.Output // "no output")") | join("\n"))"
+                  else . end' 2>/dev/null || echo "No health check data"
+                echo ""
+
+                # Resource usage
+                echo "Resource Usage:"
+                docker stats "\$CONTAINER_ID" --no-stream --format "  CPU: {{.CPUPerc}}\n  Memory: {{.MemUsage}} ({{.MemPerc}})\n  Network I/O: {{.NetIO}}\n  Block I/O: {{.BlockIO}}" 2>/dev/null || echo "Unable to get stats"
+                echo ""
+              else
+                echo "Container not found or not running"
+              fi
+              echo ""
+            done
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "4. SYSTEM RESOURCES"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Disk Space:"
+            df -h | grep -E '(Filesystem|/dev/)' || df -h
+            echo ""
+            echo "Memory Usage:"
+            free -h
+            echo ""
+            echo "Docker Disk Usage:"
+            docker system df
+            echo ""
+            echo "Docker System Info:"
+            docker info | grep -E "(Server Version|Operating System|Total Memory|CPUs|Docker Root Dir)" || docker info
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "5. DOCKER NETWORK INSPECTION"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Networks:"
+            docker network ls | grep ${ENVIRONMENT} || docker network ls
+            echo ""
+            echo "Network Details:"
+            NETWORK_NAME=\$(docker compose -f docker-compose.yml -f ${COMPOSE_FILE} ps -q backend 2>/dev/null | xargs docker inspect 2>/dev/null | jq -r '.[0].NetworkSettings.Networks | keys[0]' 2>/dev/null)
+            if [ -n "\$NETWORK_NAME" ]; then
+              docker network inspect "\$NETWORK_NAME" | jq -r '.[0] | "Name: \(.Name)\nDriver: \(.Driver)\nContainers: \(.Containers | length)"' 2>/dev/null || echo "Unable to inspect network"
+            fi
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "6. DOCKER EVENTS (Last 50 events)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            docker events --since 10m --until 0s 2>/dev/null | tail -50 || echo "Unable to retrieve docker events"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "7. ENVIRONMENT CONFIGURATION FILES"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Files present:"
+            ls -lah .env* backend/.env* frontend/.env* 2>/dev/null || echo "No .env files found"
+            echo ""
+            echo "Docker Compose Config (merged, secrets redacted):"
+            docker compose -f docker-compose.yml -f ${COMPOSE_FILE} config 2>&1 | \\
+              sed -E 's/(PASSWORD|SECRET|TOKEN|KEY)=.*/\1=***REDACTED***/g' || echo "Unable to show config"
+            echo ""
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "8. COMPLETE CONTAINER LOGS (Last 300 lines per service)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            for service in proxy backend frontend db redis; do
+              echo ""
+              echo "╔════════════════════════════════════════════════════════════════╗"
+              echo "║  \$service LOGS"
+              echo "╚════════════════════════════════════════════════════════════════╝"
+              docker compose -f docker-compose.yml -f ${COMPOSE_FILE} logs --tail=300 "\$service" 2>&1 || echo "Service \$service not found or no logs available"
+              echo ""
+            done
+
+            echo "==================================================================="
+            echo "END OF DIAGNOSTIC REPORT"
+            echo "==================================================================="
+          EOF
+
+          echo "✅ Diagnostic logs collected from ${{ inputs.environment }} server" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review the logs above for detailed failure information." >> $GITHUB_STEP_SUMMARY

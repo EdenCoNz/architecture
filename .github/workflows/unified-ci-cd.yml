@@ -76,6 +76,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -184,6 +189,7 @@ jobs:
           FRONTEND_VERSION=$(node -p "require('./frontend/package.json').version")
           echo "version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
           echo "Frontend version: $FRONTEND_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "Extracted frontend version: $FRONTEND_VERSION"
 
       - name: Build frontend development container
         uses: docker/build-push-action@v5
@@ -433,6 +439,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       # Extract versions for deployment (same as build-and-test)
       - name: Extract backend version
         id: backend_version
@@ -463,6 +474,8 @@ jobs:
           echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
 
+          echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
           echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
           echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
@@ -601,9 +614,46 @@ jobs:
           ENV_EOF
 
           # ================================================================
-          # STEP 1: Stop Existing Containers
+          # STEP 1: Clean Cache Volumes
           # ================================================================
-          echo "#### Step 1: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 1: Cleaning cache volumes" >> $GITHUB_STEP_SUMMARY
+          echo "Removing stale cache volumes to prevent serving outdated content..." >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} "
+            cd ${DEPLOY_DIR}
+
+            echo '=== Cache Volume Cleanup ==='
+            echo 'Removing cache-only volumes to prevent stale content:'
+            echo ''
+
+            # Remove nginx cache volumes (static and media file caches)
+            # These can serve stale content after deployments if not cleared
+            docker volume rm app-staging_proxy_cache_static 2>/dev/null && echo '✅ Removed proxy_cache_static' || echo 'ℹ️  proxy_cache_static not found (first deployment or already clean)'
+            docker volume rm app-staging_proxy_cache_media 2>/dev/null && echo '✅ Removed proxy_cache_media' || echo 'ℹ️  proxy_cache_media not found (first deployment or already clean)'
+
+            # Remove Redis data volume to flush all cache entries
+            # This prevents old application state from persisting across deployments
+            docker volume rm app-staging_redis_data 2>/dev/null && echo '✅ Removed redis_data (cache will be rebuilt)' || echo 'ℹ️  redis_data not found (first deployment or already clean)'
+
+            echo ''
+            echo '=== Preserved Data Volumes ==='
+            echo 'The following volumes are PRESERVED (user data):'
+            echo '  - postgres_data (database - contains user data)'
+            echo '  - backend_media (user uploads)'
+            echo '  - backend_static (collected static files - will be regenerated)'
+            echo '  - proxy_logs (nginx access/error logs for debugging)'
+            echo ''
+          " | tee -a $GITHUB_STEP_SUMMARY
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "✅ Cache volumes cleaned successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 2: Stop Existing Containers
+          # ================================================================
+          echo "#### Step 2: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
           echo "Stopping any running containers to release file locks and ensure clean deployment..." >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -615,9 +665,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 2: Create Deployment directories
+          # STEP 3: Create Deployment directories
           # ================================================================
-          echo "#### Step 2: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 3: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
           echo "Ensuring all required directories exist on the server..." >> $GITHUB_STEP_SUMMARY
 
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
@@ -627,9 +677,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 3: Transfer Configuration Files
+          # STEP 4: Transfer Configuration Files
           # ================================================================
-          echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 4: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
           echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
 
           # Ensure directories are writable and wait for file locks to be released
@@ -674,188 +724,31 @@ jobs:
             /tmp/deployment/frontend/.env.staging \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
+          echo "Transferring deployment script..." >> $GITHUB_STEP_SUMMARY
+          scp -i ~/.ssh/id_ed25519 \
+            .github/scripts/deploy-staging.sh \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/deploy-staging.sh
+
           echo "✅ All configuration files transferred successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 4: Deploy Containers on Server
+          # STEP 5: Execute Deployment Script on Server
           # ================================================================
-          echo "#### Step 4: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
-          echo "Connecting to server to pull images and start containers..." >> $GITHUB_STEP_SUMMARY
-          echo "This step includes real-time health monitoring and will show detailed logs if any issues occur." >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 5: Executing deployment on server" >> $GITHUB_STEP_SUMMARY
+          echo "Running deployment script with health monitoring..." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Deploy on staging server with registry authentication
-          # Use -tt to force pseudo-terminal allocation for better output visibility
-          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
-            set -e
-            cd /home/${SERVER_USER}/deployments/app-staging
-
-            echo ""
-            echo "==================================================================="
-            echo "STAGING DEPLOYMENT - STARTING"
-            echo "==================================================================="
-            echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-            echo "Deploy Directory: $(pwd)"
-            echo "==================================================================="
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 1: Stopping Existing Containers"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            docker compose -f docker-compose.yml -f compose.staging.yml down --remove-orphans || true
-            echo "✅ Existing containers stopped"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 2: Authenticating to Container Registry"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "Registry: ${REGISTRY}"
-            echo "User: ${GITHUB_ACTOR}"
-            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
-            echo "✅ Successfully authenticated to registry"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 3: Pulling Latest Images from Registry"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            docker compose -f docker-compose.yml -f compose.staging.yml config | grep "image:" | sed 's/^ *//' || true
-            echo ""
-            docker compose -f docker-compose.yml -f compose.staging.yml pull
-            echo "✅ Images pulled successfully"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 4: Starting Services"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            docker compose -f docker-compose.yml -f compose.staging.yml up -d --force-recreate --pull always
-            echo "✅ Services started - beginning health monitoring"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 5: MONITORING CONTAINER HEALTH"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-
-            # Give services a moment to initialize
-            sleep 3
-
-            MAX_WAIT=120  # 2 minutes max wait
-            ELAPSED=0
-            CHECK_INTERVAL=5
-            PREVIOUS_UNHEALTHY=""
-
-            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
-              echo "-------------------------------------------------------------------"
-              echo "Health Check (\${ELAPSED}s / \${MAX_WAIT}s elapsed)"
-              echo "-------------------------------------------------------------------"
-
-              # Get detailed health status of all services with health checks
-              HEALTH_STATUS=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \\
-                jq -r 'select(.Health != "") | "\\(.Service):\\(.Health)"' 2>/dev/null || true)
-
-              if [ -z "\$HEALTH_STATUS" ]; then
-                echo "⚠️ No health status available yet - services still initializing..."
-              else
-                echo "Container Health Status:"
-                echo "\$HEALTH_STATUS" | while IFS=: read -r service health; do
-                  case "\$health" in
-                    "healthy")
-                      echo "  ✅ \$service: healthy"
-                      ;;
-                    "starting")
-                      echo "  🔄 \$service: starting (health check in progress)"
-                      ;;
-                    "unhealthy")
-                      echo "  ❌ \$service: UNHEALTHY"
-                      ;;
-                    *)
-                      echo "  ⚠️  \$service: \$health"
-                      ;;
-                  esac
-                done
-              fi
-
-              # Get list of unhealthy services
-              UNHEALTHY=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \\
-                jq -r 'select(.Health != "" and .Health != "healthy" and .Health != "starting") | .Service' 2>/dev/null || true)
-
-              # Check if all services are healthy
-              STARTING=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps --format json | \\
-                jq -r 'select(.Health == "starting") | .Service' 2>/dev/null || true)
-
-              if [ -z "\$UNHEALTHY" ] && [ -z "\$STARTING" ]; then
-                echo ""
-                echo "==================================================================="
-                echo "✅ ALL SERVICES ARE HEALTHY!"
-                echo "==================================================================="
-                echo ""
-                docker compose -f docker-compose.yml -f compose.staging.yml ps
-                exit 0
-              fi
-
-              # Show logs for newly unhealthy services
-              if [ -n "\$UNHEALTHY" ]; then
-                echo ""
-                echo "📋 Displaying logs for unhealthy containers:"
-                echo ""
-
-                for service in \$UNHEALTHY; do
-                  # Only show logs if this is a newly unhealthy service
-                  if ! echo "\$PREVIOUS_UNHEALTHY" | grep -q "\$service"; then
-                    echo ">>> NEW UNHEALTHY SERVICE DETECTED: \$service <<<"
-                  fi
-
-                  echo "--- \$service logs (last 30 lines) ---"
-                  docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=30 "\$service" 2>&1 || echo "Failed to retrieve logs for \$service"
-                  echo ""
-
-                  # Show detailed container inspection for health check failures
-                  echo "--- \$service health check details ---"
-                  CONTAINER_NAME=\$(docker compose -f docker-compose.yml -f compose.staging.yml ps -q "\$service" 2>/dev/null)
-                  if [ -n "\$CONTAINER_NAME" ]; then
-                    docker inspect "\$CONTAINER_NAME" | jq -r '.[0].State.Health | "Health Status: " + .Status + "\nFailing Streak: " + (.FailingStreak|tostring) + "\nLast Check Output: " + (if .Log then .Log[0].Output else "No logs" end)' 2>&1 || echo "Failed to inspect container \$service"
-                  fi
-                  echo ""
-                done
-
-                PREVIOUS_UNHEALTHY="\$UNHEALTHY"
-              fi
-
-              # Show which services we're still waiting for
-              if [ -n "\$STARTING" ]; then
-                echo "⏳ Services still starting: \$STARTING"
-              fi
-              if [ -n "\$UNHEALTHY" ]; then
-                echo "❌ Unhealthy services: \$UNHEALTHY"
-              fi
-
-              sleep \$CHECK_INTERVAL
-              ELAPSED=\$((\$ELAPSED + \$CHECK_INTERVAL))
-              echo ""
-            done
-
-            echo "==================================================================="
-            echo "❌ TIMEOUT - SERVICES FAILED TO BECOME HEALTHY"
-            echo "==================================================================="
-            echo ""
-            echo "Final service status:"
-            docker compose -f docker-compose.yml -f compose.staging.yml ps
-            echo ""
-
-            echo "==================================================================="
-            echo "FINAL LOG DUMP - ALL SERVICES"
-            echo "==================================================================="
-            echo ""
-
-            for service in proxy backend frontend db redis; do
-              echo "--- \$service logs (last 200 lines) ---"
-              docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=200 "\$service" 2>&1 || echo "Service \$service not found"
-              echo ""
-            done
-
-            exit 1
-          EOF
+          # Execute deployment script on server
+          # Use single quotes to prevent variable expansion on the client side
+          # and properly escape variables for the remote shell
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "cd ${DEPLOY_DIR} && \
+            REGISTRY='${REGISTRY}' \
+            GITHUB_ACTOR='${GITHUB_ACTOR}' \
+            GITHUB_TOKEN='${GITHUB_TOKEN}' \
+            REDIS_PASSWORD='${REDIS_PASSWORD//\'/\'\\\'\'}' \
+            bash deploy-staging.sh"
 
           # Capture exit code from SSH session
           DEPLOY_EXIT_CODE=$?
@@ -890,95 +783,175 @@ jobs:
           echo "## Verifying Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          # Validate that SERVER_HOST is defined
+          if [[ -z "${SERVER_HOST:-}" ]]; then
+            echo "❌ ERROR: SERVER_HOST secret is not configured" >> $GITHUB_STEP_SUMMARY
+            echo "Please configure the SERVER_HOST secret in the 'Staging' environment settings" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # First, test basic connectivity to the server
+          echo "### Testing basic connectivity" >> $GITHUB_STEP_SUMMARY
+
+          # Try to ping the server (if available) or use nc to test port
+          if command -v nc &> /dev/null; then
+            if nc -zv -w5 "${SERVER_HOST}" 80 2>&1; then
+              echo "✅ Port 80 is reachable on ${SERVER_HOST//?/*}" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Cannot reach port 80 on ${SERVER_HOST//?/*}" >> $GITHUB_STEP_SUMMARY
+              echo "This might indicate a Tailscale connectivity issue or nginx not running" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
           # Health check with retry logic and better error handling
           MAX_RETRIES=12
           RETRY_DELAY=5
           HEALTH_URL="http://${SERVER_HOST}/api/v1/status/"
 
+          # Debug: Print sanitized URL (mask the host)
+          echo "### Health Check" >> $GITHUB_STEP_SUMMARY
+          echo "Target endpoint: http://[MASKED_HOST]/api/v1/status/" >> $GITHUB_STEP_SUMMARY
           echo "Waiting for staging environment to be ready..." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Attempt $i/$MAX_RETRIES: Checking health endpoint..." >> $GITHUB_STEP_SUMMARY
 
-            # Use status endpoint which always returns 200 and provides detailed info
-            RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_URL" 2>&1)
-            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-            BODY=$(echo "$RESPONSE" | sed '$d')
+            # Use curl with timeout and better error handling
+            # --connect-timeout: max time for connection
+            # --max-time: max time for entire operation
+            # -f: fail silently on server errors
+            # -s: silent mode
+            # -S: show error on failure
+            # -w: write out http_code
+            CURL_OUTPUT=$(mktemp)
+            CURL_EXIT_CODE=0
 
-            echo "HTTP Status: $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
+            # Execute curl and capture both output and exit code
+            CURL_RESPONSE=$(mktemp)
+            if curl --connect-timeout 5 \
+                    --max-time 10 \
+                    -s -S \
+                    -w "\nHTTP_CODE:%{http_code}" \
+                    -o "$CURL_OUTPUT" \
+                    "$HEALTH_URL" > "$CURL_RESPONSE" 2>&1; then
+              CURL_EXIT_CODE=0
+            else
+              CURL_EXIT_CODE=$?
+            fi
 
-            if [[ "$HTTP_CODE" == "200" ]]; then
+            # Read the response body
+            if [[ -f "$CURL_OUTPUT" ]]; then
+              BODY=$(cat "$CURL_OUTPUT")
+            else
+              BODY=""
+            fi
+
+            # Extract HTTP code from the curl write-out
+            if [[ -f "$CURL_RESPONSE" ]]; then
+              HTTP_CODE=$(grep "^HTTP_CODE:" "$CURL_RESPONSE" | cut -d: -f2 || echo "000")
+            else
+              HTTP_CODE="000"
+            fi
+
+            # Clean up temp file
+            rm -f "$CURL_RESPONSE"
+
+            echo "HTTP Status: $HTTP_CODE (curl exit code: $CURL_EXIT_CODE)" >> $GITHUB_STEP_SUMMARY
+
+            # Handle different response scenarios
+            if [[ "$HTTP_CODE" == "000" ]]; then
+              echo "⚠️ Failed to connect to health endpoint (connection refused, timeout, or DNS failure)" >> $GITHUB_STEP_SUMMARY
+              echo "Debug: curl exit code was $CURL_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+
+              # Common curl exit codes for debugging
+              case $CURL_EXIT_CODE in
+                6) echo "Debug: Could not resolve host" >> $GITHUB_STEP_SUMMARY ;;
+                7) echo "Debug: Failed to connect to host" >> $GITHUB_STEP_SUMMARY ;;
+                28) echo "Debug: Operation timeout" >> $GITHUB_STEP_SUMMARY ;;
+                35) echo "Debug: SSL connect error" >> $GITHUB_STEP_SUMMARY ;;
+                52) echo "Debug: Server returned nothing (no headers, no data)" >> $GITHUB_STEP_SUMMARY ;;
+                56) echo "Debug: Failure in receiving network data" >> $GITHUB_STEP_SUMMARY ;;
+                *) echo "Debug: Unknown curl error" >> $GITHUB_STEP_SUMMARY ;;
+              esac
+            elif [[ "$HTTP_CODE" == "200" ]]; then
               # Parse the status from JSON response
-              STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+              if [[ -n "$BODY" ]]; then
+                STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 
-              if [[ "$STATUS" == "healthy" ]]; then
-                echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "Response details:" >> $GITHUB_STEP_SUMMARY
-                echo '```json' >> $GITHUB_STEP_SUMMARY
-                echo "$BODY" | head -n 20 >> $GITHUB_STEP_SUMMARY
-                echo '```' >> $GITHUB_STEP_SUMMARY
-                exit 0
+                if [[ "$STATUS" == "healthy" ]]; then
+                  echo "✅ Staging environment is healthy" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "Response details:" >> $GITHUB_STEP_SUMMARY
+                  echo '```json' >> $GITHUB_STEP_SUMMARY
+                  echo "$BODY" | head -n 20 >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+
+                  # Clean up temp file
+                  rm -f "$CURL_OUTPUT"
+                  exit 0
+                else
+                  echo "⚠️ Service responded but status is: $STATUS" >> $GITHUB_STEP_SUMMARY
+                  echo "Response body (first 500 chars):" >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                  echo "$BODY" | head -c 500 >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                fi
               else
-                echo "⚠️ Service responded but status is: $STATUS" >> $GITHUB_STEP_SUMMARY
-                echo "Response: $BODY" >> $GITHUB_STEP_SUMMARY
+                echo "⚠️ Received 200 OK but no response body" >> $GITHUB_STEP_SUMMARY
               fi
             else
               echo "⚠️ Health endpoint returned HTTP $HTTP_CODE" >> $GITHUB_STEP_SUMMARY
               if [[ -n "${BODY:-}" ]]; then
-                echo "Response: ${BODY}" >> $GITHUB_STEP_SUMMARY
+                echo "Response body (first 500 chars):" >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                echo "$BODY" | head -c 500 >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
               fi
             fi
 
+            # Clean up temp file
+            rm -f "$CURL_OUTPUT"
+
             if [[ $i -lt $MAX_RETRIES ]]; then
               echo "Waiting ${RETRY_DELAY}s before retry..." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
               sleep $RETRY_DELAY
             fi
           done
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "❌ Staging environment health check failed after $MAX_RETRIES attempts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Troubleshooting tips:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Check if the server is accessible via Tailscale VPN" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify the containers are running on the staging server" >> $GITHUB_STEP_SUMMARY
+          echo "- Check nginx and backend container logs for errors" >> $GITHUB_STEP_SUMMARY
+          echo "- Ensure the SERVER_HOST secret is correctly configured" >> $GITHUB_STEP_SUMMARY
           exit 1
 
-      - name: Collect deployment logs on failure
-        if: steps.deploy.outcome == 'failure'
-        continue-on-error: true
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          echo "## Deployment Failed - Diagnostic Logs" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The deployment to staging failed. Collecting diagnostic information..." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+  # ============================================================================
+  # DIAGNOSTIC COLLECTION - STAGING
+  # ============================================================================
+  # Collect comprehensive diagnostics if staging deployment fails
+  # ============================================================================
 
-          # SSH to server and collect logs from failed deployment
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
-            cd /home/${SERVER_USER}/deployments/app-staging
-
-            echo "### Container Status"
-            docker compose -f docker-compose.yml -f compose.staging.yml ps
-
-            echo ""
-            echo "### System Resources"
-            echo "#### Disk Space"
-            df -h | grep -E '(Filesystem|/dev/)' || df -h
-            echo ""
-            echo "#### Memory Usage"
-            free -h
-            echo ""
-            echo "#### Docker Disk Usage"
-            docker system df
-
-            echo ""
-            echo "### Recent Container Logs (last 200 lines per service)"
-            for service in proxy backend frontend db redis; do
-              echo "#### $service logs"
-              docker compose -f docker-compose.yml -f compose.staging.yml logs --tail=200 "$service" 2>&1 || echo "Service $service not found"
-              echo ""
-            done
-          EOF
+  collect-staging-diagnostics:
+    name: Collect Staging Diagnostics
+    needs: [deploy-staging]
+    if: failure() && needs.deploy-staging.result == 'failure'
+    uses: ./.github/workflows/collect-deployment-diagnostics.yml
+    with:
+      environment: Staging
+      compose_file: compose.staging.yml
+    secrets:
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
   # ============================================================================
   # STAGE 3: E2E TESTING
@@ -998,6 +971,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -1095,6 +1073,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       # Extract versions for deployment (same as build-and-test)
       - name: Extract backend version
         id: backend_version
@@ -1125,6 +1108,8 @@ jobs:
           echo "repository_owner=${REPOSITORY_OWNER}" >> $GITHUB_OUTPUT
           echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
 
+          echo "## Container Registry Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: ${REGISTRY}" >> $GITHUB_STEP_SUMMARY
           echo "**Repository Owner**: ${REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
           echo "**Backend Image**: ${REGISTRY_PATH}/backend:${{ steps.backend_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
@@ -1263,9 +1248,46 @@ jobs:
           ENV_EOF
 
           # ================================================================
-          # STEP 1: Stop Existing Containers
+          # STEP 1: Clean Cache Volumes
           # ================================================================
-          echo "#### Step 1: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 1: Cleaning cache volumes" >> $GITHUB_STEP_SUMMARY
+          echo "Removing stale cache volumes to prevent serving outdated content..." >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} "
+            cd ${DEPLOY_DIR}
+
+            echo '=== Cache Volume Cleanup ==='
+            echo 'Removing cache-only volumes to prevent stale content:'
+            echo ''
+
+            # Remove nginx cache volumes (static and media file caches)
+            # These can serve stale content after deployments if not cleared
+            docker volume rm app-production_proxy_cache_static 2>/dev/null && echo '✅ Removed proxy_cache_static' || echo 'ℹ️  proxy_cache_static not found (first deployment or already clean)'
+            docker volume rm app-production_proxy_cache_media 2>/dev/null && echo '✅ Removed proxy_cache_media' || echo 'ℹ️  proxy_cache_media not found (first deployment or already clean)'
+
+            # Remove Redis data volume to flush all cache entries
+            # This prevents old application state from persisting across deployments
+            docker volume rm app-production_redis_data 2>/dev/null && echo '✅ Removed redis_data (cache will be rebuilt)' || echo 'ℹ️  redis_data not found (first deployment or already clean)'
+
+            echo ''
+            echo '=== Preserved Data Volumes ==='
+            echo 'The following volumes are PRESERVED (user data):'
+            echo '  - postgres_data (database - contains user data)'
+            echo '  - backend_media (user uploads)'
+            echo '  - backend_static (collected static files - will be regenerated)'
+            echo '  - proxy_logs (nginx access/error logs for debugging)'
+            echo ''
+          " | tee -a $GITHUB_STEP_SUMMARY
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "✅ Cache volumes cleaned successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ================================================================
+          # STEP 2: Stop Existing Containers
+          # ================================================================
+          echo "#### Step 2: Stopping existing containers" >> $GITHUB_STEP_SUMMARY
           echo "Stopping any running containers to release file locks and ensure clean deployment..." >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -1277,9 +1299,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 2: Create Deployment Directories
+          # STEP 3: Create Deployment Directories
           # ================================================================
-          echo "#### Step 2: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 3: Creating deployment directories" >> $GITHUB_STEP_SUMMARY
           echo "Ensuring all required directories exist on the server..." >> $GITHUB_STEP_SUMMARY
 
           ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
@@ -1289,9 +1311,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 3: Transfer Configuration Files
+          # STEP 4: Transfer Configuration Files
           # ================================================================
-          echo "#### Step 3: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 4: Transferring configuration files" >> $GITHUB_STEP_SUMMARY
           echo "Uploading Docker Compose files, nginx config, and environment files to server..." >> $GITHUB_STEP_SUMMARY
 
           # Ensure directories are writable and wait for file locks to be released
@@ -1336,188 +1358,31 @@ jobs:
             /tmp/deployment/frontend/.env.production \
             ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/frontend/
 
+          echo "Transferring deployment script..." >> $GITHUB_STEP_SUMMARY
+          scp -i ~/.ssh/id_ed25519 \
+            .github/scripts/deploy-production.sh \
+            ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/deploy-production.sh
+
           echo "✅ All configuration files transferred successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # ================================================================
-          # STEP 4: Deploy Containers on Server
+          # STEP 5: Execute Deployment Script on Server
           # ================================================================
-          echo "#### Step 4: Starting deployment on server" >> $GITHUB_STEP_SUMMARY
-          echo "Connecting to server to pull images and start containers..." >> $GITHUB_STEP_SUMMARY
-          echo "This step includes real-time health monitoring and will show detailed logs if any issues occur." >> $GITHUB_STEP_SUMMARY
+          echo "#### Step 5: Executing deployment on server" >> $GITHUB_STEP_SUMMARY
+          echo "Running deployment script with health monitoring..." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Deploy on production server with registry authentication
-          # Use -tt to force pseudo-terminal allocation for better output visibility
-          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
-            set -e
-            cd /home/${SERVER_USER}/deployments/app-production
-
-            echo ""
-            echo "==================================================================="
-            echo "PRODUCTION DEPLOYMENT - STARTING"
-            echo "==================================================================="
-            echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-            echo "Deploy Directory: $(pwd)"
-            echo "==================================================================="
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 1: Stopping Existing Containers"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            docker compose -f docker-compose.yml -f compose.production.yml down --remove-orphans || true
-            echo "✅ Existing containers stopped"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 2: Authenticating to Container Registry"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "Registry: ${REGISTRY}"
-            echo "User: ${GITHUB_ACTOR}"
-            echo "${GITHUB_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
-            echo "✅ Successfully authenticated to registry"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 3: Pulling Latest Images from Registry"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            docker compose -f docker-compose.yml -f compose.production.yml config | grep "image:" | sed 's/^ *//' || true
-            echo ""
-            docker compose -f docker-compose.yml -f compose.production.yml pull
-            echo "✅ Images pulled successfully"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 4: Starting Services"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            docker compose -f docker-compose.yml -f compose.production.yml up -d --force-recreate --pull always
-            echo "✅ Services started - beginning health monitoring"
-            echo ""
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "STEP 5: MONITORING CONTAINER HEALTH"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-
-            # Give services a moment to initialize
-            sleep 3
-
-            MAX_WAIT=120  # 2 minutes max wait
-            ELAPSED=0
-            CHECK_INTERVAL=5
-            PREVIOUS_UNHEALTHY=""
-
-            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
-              echo "-------------------------------------------------------------------"
-              echo "Health Check (\${ELAPSED}s / \${MAX_WAIT}s elapsed)"
-              echo "-------------------------------------------------------------------"
-
-              # Get detailed health status of all services with health checks
-              HEALTH_STATUS=\$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \\
-                jq -r 'select(.Health != "") | "\\(.Service):\\(.Health)"' 2>/dev/null || true)
-
-              if [ -z "\$HEALTH_STATUS" ]; then
-                echo "⚠️ No health status available yet - services still initializing..."
-              else
-                echo "Container Health Status:"
-                echo "\$HEALTH_STATUS" | while IFS=: read -r service health; do
-                  case "\$health" in
-                    "healthy")
-                      echo "  ✅ \$service: healthy"
-                      ;;
-                    "starting")
-                      echo "  🔄 \$service: starting (health check in progress)"
-                      ;;
-                    "unhealthy")
-                      echo "  ❌ \$service: UNHEALTHY"
-                      ;;
-                    *)
-                      echo "  ⚠️  \$service: \$health"
-                      ;;
-                  esac
-                done
-              fi
-
-              # Get list of unhealthy services
-              UNHEALTHY=\$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \\
-                jq -r 'select(.Health != "" and .Health != "healthy" and .Health != "starting") | .Service' 2>/dev/null || true)
-
-              # Check if all services are healthy
-              STARTING=\$(docker compose -f docker-compose.yml -f compose.production.yml ps --format json | \\
-                jq -r 'select(.Health == "starting") | .Service' 2>/dev/null || true)
-
-              if [ -z "\$UNHEALTHY" ] && [ -z "\$STARTING" ]; then
-                echo ""
-                echo "==================================================================="
-                echo "✅ ALL SERVICES ARE HEALTHY!"
-                echo "==================================================================="
-                echo ""
-                docker compose -f docker-compose.yml -f compose.production.yml ps
-                exit 0
-              fi
-
-              # Show logs for newly unhealthy services
-              if [ -n "\$UNHEALTHY" ]; then
-                echo ""
-                echo "📋 Displaying logs for unhealthy containers:"
-                echo ""
-
-                for service in \$UNHEALTHY; do
-                  # Only show logs if this is a newly unhealthy service
-                  if ! echo "\$PREVIOUS_UNHEALTHY" | grep -q "\$service"; then
-                    echo ">>> NEW UNHEALTHY SERVICE DETECTED: \$service <<<"
-                  fi
-
-                  echo "--- \$service logs (last 30 lines) ---"
-                  docker compose -f docker-compose.yml -f compose.production.yml logs --tail=30 "\$service" 2>&1 || echo "Failed to retrieve logs for \$service"
-                  echo ""
-
-                  # Show detailed container inspection for health check failures
-                  echo "--- \$service health check details ---"
-                  CONTAINER_NAME=\$(docker compose -f docker-compose.yml -f compose.production.yml ps -q "\$service" 2>/dev/null)
-                  if [ -n "\$CONTAINER_NAME" ]; then
-                    docker inspect "\$CONTAINER_NAME" | jq -r '.[0].State.Health | "Health Status: " + .Status + "\nFailing Streak: " + (.FailingStreak|tostring) + "\nLast Check Output: " + (if .Log then .Log[0].Output else "No logs" end)' 2>&1 || echo "Failed to inspect container \$service"
-                  fi
-                  echo ""
-                done
-
-                PREVIOUS_UNHEALTHY="\$UNHEALTHY"
-              fi
-
-              # Show which services we're still waiting for
-              if [ -n "\$STARTING" ]; then
-                echo "⏳ Services still starting: \$STARTING"
-              fi
-              if [ -n "\$UNHEALTHY" ]; then
-                echo "❌ Unhealthy services: \$UNHEALTHY"
-              fi
-
-              sleep \$CHECK_INTERVAL
-              ELAPSED=\$((\$ELAPSED + \$CHECK_INTERVAL))
-              echo ""
-            done
-
-            echo "==================================================================="
-            echo "❌ TIMEOUT - SERVICES FAILED TO BECOME HEALTHY"
-            echo "==================================================================="
-            echo ""
-            echo "Final service status:"
-            docker compose -f docker-compose.yml -f compose.production.yml ps
-            echo ""
-
-            echo "==================================================================="
-            echo "FINAL LOG DUMP - ALL SERVICES"
-            echo "==================================================================="
-            echo ""
-
-            for service in proxy backend frontend db redis; do
-              echo "--- \$service logs (last 200 lines) ---"
-              docker compose -f docker-compose.yml -f compose.production.yml logs --tail=200 "\$service" 2>&1 || echo "Service \$service not found"
-              echo ""
-            done
-
-            exit 1
-          EOF
+          # Execute deployment script on server
+          # Use single quotes to prevent variable expansion on the client side
+          # and properly escape variables for the remote shell
+          ssh -tt -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} \
+            "cd ${DEPLOY_DIR} && \
+            REGISTRY='${REGISTRY}' \
+            GITHUB_ACTOR='${GITHUB_ACTOR}' \
+            GITHUB_TOKEN='${GITHUB_TOKEN}' \
+            REDIS_PASSWORD='${REDIS_PASSWORD//\'/\'\\\'\'}' \
+            bash deploy-production.sh"
 
           # Capture exit code from SSH session
           DEPLOY_EXIT_CODE=$?
@@ -1603,45 +1468,6 @@ jobs:
           echo "❌ Production environment health check failed after $MAX_RETRIES attempts" >> $GITHUB_STEP_SUMMARY
           exit 1
 
-      - name: Collect deployment logs on failure
-        if: steps.deploy.outcome == 'failure'
-        continue-on-error: true
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          echo "## Deployment Failed - Diagnostic Logs" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The deployment to production failed. Collecting diagnostic information..." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # SSH to server and collect logs from failed deployment
-          ssh -i ~/.ssh/id_ed25519 ${SERVER_USER}@${SERVER_HOST} << EOF
-            cd /home/${SERVER_USER}/deployments/app-production
-
-            echo "### Container Status"
-            docker compose -f docker-compose.yml -f compose.production.yml ps
-
-            echo ""
-            echo "### System Resources"
-            echo "#### Disk Space"
-            df -h | grep -E '(Filesystem|/dev/)' || df -h
-            echo ""
-            echo "#### Memory Usage"
-            free -h
-            echo ""
-            echo "#### Docker Disk Usage"
-            docker system df
-
-            echo ""
-            echo "### Recent Container Logs (last 200 lines per service)"
-            for service in proxy backend frontend db redis; do
-              echo "#### $service logs"
-              docker compose -f docker-compose.yml -f compose.production.yml logs --tail=200 "$service" 2>&1 || echo "Service $service not found"
-              echo ""
-            done
-          EOF
-
       - name: Production deployment summary
         if: success()
         run: |
@@ -1655,6 +1481,27 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Deployed At**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # DIAGNOSTIC COLLECTION - PRODUCTION
+  # ============================================================================
+  # Collect comprehensive diagnostics if production deployment fails
+  # ============================================================================
+
+  collect-production-diagnostics:
+    name: Collect Production Diagnostics
+    needs: [deploy-production]
+    if: failure() && needs.deploy-production.result == 'failure'
+    uses: ./.github/workflows/collect-deployment-diagnostics.yml
+    with:
+      environment: Production
+      compose_file: compose.production.yml
+    secrets:
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
   # ============================================================================
   # FAILURE DETECTION AND ISSUE CREATION
