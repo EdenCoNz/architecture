@@ -13,6 +13,7 @@ Acceptance Criteria:
 """
 
 import pytest
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test import TestCase, TransactionTestCase
@@ -21,6 +22,22 @@ from rest_framework.test import APIClient
 from apps.assessments.models import Assessment
 
 User = get_user_model()
+
+
+# Helper to check if using PostgreSQL
+def is_postgresql():
+    """Check if the current database backend is PostgreSQL."""
+    return connection.vendor == "postgresql"
+
+
+# Skip decorator for PostgreSQL-only tests
+requires_postgresql = pytest.mark.skipif(
+    not is_postgresql(),
+    reason=(
+        "Test requires PostgreSQL-specific features "
+        "(system tables like pg_indexes, information_schema)"
+    ),
+)
 
 
 @pytest.mark.django_db
@@ -299,9 +316,7 @@ class TestStory21_5_APIRetrievalPersistence:
         }
 
         # Act: Create and retrieve
-        create_response = client.post(
-            "/api/v1/assessments/", assessment_data, format="json"
-        )
+        create_response = client.post("/api/v1/assessments/", assessment_data, format="json")
         retrieve_response = client.get("/api/v1/assessments/me/")
 
         # Assert AC2: Sport value consistent between create and retrieve
@@ -311,9 +326,7 @@ class TestStory21_5_APIRetrievalPersistence:
         created_sport = create_response.data["sport"]
         retrieved_sport = retrieve_response.data["sport"]
 
-        assert (
-            created_sport == "soccer"
-        ), f"Created assessment has wrong sport: '{created_sport}'"
+        assert created_sport == "soccer", f"Created assessment has wrong sport: '{created_sport}'"
         assert (
             retrieved_sport == "soccer"
         ), f"Retrieved assessment has wrong sport: '{retrieved_sport}'"
@@ -479,9 +492,7 @@ class TestStory21_5_MultiUserPersistence:
                 "equipment_items": ["dumbbells"],
             }
 
-            response = client.post(
-                "/api/v1/assessments/", assessment_data, format="json"
-            )
+            response = client.post("/api/v1/assessments/", assessment_data, format="json")
             assert (
                 response.status_code == 201
             ), f"Failed to create assessment for {user_data['email']}: {response.data}"
@@ -531,12 +542,8 @@ class TestStory21_5_MultiUserPersistence:
         assessment1 = Assessment.objects.get(user=user1)
         assessment2 = Assessment.objects.get(user=user2)
 
-        assert (
-            assessment1.sport == "soccer"
-        ), f"User1 sport changed: '{assessment1.sport}'"
-        assert (
-            assessment2.sport == "cricket"
-        ), f"User2 sport changed: '{assessment2.sport}'"
+        assert assessment1.sport == "soccer", f"User1 sport changed: '{assessment1.sport}'"
+        assert assessment2.sport == "cricket", f"User2 sport changed: '{assessment2.sport}'"
 
         # Verify filtering works correctly
         soccer_assessments = Assessment.objects.filter(sport="soccer")
@@ -544,12 +551,8 @@ class TestStory21_5_MultiUserPersistence:
 
         assert soccer_assessments.count() == 1, "Soccer filter returned wrong count"
         assert cricket_assessments.count() == 1, "Cricket filter returned wrong count"
-        assert (
-            soccer_assessments.first().user == user1
-        ), "Soccer filter returned wrong user"
-        assert (
-            cricket_assessments.first().user == user2
-        ), "Cricket filter returned wrong user"
+        assert soccer_assessments.first().user == user1, "Soccer filter returned wrong user"
+        assert cricket_assessments.first().user == user2, "Cricket filter returned wrong user"
 
     def test_bulk_user_creation_all_sports_persist_correctly(self):
         """Verify bulk user/assessment creation maintains sport data integrity."""
@@ -584,19 +587,20 @@ class TestStory21_5_MultiUserPersistence:
         cricket_count = Assessment.objects.filter(sport="cricket").count()
 
         assert soccer_count == 10, f"Expected 10 soccer assessments, got {soccer_count}"
-        assert (
-            cricket_count == 10
-        ), f"Expected 10 cricket assessments, got {cricket_count}"
+        assert cricket_count == 10, f"Expected 10 cricket assessments, got {cricket_count}"
 
 
+@pytest.mark.usefixtures("db_with_migrations")
 class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
     """
     Test AC4: Given the database schema, when I inspect the sport field definition,
     then it should have proper constraints, indexes, and validation rules.
 
     Uses TransactionTestCase to allow direct database inspection and constraint testing.
+    Requires db_with_migrations fixture to ensure CHECK constraints are applied.
     """
 
+    @requires_postgresql
     def test_sport_field_definition(self):
         """Verify sport field has correct data type, length, and null constraint."""
         # Query database schema
@@ -618,10 +622,9 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
         assert column_name == "sport", f"Wrong column name: '{column_name}'"
         assert data_type == "character varying", f"Wrong data type: '{data_type}'"
         assert max_length == 20, f"Wrong max length: {max_length}"
-        assert (
-            is_nullable == "NO"
-        ), f"Sport field should be NOT NULL, got: {is_nullable}"
+        assert is_nullable == "NO", f"Sport field should be NOT NULL, got: {is_nullable}"
 
+    @requires_postgresql
     def test_sport_field_has_check_constraint(self):
         """Verify sport field has CHECK constraint enforcing valid values."""
         # Query database constraints
@@ -636,9 +639,7 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
             result = cursor.fetchone()
 
         # Assert AC4: CHECK constraint exists
-        assert (
-            result is not None
-        ), "CHECK constraint 'assessments_sport_valid_choice' not found"
+        assert result is not None, "CHECK constraint 'assessments_sport_valid_choice' not found"
 
         constraint_name, check_clause = result
 
@@ -647,13 +648,10 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
         ), f"Wrong constraint name: '{constraint_name}'"
 
         # Verify constraint includes valid sport values
-        assert (
-            "soccer" in check_clause.lower()
-        ), "CHECK constraint doesn't include 'soccer'"
-        assert (
-            "cricket" in check_clause.lower()
-        ), "CHECK constraint doesn't include 'cricket'"
+        assert "soccer" in check_clause.lower(), "CHECK constraint doesn't include 'soccer'"
+        assert "cricket" in check_clause.lower(), "CHECK constraint doesn't include 'cricket'"
 
+    @requires_postgresql
     def test_sport_field_has_index(self):
         """Verify sport field has an index for query performance."""
         # Query database indexes
@@ -682,6 +680,7 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
         index_name, index_def = sport_index
         assert "btree" in index_def.lower(), f"Index should be btree type: {index_def}"
 
+    @requires_postgresql
     def test_assessment_table_has_proper_indexes(self):
         """Verify assessment table has all expected indexes."""
         # Query all indexes on assessments table
@@ -700,19 +699,12 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
         index_names = [idx[0] for idx in indexes]
 
         # Should have indexes on: user_id (unique + regular), sport, created_at, primary key
-        assert any(
-            "user" in name.lower() for name in index_names
-        ), "Missing index on user_id"
-        assert any(
-            "sport" in name.lower() for name in index_names
-        ), "Missing index on sport"
-        assert any(
-            "created" in name.lower() for name in index_names
-        ), "Missing index on created_at"
-        assert any(
-            "pkey" in name.lower() for name in index_names
-        ), "Missing primary key index"
+        assert any("user" in name.lower() for name in index_names), "Missing index on user_id"
+        assert any("sport" in name.lower() for name in index_names), "Missing index on sport"
+        assert any("created" in name.lower() for name in index_names), "Missing index on created_at"
+        assert any("pkey" in name.lower() for name in index_names), "Missing primary key index"
 
+    @requires_postgresql
     def test_sport_choices_match_database_constraint(self):
         """Verify model Sport choices match database CHECK constraint."""
         # Get model choices
@@ -741,6 +733,7 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
     def test_invalid_sport_value_rejected_by_database(self):
         """Verify database rejects invalid sport values via CHECK constraint."""
         from django.db import IntegrityError
+        from django.utils import timezone
 
         # Arrange: Create user
         user = User.objects.create_user(
@@ -749,8 +742,11 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
         )
 
         # Act & Assert AC4: Try to insert invalid sport value (bypass Django validation)
+        now = timezone.now()
+
         with connection.cursor() as cursor:
             with pytest.raises(IntegrityError) as exc_info:
+                # Use database-agnostic parameter placeholders and Python datetime
                 cursor.execute(
                     """
                     INSERT INTO assessments (
@@ -758,7 +754,7 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
                         training_days, injuries, equipment, equipment_items,
                         created_at, updated_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     [
                         user.id,
@@ -769,6 +765,8 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
                         "no",
                         "basic_equipment",
                         "[]",
+                        now,
+                        now,
                     ],
                 )
 
@@ -782,6 +780,7 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
     def test_old_football_value_rejected_by_database(self):
         """Verify database rejects old 'football' value (confirms migration success)."""
         from django.db import IntegrityError
+        from django.utils import timezone
 
         # Arrange: Create user
         user = User.objects.create_user(
@@ -790,8 +789,11 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
         )
 
         # Act & Assert AC4: Try to insert 'football' value (should be rejected)
+        now = timezone.now()
+
         with connection.cursor() as cursor:
             with pytest.raises(IntegrityError) as exc_info:
+                # Use database-agnostic parameter placeholders and Python datetime
                 cursor.execute(
                     """
                     INSERT INTO assessments (
@@ -799,7 +801,7 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
                         training_days, injuries, equipment, equipment_items,
                         created_at, updated_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     [
                         user.id,
@@ -810,6 +812,8 @@ class TestStory21_5_DatabaseSchemaValidation(TransactionTestCase):
                         "no",
                         "basic_equipment",
                         "[]",
+                        now,
+                        now,
                     ],
                 )
 
@@ -857,9 +861,7 @@ class TestStory21_5_DataIntegrityAndConsistency:
 
         # Double check with user lookup
         persisted_by_user = Assessment.objects.get(user=user)
-        assert (
-            persisted_by_user.sport == "soccer"
-        ), "Sport value inconsistent when queried by user"
+        assert persisted_by_user.sport == "soccer", "Sport value inconsistent when queried by user"
 
     def test_no_data_loss_on_concurrent_user_creation(self):
         """Verify no data loss when multiple users created concurrently."""
@@ -883,15 +885,11 @@ class TestStory21_5_DataIntegrityAndConsistency:
                 "equipment_items": ["dumbbells"],
             }
 
-            response = client.post(
-                "/api/v1/assessments/", assessment_data, format="json"
-            )
+            response = client.post("/api/v1/assessments/", assessment_data, format="json")
             assert (
                 response.status_code == 201
             ), f"Failed for user {i}: {response.data if response.status_code != 201 else ''}"
-            created_assessments.append(
-                {"user": user, "expected_sport": assessment_data["sport"]}
-            )
+            created_assessments.append({"user": user, "expected_sport": assessment_data["sport"]})
 
         # Assert: Verify all assessments persisted with correct data
         for data in created_assessments:

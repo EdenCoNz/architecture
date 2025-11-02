@@ -174,6 +174,36 @@ def enable_db_access_for_all_tests(db):
     pass
 
 
+@pytest.fixture(scope="class")
+def db_with_migrations(django_db_setup, django_db_blocker):
+    """
+    Provide database access with migrations applied.
+
+    This fixture ensures that database migrations are run, which is necessary
+    for tests that verify database-level constraints (CHECK, FOREIGN KEY, etc.)
+    that are only applied during migrations, not during schema creation.
+
+    Use this for tests that:
+    - Test database-level constraints
+    - Verify migration behavior
+    - Require the exact production database schema
+
+    Usage:
+        @pytest.mark.usefixtures('db_with_migrations')
+        class TestDatabaseConstraints:
+            def test_check_constraint(self):
+                # Test runs with migrations applied
+                pass
+    """
+    from django.core.management import call_command
+
+    with django_db_blocker.unblock():
+        # Run migrations to ensure all constraints are applied
+        call_command("migrate", "--run-syncdb", verbosity=0, interactive=False)
+        yield
+        # Cleanup happens automatically via django_db_setup
+
+
 @pytest.fixture(scope="function")
 def isolated_db(db, django_db_blocker):
     """
