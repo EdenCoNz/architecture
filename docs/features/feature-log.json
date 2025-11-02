@@ -1574,6 +1574,19 @@
             "backend-developer"
           ],
           "description": "Fix CI/CD Pipeline failure - database migration reverse function violates check constraint when reverting 'soccer' to 'football'"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 357,
+          "timestamp": "2025-11-02T14:00:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/21/issues/357/implementation-log.json",
+          "userStoriesPath": "docs/features/21/issues/357/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failure - database constraint not enforcing sports terminology (migration 0004 AddConstraint not replacing existing constraint)"
         }
       ]
     }

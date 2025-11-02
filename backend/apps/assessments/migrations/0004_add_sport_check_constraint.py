@@ -11,6 +11,13 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Remove any existing constraint with the same name (e.g., from migration 0003 reverse)
+        # Use RunSQL because the constraint may have been created directly via SQL and not tracked in Django's state
+        migrations.RunSQL(
+            sql="ALTER TABLE assessments DROP CONSTRAINT IF EXISTS assessments_sport_valid_choice;",
+            reverse_sql=migrations.RunSQL.noop,
+        ),
+        # Add the new constraint that only allows current terminology
         migrations.AddConstraint(
             model_name="assessment",
             constraint=models.CheckConstraint(

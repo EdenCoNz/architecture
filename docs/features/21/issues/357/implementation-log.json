@@ -1,0 +1,69 @@
+{
+  "feature_id": "21",
+  "issue_number": "357",
+  "issue_title": "CI/CD Pipeline Failed - Database Constraint Not Enforcing Sports Terminology",
+  "implementation_date": "2025-11-02",
+  "agent": "backend-developer",
+  "stories_completed": [
+    {
+      "story_id": "357.1",
+      "story_title": "Replace Database Constraint Instead of Adding",
+      "status": "completed",
+      "changes": [
+        {
+          "type": "modified",
+          "file": "/home/ed/Dev/architecture/backend/apps/assessments/migrations/0004_add_sport_check_constraint.py",
+          "description": "Updated migration to remove existing constraint before adding new one. Changed from using migrations.AddConstraint() alone to first using migrations.RunSQL() with DROP CONSTRAINT IF EXISTS, then migrations.AddConstraint(). This ensures the correct constraint is always applied even if migration 0003's reverse function has created an older version of the constraint."
+        }
+      ],
+      "root_cause": {
+        "description": "Migration 0004 attempted to add a CHECK constraint named 'assessments_sport_valid_choice' that only allows 'soccer' and 'cricket'. However, migration 0003's reverse function (reverse_migrate_soccer_to_football) manually creates a constraint with the same name via raw SQL that allows 'football', 'soccer', and 'cricket'. When migration 0004 runs after migration 0003 has been reversed, PostgreSQL rejects adding a constraint with a duplicate name, causing the old permissive constraint to remain in place. This allowed 'football' values to be inserted into the database, violating the expected data integrity rules.",
+        "technical_details": "Django's migrations.AddConstraint() operation does not check if a constraint with the same name already exists at the database level - it only tracks constraints in Django's migration state. Migration 0003's reverse function bypasses Django's migration tracking by using raw SQL (cursor.execute), so the constraint it creates is invisible to Django's migration system. When migration 0004 runs, it attempts to execute 'ALTER TABLE assessments ADD CONSTRAINT assessments_sport_valid_choice ...' but PostgreSQL returns an error because the constraint already exists, causing the migration operation to fail silently or leave the old constraint in place."
+      },
+      "solution": {
+        "description": "Changed migration 0004 to explicitly remove any existing constraint before adding the new one. Used migrations.RunSQL() with 'DROP CONSTRAINT IF EXISTS' to unconditionally remove any constraint with the name 'assessments_sport_valid_choice' regardless of how it was created. This ensures the correct constraint is always applied and enforced at the database level.",
+        "implementation_approach": "Replaced migrations.RemoveConstraint() (which requires the constraint to exist in Django's migration state) with migrations.RunSQL() that executes raw SQL 'ALTER TABLE assessments DROP CONSTRAINT IF EXISTS assessments_sport_valid_choice;'. This works because PostgreSQL's IF EXISTS clause gracefully handles both cases: (1) constraint exists and is dropped, (2) constraint doesn't exist and operation is a no-op. The reverse_sql is set to migrations.RunSQL.noop because dropping the constraint in the reverse direction is not needed - the subsequent migration operations will handle the state correctly."
+      },
+      "tests_added_or_modified": [],
+      "verification": {
+        "test_results": "All 25 tests in test_story_21_5_data_persistence.py passed, including the critical test_old_football_value_rejected_by_database which verifies the database constraint correctly rejects 'football' values.",
+        "manual_verification": [
+          "Verified database constraint exists: SELECT constraint_name, check_clause FROM information_schema.check_constraints WHERE constraint_name = 'assessments_sport_valid_choice' returns the correct constraint allowing only 'soccer' and 'cricket'",
+          "Verified constraint rejects 'football': Direct SQL INSERT with sport='football' raises IntegrityError 'new row for relation \"assessments\" violates check constraint \"assessments_sport_valid_choice\"'",
+          "Verified constraint accepts 'soccer': Direct SQL INSERT with sport='soccer' succeeds (INSERT 0 1)"
+        ]
+      },
+      "impact": {
+        "users_affected": "All users attempting to create or update assessments",
+        "frequency": "Every assessment creation/update operation",
+        "severity": "high",
+        "description": "Before the fix, the database constraint was not properly enforcing valid sport values, allowing invalid 'football' values to be inserted directly at the database level (bypassing Django's model validation). This could lead to data integrity issues and inconsistent application state. After the fix, the database now correctly enforces that only 'soccer' and 'cricket' values are allowed, providing defense-in-depth data validation."
+      },
+      "rollback_plan": "If needed, revert to the previous version of migration 0004 and run 'python manage.py migrate assessments 0003' to roll back. However, this would restore the bug where the constraint is not properly enforced.",
+      "deployment_notes": "Migration 0004 must be applied to all environments (development, staging, production). The migration is idempotent and safe to run multiple times. Existing data is not affected as all 'football' values were already migrated to 'soccer' by migration 0003.",
+      "configuration_changes": [],
+      "dependencies_added": [],
+      "key_decisions": [
+        {
+          "decision": "Use RunSQL with DROP CONSTRAINT IF EXISTS instead of RemoveConstraint",
+          "rationale": "Django's RemoveConstraint operation requires the constraint to exist in Django's migration state, but the constraint created by migration 0003's reverse function was created via raw SQL and is not tracked in Django's state. Using RunSQL with IF EXISTS allows us to handle both cases (constraint exists or doesn't exist) gracefully without migration errors.",
+          "alternatives_considered": "Could have modified migration 0003 to not create the constraint in its reverse function, but that would affect migration reversibility and could break existing deployments that have already run migration 0003."
+        },
+        {
+          "decision": "Set reverse_sql to migrations.RunSQL.noop",
+          "rationale": "When reversing migration 0004, we don't need to explicitly drop the constraint because the AddConstraint operation's reverse will handle it automatically. Setting reverse_sql to noop avoids potential conflicts.",
+          "alternatives_considered": "Could have set reverse_sql to re-add the old constraint, but this would perpetuate the bug when rolling back."
+        }
+      ]
+    }
+  ],
+  "overall_summary": "Fixed migration 0004 to properly replace the database CHECK constraint for sport field validation. The migration now removes any existing constraint (created by migration 0003's reverse function) before adding the new constraint, ensuring the database correctly rejects 'football' values and only allows 'soccer' and 'cricket'. All tests pass and manual verification confirms the constraint is properly enforced at the database level.",
+  "files_changed": [
+    "/home/ed/Dev/architecture/backend/apps/assessments/migrations/0004_add_sport_check_constraint.py"
+  ],
+  "lessons_learned": [
+    "When creating database constraints via raw SQL in migration reverse functions, be aware that Django's migration system does not track these constraints in its state, which can cause conflicts when forward migrations attempt to add constraints with the same name.",
+    "Always use 'IF EXISTS' or 'IF NOT EXISTS' clauses when manipulating database objects in migrations to handle edge cases gracefully and make migrations more robust.",
+    "Test database migrations in both forward and reverse directions to catch constraint conflicts early."
+  ]
+}
