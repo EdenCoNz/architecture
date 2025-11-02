@@ -152,14 +152,13 @@ Execute `/implement fix {issue_number}` and wait for completion. Do not interfer
    - Partial: "⚠️ {completed}/{total} stories finished"
 
 CRITICAL: If all stories are completed from the report, run Step 8
-### Step 8: Commit and Push
+### Step 8: Trigger Automated Push and Close
 
-
-
-1. **Check**: `git status --porcelain`
-2. **Push**: `/push "Fix issue #{issue_number}: {issue_title}"`
-3. **Monitor**: Wait for completion, capture commit hash
-4. **Handle failures**: Follow /push error guidance.
+1. **Verify changes**: `git status --porcelain` to confirm there are changes to commit
+2. **Output hook trigger**: Output the "Post Fix Push and Close" trigger pattern with issue number
+   - The hook will automatically: commit changes, push to remote, and close the GitHub issue
+   - If there are no changes, the hook will skip git operations and only close the issue
+3. **Monitor**: The hook runs automatically after command completion
 
 ## Report
 
@@ -190,21 +189,44 @@ Provide comprehensive summary:
 - Incomplete (if any): {list with status}
 - Log: `docs/features/{featureID}/implementation-log.json`
 
-### Git
-- Commit: {hash}
-- Message: "Fix issue #{issue_number}: {title}"
-- Files: {count} | Key: {list}
-- Push: (success/failure)
-- Issue closed: (yes/no) "Fixed in commit {hash}"
+### Automation
+- Hook trigger: (output/skipped)
+- Hook will handle: git commit, git push, issue close
+- Expected commit message: "Fix issue #{issue_number}"
+- Changes ready: {count} files modified/added
 
 ### Status
-- ✅ Success: "Issue #{issue_number} fixed, pushed to {featureName}, and closed"
+- ✅ Success: "Issue #{issue_number} fixed, hook triggered to push and close"
 - ⚠️ Partial: Specific recovery steps + retry command
 - ❌ Failed: Error summary + recovery instructions
 
 ### Next
-- Success: "Test changes or merge PR"
-- Partial: Manual recovery steps from /push guidance
+- Success: "Hook will push changes and close issue automatically. Monitor `/tmp/stop-hook-debug.log` for hook execution"
+- Partial: Manual recovery steps
+
+## Output
+
+After completing Step 8 successfully (all fix stories implemented), output the hook trigger:
+
+```
+## Post Fix Push and Close
+**Payload**:
+{
+  "issueID": "{issue_number}"
+}
+```
+
+This triggers the stop-push-and-close hook which will automatically:
+1. Stage all changes (`git add .`)
+2. Commit with message: "Fix issue #{issue_number}"
+3. Push to the remote repository
+4. Close the GitHub issue with comment: "Automatically closed after fix was pushed"
+
+**When to output**:
+- ✅ Output trigger: All fix stories completed AND changes exist to commit
+- ❌ Skip trigger: Implementation incomplete or no changes detected
+
+**Note**: The hook handles all git operations. Do NOT call `/push` in Step 8 - let the hook handle it.
 
 ## Error Handling
 
@@ -221,8 +243,8 @@ Provide comprehensive summary:
 | **Checkout fails** | Show error + suggest `git fetch origin {branch}:{branch}` |
 | **Stories not created** | Check location, show expected vs actual, suggest manual |
 | **Incomplete impl** | List failed stories + ask continue or stop |
-| **Git ops fail** | Preserve work, follow /push error guidance |
-| **Issue close fails** | Treat as minor, provide manual instructions |
+| **No changes to commit** | Skip hook trigger, suggest manual verification |
+| **Hook fails** | Check `/tmp/stop-hook-debug.log` for details, provide manual git commands |
 
 ## Self-Verification Checklist
 
@@ -242,8 +264,9 @@ Provide comprehensive summary:
 - [ ] Stories at correct location
 - [ ] `/implement fix {issue_number}` invoked
 - [ ] Implementation verified (completed or user acknowledged)
-- [ ] `/push` invoked with correct message
-- [ ] Push completed or failure documented
-- [ ] Issue closed or failure noted
+- [ ] Changes verified with `git status`
+- [ ] Hook trigger output (if all stories completed and changes exist)
+- [ ] Hook trigger format correct: "## Post Fix Push and Close" + JSON payload
+- [ ] Hook will handle: git commit, push, issue close
 - [ ] Status & next steps provided
 - [ ] Error scenarios handled

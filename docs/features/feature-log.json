@@ -1440,6 +1440,92 @@
           "description": "Fix CI/CD Pipeline failures - Equipment selection test timeout when testing deselection behavior"
         }
       ]
+    },
+    {
+      "featureID": "20",
+      "title": "Basic Login Functionality",
+      "description": "Enable users to access the application by providing their name and email address through a simple login process without verification or password authentication. This provides basic user identification for personalized experiences while keeping the entry barrier low.",
+      "createdAt": "2025-11-02T00:00:00Z",
+      "userStoriesCreated": "2025-11-02T00:00:00Z",
+      "userStoriesImplemented": "2025-11-02T00:00:00Z",
+      "isSummarised": false,
+      "totalStories": 9,
+      "completedStories": [
+        "Story-20.1",
+        "Story-20.2",
+        "Story-20.3",
+        "Story-20.4",
+        "Story-20.5",
+        "Story-20.6",
+        "Story-20.7",
+        "Story-20.8",
+        "Story-20.9"
+      ],
+      "assignedAgents": [
+        "api-contract-designer",
+        "ui-ux-designer",
+        "frontend-developer",
+        "backend-developer"
+      ],
+      "executionPhases": 6,
+      "parallelPhases": 2,
+      "sequentialPhases": 4,
+      "filesPath": "docs/features/20/user-stories.md",
+      "actions": [
+        {
+          "actionType": "design",
+          "completedAt": "2025-11-01T19:37:28Z",
+          "designBriefUpdated": true
+        }
+      ],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-11-02T00:00:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/20/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 342,
+          "timestamp": "2025-11-02T09:56:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/20/issues/342/implementation-log.json",
+          "userStoriesPath": "docs/features/20/issues/342/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix Login component test failures - Router context missing causing useNavigate() errors (22 test failures)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 344,
+          "timestamp": "2025-11-02T21:15:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/20/issues/344/implementation-log.json",
+          "userStoriesPath": "docs/features/20/issues/344/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "frontend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failures - Prettier code formatting violations (18 errors), duplicate import statements (2 errors), and debug console.log statement (1 warning)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 350,
+          "timestamp": "2025-11-02T22:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/20/issues/350/implementation-log.json",
+          "userStoriesPath": "docs/features/20/issues/350/user-stories.md",
+          "totalStories": 3,
+          "assignedAgents": [
+            "devops-engineer",
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline deployment health check failure - HTTP health endpoint not responding with healthy status after staging deployment (containers healthy but HTTP verification fails)"
+        }
+      ]
     }
   ]
 }

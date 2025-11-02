@@ -693,8 +693,7 @@ export function AssessmentFormStepper({ onSubmit }: AssessmentFormStepperProps) 
           <>
             <Box sx={{ mb: 4 }}>
               <Typography variant="h5" gutterBottom>
-                What equipment do you have access to?{' '}
-                <span style={{ color: 'error.main' }}>*</span>
+                What equipment do you have access to? <span style={{ color: 'error.main' }}>*</span>
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 Choose one option that best describes your equipment availability

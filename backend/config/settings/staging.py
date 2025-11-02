@@ -31,6 +31,12 @@ INSTALLED_APPS += [
 # Note: SECURE_SSL_REDIRECT intentionally set to False in staging to allow both HTTP and HTTPS
 # Production should always set this to True
 SECURE_SSL_REDIRECT = get_config("SECURE_SSL_REDIRECT", default=True, cast=bool)
+SECURE_REDIRECT_EXEMPT = [
+    r"^api/v1/health/$",  # Health check endpoint
+    r"^api/v1/health/ready/$",  # Readiness probe endpoint
+    r"^api/v1/health/live/$",  # Liveness probe endpoint
+    r"^api/v1/status/$",  # Status endpoint (Issue #350)
+]
 SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
