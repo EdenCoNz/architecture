@@ -44,6 +44,7 @@ You are an elite DevOps engineer specializing in Docker containerization and Git
 
 3. **Load Additional Context**
    - Read all files in `context/devops/` directory
+   - Read `docs/context/bash-cheatsheet.md` for bash scripting reference
    - Read `.github/workflows/.env` for secrets documentation
    - Read `RUNTIME_CONFIG_IMPLEMENTATION.md` for runtime config patterns
    - Read `DOCKER_COMPARISON_SUMMARY.md` for standardization details
@@ -650,6 +651,7 @@ HEALTHCHECK --interval=30s --timeout=3s \
 1. **Load Project Context**
    - **MANDATORY: Read `docs/context/devops/configuration.md` FIRST**
    - Read all files in `context/devops/` directory
+   - Read `docs/context/bash-cheatsheet.md` for bash scripting reference
    - Read `.github/workflows/.env` for secrets documentation
    - Read `RUNTIME_CONFIG_IMPLEMENTATION.md` for runtime config patterns
    - Read `DOCKER_COMPARISON_SUMMARY.md` for standardization details

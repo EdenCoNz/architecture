@@ -2,162 +2,74 @@
 # Stop hook script for /push command that creates a GitHub Pull Request
 # This hook is triggered after a successful /push command to create a PR for the feature
 
-# Debug log file
-DEBUG_LOG="/tmp/stop-feature-push-PR-debug.log"
-echo "=== Feature Push PR Hook triggered at $(date) ===" >> "$DEBUG_LOG"
-echo "Working directory: $(pwd)" >> "$DEBUG_LOG"
+# Source shared utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/hook-utils.sh"
 
-# Read JSON input from stdin and extract transcript_path
-INPUT=$(cat)
-echo "Received input: $INPUT" >> "$DEBUG_LOG"
+# Initialize logging
+init_hook_log "/tmp/stop-feature-push-PR-debug.log" "Feature Push PR"
 
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path')
-echo "Extracted transcript path: $TRANSCRIPT_PATH" >> "$DEBUG_LOG"
+# Read and validate transcript input
+TRANSCRIPT_PATH=$(read_transcript_input)
+validate_transcript "$TRANSCRIPT_PATH" || safe_exit
 
-# Expand tilde in path
-TRANSCRIPT_PATH="${TRANSCRIPT_PATH/#\~/$HOME}"
-echo "Expanded transcript path: $TRANSCRIPT_PATH" >> "$DEBUG_LOG"
+# Detect hook pattern
+HOOK_PATTERN="Post Feature Push Create PR"
+detect_hook_pattern "$TRANSCRIPT_PATH" "$HOOK_PATTERN" || safe_exit
 
-if [ -z "$TRANSCRIPT_PATH" ]; then
-    echo "Error: Transcript path is empty" | tee -a "$DEBUG_LOG" >&2
-    exit 0
+# Extract JSON payload
+PAYLOAD_JSON=$(extract_json_payload "$TRANSCRIPT_PATH" "$HOOK_PATTERN")
+[ -n "$PAYLOAD_JSON" ] || safe_exit
+
+# Parse required fields
+FEATURE_ID=$(require_json_field "$PAYLOAD_JSON" "featureID" "feature ID") || safe_exit
+FEATURE_TITLE=$(require_json_field "$PAYLOAD_JSON" "featureTitle" "feature title") || safe_exit
+FEATURE_BRANCH=$(require_json_field "$PAYLOAD_JSON" "featureBranch" "feature branch") || safe_exit
+
+# Check prerequisites
+log_info "Checking prerequisites..."
+check_command "gh" || safe_exit
+check_command "git" || safe_exit
+check_git_repo || safe_exit
+log_info "Prerequisites validated"
+
+# Verify we're on the expected feature branch
+CURRENT_BRANCH=$(get_current_branch)
+log_info "Current branch: $CURRENT_BRANCH"
+
+if [ "$CURRENT_BRANCH" != "$FEATURE_BRANCH" ]; then
+    log_error "Warning: Current branch ($CURRENT_BRANCH) doesn't match expected feature branch ($FEATURE_BRANCH)"
+    log_info "Proceeding with PR creation anyway..."
 fi
 
-if [ ! -f "$TRANSCRIPT_PATH" ]; then
-    echo "Error: Transcript file not found at: $TRANSCRIPT_PATH" | tee -a "$DEBUG_LOG" >&2
-    exit 0
+# Verify the feature branch exists on remote
+gh_branch_exists "$FEATURE_BRANCH" || safe_exit
+
+# Read user stories file to extract PR body content
+USER_STORIES_FILE="docs/features/${FEATURE_ID}/user-stories.md"
+log_info "Reading user stories from: $USER_STORIES_FILE"
+
+if [ ! -f "$USER_STORIES_FILE" ]; then
+    log_error "Warning: User stories file not found at $USER_STORIES_FILE"
+    log_info "Creating PR with minimal description"
+    FEATURE_OVERVIEW="Feature implementation for feature #${FEATURE_ID}"
+    USER_STORIES_LIST="- See docs/features/${FEATURE_ID}/ for details"
+else
+    # Extract overview section (between ## Overview and next ##)
+    FEATURE_OVERVIEW=$(awk '/## Overview/,/^## / {if (!/^## /) print}' "$USER_STORIES_FILE" | sed '/^$/d' | head -n 10)
+
+    # Extract user stories list (bullet points under ## User Stories)
+    USER_STORIES_LIST=$(awk '/## User Stories/,/^## / {if (/^- /) print}' "$USER_STORIES_FILE" | head -n 20)
+
+    log_info "Extracted overview (first 100 chars): ${FEATURE_OVERVIEW:0:100}..."
+    log_info "Extracted user stories count: $(echo "$USER_STORIES_LIST" | wc -l)"
 fi
 
-echo "Transcript file exists, size: $(wc -c < "$TRANSCRIPT_PATH") bytes" >> "$DEBUG_LOG"
+# Construct PR title and body
+PR_TITLE="Feature ${FEATURE_ID}: ${FEATURE_TITLE}"
+log_info "PR title: $PR_TITLE"
 
-# Show first few lines of transcript for debugging
-echo "First 3 lines of transcript:" >> "$DEBUG_LOG"
-head -n 3 "$TRANSCRIPT_PATH" >> "$DEBUG_LOG" 2>&1
-
-# Check if the "Post Feature Push Create PR" pattern exists in the output with proper JSON structure
-# Supports both plain JSON and JSON wrapped in markdown code fences
-HAS_HOOK=$(jq -s -r '
-  [.[] | select(.message.role == "assistant") | .message.content[]? | select(.type == "text") | .text]
-  | last
-  | if . != null and (. | test("## Post Feature Push Create PR\\s*\\n\\*\\*Payload\\*\\*:\\s*\\n(```json\\s*\\n)?\\{[\\s\\S]*?\\}(\\s*\\n```)?")) then "true" else "false" end
-' "$TRANSCRIPT_PATH" 2>>"$DEBUG_LOG")
-
-echo "Has Post Feature Push Create PR hook: '$HAS_HOOK'" >> "$DEBUG_LOG"
-
-# If no hook pattern found, exit early
-if [ "$HAS_HOOK" != "true" ]; then
-    echo "No Post Feature Push Create PR hook pattern found in output - exiting without action" >> "$DEBUG_LOG"
-    echo "=== Hook completed (no action needed) ===" >> "$DEBUG_LOG"
-    echo "" >> "$DEBUG_LOG"
-    exit 0
-fi
-
-# Extract the JSON payload from the last assistant message
-# Supports both plain JSON and JSON wrapped in markdown code fences
-PAYLOAD_JSON=$(jq -s -r '
-  [.[] | select(.message.role == "assistant") | .message.content[]? | select(.type == "text") | .text]
-  | last
-  | capture("## Post Feature Push Create PR\\s*\\n\\*\\*Payload\\*\\*:\\s*\\n(```json\\s*\\n)?(?<json>\\{[\\s\\S]*?\\})(\\s*\\n```)?") // {}
-  | .json // ""
-' "$TRANSCRIPT_PATH" 2>>"$DEBUG_LOG")
-
-echo "Extracted payload JSON: '$PAYLOAD_JSON'" >> "$DEBUG_LOG"
-
-# Parse the fields from the JSON payload
-if [ -n "$PAYLOAD_JSON" ]; then
-    FEATURE_ID=$(echo "$PAYLOAD_JSON" | jq -r '.featureID // empty' 2>>"$DEBUG_LOG")
-    FEATURE_TITLE=$(echo "$PAYLOAD_JSON" | jq -r '.featureTitle // empty' 2>>"$DEBUG_LOG")
-    FEATURE_BRANCH=$(echo "$PAYLOAD_JSON" | jq -r '.featureBranch // empty' 2>>"$DEBUG_LOG")
-
-    echo "Extracted featureID: '$FEATURE_ID'" >> "$DEBUG_LOG"
-    echo "Extracted featureTitle: '$FEATURE_TITLE'" >> "$DEBUG_LOG"
-    echo "Extracted featureBranch: '$FEATURE_BRANCH'" >> "$DEBUG_LOG"
-
-    # Validate required fields exist
-    if [ -z "$FEATURE_ID" ] || [ "$FEATURE_ID" = "null" ]; then
-        echo "Error: No valid feature ID found in payload" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
-
-    if [ -z "$FEATURE_TITLE" ] || [ "$FEATURE_TITLE" = "null" ]; then
-        echo "Error: No valid feature title found in payload" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
-
-    if [ -z "$FEATURE_BRANCH" ] || [ "$FEATURE_BRANCH" = "null" ]; then
-        echo "Error: No valid feature branch found in payload" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
-
-    # Check prerequisites
-    echo "Checking prerequisites..." >> "$DEBUG_LOG"
-
-    if ! command -v gh &> /dev/null; then
-        echo "Error: gh (GitHub CLI) is not installed" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
-
-    if ! command -v git &> /dev/null; then
-        echo "Error: git is not installed" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
-
-    # Verify we're in a git repository
-    if ! git rev-parse --git-dir &> /dev/null; then
-        echo "Error: Not in a git repository" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
-
-    echo "Prerequisites validated" >> "$DEBUG_LOG"
-
-    # Verify we're on the expected feature branch
-    CURRENT_BRANCH=$(git branch --show-current)
-    echo "Current branch: $CURRENT_BRANCH" >> "$DEBUG_LOG"
-
-    if [ "$CURRENT_BRANCH" != "$FEATURE_BRANCH" ]; then
-        echo "Warning: Current branch ($CURRENT_BRANCH) doesn't match expected feature branch ($FEATURE_BRANCH)" | tee -a "$DEBUG_LOG"
-        echo "Proceeding with PR creation anyway..." >> "$DEBUG_LOG"
-    fi
-
-    # Verify the feature branch exists on remote
-    echo "Checking if feature branch exists on remote..." >> "$DEBUG_LOG"
-    if ! git ls-remote --exit-code --heads origin "$FEATURE_BRANCH" &>>"$DEBUG_LOG"; then
-        echo "Error: Feature branch '$FEATURE_BRANCH' not found on remote" | tee -a "$DEBUG_LOG" >&2
-        echo "Push may have failed. Please verify with: git push -u origin $FEATURE_BRANCH" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
-    echo "Feature branch exists on remote" >> "$DEBUG_LOG"
-
-    # Read user stories file to extract PR body content
-    USER_STORIES_FILE="docs/features/${FEATURE_ID}/user-stories.md"
-    echo "Reading user stories from: $USER_STORIES_FILE" >> "$DEBUG_LOG"
-
-    if [ ! -f "$USER_STORIES_FILE" ]; then
-        echo "Warning: User stories file not found at $USER_STORIES_FILE" | tee -a "$DEBUG_LOG"
-        echo "Creating PR with minimal description" >> "$DEBUG_LOG"
-        FEATURE_OVERVIEW="Feature implementation for feature #${FEATURE_ID}"
-        USER_STORIES_LIST="- See docs/features/${FEATURE_ID}/ for details"
-    else
-        # Extract overview section (between ## Overview and next ##)
-        FEATURE_OVERVIEW=$(awk '/## Overview/,/^## / {if (!/^## /) print}' "$USER_STORIES_FILE" | sed '/^$/d' | head -n 10)
-
-        # Extract user stories list (bullet points under ## User Stories)
-        USER_STORIES_LIST=$(awk '/## User Stories/,/^## / {if (/^- /) print}' "$USER_STORIES_FILE" | head -n 20)
-
-        echo "Extracted overview (first 100 chars): ${FEATURE_OVERVIEW:0:100}..." >> "$DEBUG_LOG"
-        echo "Extracted user stories count: $(echo "$USER_STORIES_LIST" | wc -l)" >> "$DEBUG_LOG"
-    fi
-
-    # Construct PR title
-    PR_TITLE="Feature ${FEATURE_ID}: ${FEATURE_TITLE}"
-    echo "PR title: $PR_TITLE" >> "$DEBUG_LOG"
-
-    # Create PR using gh CLI with HEREDOC for body
-    echo "Creating pull request..." >> "$DEBUG_LOG"
-
-    PR_OUTPUT=$(gh pr create \
-        --title "$PR_TITLE" \
-        --body "$(cat <<EOF
+PR_BODY=$(cat <<EOF
 ## Summary
 
 ${FEATURE_OVERVIEW}
@@ -177,37 +89,21 @@ ${USER_STORIES_LIST}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
-)" 2>&1)
+)
 
-    PR_EXIT_CODE=$?
-    echo "gh pr create exit code: $PR_EXIT_CODE" >> "$DEBUG_LOG"
-    echo "gh pr create output: $PR_OUTPUT" >> "$DEBUG_LOG"
+# Create pull request
+PR_URL=$(gh_pr_create "$PR_TITLE" "$PR_BODY")
 
-    if [ $PR_EXIT_CODE -eq 0 ]; then
-        # Extract PR URL from output
-        PR_URL=$(echo "$PR_OUTPUT" | grep -o 'https://github.com[^ ]*')
-
-        echo "SUCCESS: Pull request created successfully" >> "$DEBUG_LOG"
-        echo "  - Title: $PR_TITLE" >> "$DEBUG_LOG"
-        echo "  - URL: $PR_URL" >> "$DEBUG_LOG"
-
-        # Output to user
-        echo "✅ Pull Request created successfully!" >&2
-        echo "   URL: $PR_URL" >&2
-    else
-        echo "ERROR: Failed to create pull request" | tee -a "$DEBUG_LOG" >&2
-        echo "Error output: $PR_OUTPUT" | tee -a "$DEBUG_LOG" >&2
-        echo "" | tee -a "$DEBUG_LOG" >&2
-        echo "You can create the PR manually with:" | tee -a "$DEBUG_LOG" >&2
-        echo "  gh pr create --title '$PR_TITLE' --body 'See docs/features/${FEATURE_ID}/ for details'" | tee -a "$DEBUG_LOG" >&2
-        exit 0
-    fi
+if [ $? -eq 0 ] && [ -n "$PR_URL" ]; then
+    # Output success message to user
+    echo "✅ Pull Request created successfully!" >&2
+    echo "   URL: $PR_URL" >&2
 else
-    echo "Warning: Post Feature Push Create PR pattern found but failed to extract JSON payload" >> "$DEBUG_LOG"
+    # Provide manual PR creation instructions
+    log_error ""
+    log_error "You can create the PR manually with:"
+    log_error "  gh pr create --title '$PR_TITLE' --body 'See docs/features/${FEATURE_ID}/ for details'"
 fi
 
-echo "=== Hook completed ===" >> "$DEBUG_LOG"
-echo "" >> "$DEBUG_LOG"
-
-# Exit 0 to allow normal stoppage
-exit 0
+finish_hook
+safe_exit
