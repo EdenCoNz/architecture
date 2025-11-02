@@ -3,6 +3,7 @@ Views for Assessment API endpoints.
 Handles CRUD operations for user assessment data.
 """
 
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -64,11 +65,15 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         try:
             self.perform_create(serializer)
             headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            return Response(
+                serializer.data, status=status.HTTP_201_CREATED, headers=headers
+            )
         except Exception as e:
             # Handle database integrity errors (e.g., duplicate assessment)
             return Response(
-                {"detail": "Unable to save assessment. You may already have an assessment."},
+                {
+                    "detail": "Unable to save assessment. You may already have an assessment."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -116,3 +121,87 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         """
         options = EquipmentService.get_predefined_options()
         return Response({"options": options}, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get available sport choices",
+        description=(
+            "Retrieve the list of available sports with both internal values "
+            "and user-friendly display labels.\n\n"
+            "**Story 21.3: Maintain Football Display Label for Users**\n\n"
+            "The API returns sport choices where:\n"
+            "- `value`: Internal database identifier (e.g., 'soccer')\n"
+            "- `display_name`: User-facing display label (e.g., 'Football')\n\n"
+            "This allows the frontend to show user-friendly labels while "
+            "submitting correct internal values to the API."
+        ),
+        responses={
+            200: OpenApiResponse(
+                description="List of sport choices with display labels",
+                response={
+                    "type": "object",
+                    "properties": {
+                        "choices": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "value": {
+                                        "type": "string",
+                                        "description": "Internal database value",
+                                        "example": "soccer",
+                                    },
+                                    "display_name": {
+                                        "type": "string",
+                                        "description": "User-friendly display label",
+                                        "example": "Football",
+                                    },
+                                },
+                                "required": ["value", "display_name"],
+                            },
+                            "example": [
+                                {"value": "soccer", "display_name": "Football"},
+                                {"value": "cricket", "display_name": "Cricket"},
+                            ],
+                        }
+                    },
+                },
+            ),
+        },
+        tags=["assessments"],
+    )
+    @action(detail=False, methods=["get"], url_path="sport-choices")
+    def sport_choices(self, request: Request) -> Response:
+        """
+        Retrieve available sport choices with display labels.
+
+        This endpoint provides the list of available sports with both
+        internal values and user-friendly display labels. This allows
+        the frontend to present user-friendly labels while sending
+        correct internal values to the API.
+
+        Story 21.3: Maintain Football Display Label for Users
+
+        Args:
+            request: HTTP request object
+
+        Returns:
+            Response with list of sport choices, each containing:
+            - value: Internal database value (e.g., "soccer")
+            - display_name: User-friendly label (e.g., "Football")
+
+        Example Response:
+            {
+                "choices": [
+                    {"value": "soccer", "display_name": "Football"},
+                    {"value": "cricket", "display_name": "Cricket"}
+                ]
+            }
+        """
+        choices = [
+            {
+                "value": value,
+                "display_name": label,
+            }
+            for value, label in Assessment.Sport.choices
+        ]
+        return Response({"choices": choices}, status=status.HTTP_200_OK)

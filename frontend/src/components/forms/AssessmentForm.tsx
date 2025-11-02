@@ -138,8 +138,11 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
   };
 
   // Handle sport selection
-  const handleSportSelect = (sport: string) => {
-    setFormData((prev) => ({ ...prev, sport }));
+  // Story 21.4: Map display labels to internal values
+  const handleSportSelect = (sportDisplay: string) => {
+    // Map "Football" display to "soccer" internal value
+    const sportValue = sportDisplay === 'Football' ? 'soccer' : sportDisplay.toLowerCase();
+    setFormData((prev) => ({ ...prev, sport: sportValue }));
     setErrors((prev) => ({ ...prev, sport: undefined }));
   };
 
@@ -255,8 +258,9 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
 
     try {
       // Convert form data to expected format
+      // Story 21.4: sport is already in correct internal format ("soccer" or "cricket")
       const submissionData: AssessmentFormData = {
-        sport: formData.sport?.toLowerCase() ?? null,
+        sport: formData.sport, // Already "soccer" or "cricket" from handleSportSelect
         age: formData.age,
         experienceLevel: formData.experienceLevel,
         trainingDays: formData.trainingDays,
@@ -313,15 +317,15 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <Card
-              elevation={formData.sport === 'football' ? 3 : 1}
+              elevation={formData.sport === 'soccer' ? 3 : 1}
               sx={{
-                border: formData.sport === 'football' ? '2px solid' : '2px solid transparent',
-                borderColor: formData.sport === 'football' ? 'primary.main' : 'transparent',
+                border: formData.sport === 'soccer' ? '2px solid' : '2px solid transparent',
+                borderColor: formData.sport === 'soccer' ? 'primary.main' : 'transparent',
                 transition: 'all 225ms cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             >
               <CardActionArea
-                onClick={() => handleSportSelect('football')}
+                onClick={() => handleSportSelect('Football')}
                 aria-label="Select Football"
                 sx={{
                   minHeight: 160,
@@ -337,7 +341,7 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
                   <SportsFootballIcon
                     sx={{
                       fontSize: 48,
-                      color: formData.sport === 'football' ? 'primary.main' : 'text.secondary',
+                      color: formData.sport === 'soccer' ? 'primary.main' : 'text.secondary',
                       transition: 'color 225ms',
                     }}
                   />
@@ -346,13 +350,13 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
                   variant="h6"
                   align="center"
                   sx={{
-                    color: formData.sport === 'football' ? 'primary.main' : 'text.primary',
+                    color: formData.sport === 'soccer' ? 'primary.main' : 'text.primary',
                     transition: 'color 225ms',
                   }}
                 >
                   Football
                 </Typography>
-                {formData.sport === 'football' && (
+                {formData.sport === 'soccer' && (
                   <CheckCircleIcon
                     sx={{
                       position: 'absolute',
@@ -377,7 +381,7 @@ export function AssessmentForm({ onSubmit }: AssessmentFormProps) {
               }}
             >
               <CardActionArea
-                onClick={() => handleSportSelect('cricket')}
+                onClick={() => handleSportSelect('Cricket')}
                 aria-label="Select Cricket"
                 sx={{
                   minHeight: 160,

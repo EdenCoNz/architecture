@@ -1526,6 +1526,69 @@
           "description": "Fix CI/CD Pipeline deployment health check failure - HTTP health endpoint not responding with healthy status after staging deployment (containers healthy but HTTP verification fails)"
         }
       ]
+    },
+    {
+      "featureID": "21",
+      "title": "Sports Terminology and Database Storage",
+      "description": "Update sport terminology to use 'soccer' as the internal identifier while displaying 'Football' to users, and verify that sport selections are properly persisted to the database with correct data integrity",
+      "createdAt": "2025-11-02T00:00:00Z",
+      "userStoriesCreated": "2025-11-02T12:12:00Z",
+      "userStoriesImplemented": "2025-11-02T12:30:00Z",
+      "isSummarised": false,
+      "totalStories": 8,
+      "completedStories": [
+        "Story-21.1",
+        "Story-21.2",
+        "Story-21.3",
+        "Story-21.4",
+        "Story-21.5",
+        "Story-21.6",
+        "Story-21.7",
+        "Story-21.8"
+      ],
+      "assignedAgents": [
+        "backend-developer",
+        "frontend-developer"
+      ],
+      "executionPhases": 4,
+      "parallelPhases": 1,
+      "sequentialPhases": 3,
+      "filesPath": "docs/features/21/user-stories.md",
+      "actions": [],
+      "implementations": [
+        {
+          "type": "feature",
+          "timestamp": "2025-11-02T12:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/21/implementation-log.json"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 355,
+          "timestamp": "2025-11-02T13:30:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/21/issues/355/implementation-log.json",
+          "userStoriesPath": "docs/features/21/issues/355/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failure - database migration reverse function violates check constraint when reverting 'soccer' to 'football'"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 357,
+          "timestamp": "2025-11-02T14:00:00Z",
+          "status": "completed",
+          "implementationLog": "docs/features/21/issues/357/implementation-log.json",
+          "userStoriesPath": "docs/features/21/issues/357/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failure - database constraint not enforcing sports terminology (migration 0004 AddConstraint not replacing existing constraint)"
+        }
+      ]
     }
   ]
 }

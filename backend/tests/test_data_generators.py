@@ -196,21 +196,23 @@ class AssessmentDataGenerator:
         """
         return AssessmentFactory.create_batch(count, **kwargs)
 
-    def generate_football_assessment(self, **kwargs: Any) -> Assessment:
+    def generate_soccer_assessment(self, **kwargs: Any) -> Assessment:
         """
-        Generate an assessment for football sport.
+        Generate an assessment for soccer sport.
 
         Args:
             **kwargs: Optional attributes to override defaults
 
         Returns:
-            Assessment instance with sport set to football
+            Assessment instance with sport set to soccer
 
         Examples:
             >>> generator = AssessmentDataGenerator()
-            >>> assessment = generator.generate_football_assessment()
+            >>> assessment = generator.generate_soccer_assessment()
         """
-        return FootballAssessmentFactory(**kwargs)
+        return FootballAssessmentFactory(
+            **kwargs
+        )  # Factory named for legacy compatibility
 
     def generate_cricket_assessment(self, **kwargs: Any) -> Assessment:
         """
@@ -293,13 +295,15 @@ class AssessmentDataGenerator:
         """
         # Build with defaults
         data = {
-            "sport": kwargs.get("sport", random.choice(["football", "cricket"])),
+            "sport": kwargs.get("sport", random.choice(["soccer", "cricket"])),
             "age": kwargs.get("age", random.randint(18, 65)),
             "experience_level": kwargs.get(
                 "experience_level",
                 random.choice(["beginner", "intermediate", "advanced"]),
             ),
-            "training_days": kwargs.get("training_days", random.choice(["2-3", "4-5", "6-7"])),
+            "training_days": kwargs.get(
+                "training_days", random.choice(["2-3", "4-5", "6-7"])
+            ),
             "injuries": kwargs.get("injuries", "no"),
             "equipment": kwargs.get(
                 "equipment",
@@ -392,7 +396,7 @@ class EdgeCaseDataGenerator:
             >>> assessments = generator.generate_all_sport_combinations()
             >>> assert len(assessments) == 2
         """
-        sports = ["football", "cricket"]
+        sports = ["soccer", "cricket"]
         assessments = []
 
         for sport in sports:
@@ -518,7 +522,9 @@ class TestDataGenerator:
             >>> assessments = scenario['assessments']
         """
         users = self.user_generator.generate_users(count=user_count)
-        assessments = self.assessment_generator.generate_assessments(count=assessment_count)
+        assessments = self.assessment_generator.generate_assessments(
+            count=assessment_count
+        )
 
         return {"users": users, "assessments": assessments}
 
@@ -542,7 +548,7 @@ class TestDataGenerator:
         Examples:
             >>> generator = TestDataGenerator()
             >>> user, assessment = generator.generate_user_with_assessment(
-            ...     sport='football',
+            ...     sport='soccer',
             ...     experience_level='beginner'
             ... )
         """
@@ -628,6 +634,8 @@ class TestDataGenerator:
             ... )
         """
         users = self.user_generator.generate_users(count=user_count)
-        assessments = self.assessment_generator.generate_assessments(count=assessment_count)
+        assessments = self.assessment_generator.generate_assessments(
+            count=assessment_count
+        )
 
         return {"users": users, "assessments": assessments}

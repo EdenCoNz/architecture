@@ -1,0 +1,106 @@
+{
+  "feature_id": "21",
+  "issue_number": "355",
+  "title": "Fix Reverse Migration Constraint Violation",
+  "timestamp": "2025-11-02T00:00:00Z",
+  "agent": "backend-developer",
+  "summary": "Fixed IntegrityError in reverse migration by temporarily modifying CHECK constraint before updating data",
+  "entries": [
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "root_cause_analysis",
+      "description": "Root cause identified",
+      "details": {
+        "problem": "Reverse migration attempts to update 'soccer' to 'football', which violates the database CHECK constraint 'assessments_sport_valid_choice' that only allows ['soccer', 'cricket']",
+        "why_it_occurred": "Migration 0002 changed the valid choices from ['football', 'cricket'] to ['soccer', 'cricket'], creating a database-level CHECK constraint. Migration 0003's reverse function tried to revert data to 'football' without first modifying the constraint",
+        "constraint_name": "assessments_sport_valid_choice",
+        "constraint_definition": "CHECK (sport IN ('soccer', 'cricket'))",
+        "error_message": "django.db.utils.IntegrityError: new row for relation 'assessments' violates check constraint 'assessments_sport_valid_choice'"
+      }
+    },
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "solution_implemented",
+      "description": "Fixed reverse migration function to handle CHECK constraint",
+      "details": {
+        "approach": "Three-step process: (1) Drop existing CHECK constraint, (2) Update data from 'soccer' to 'football', (3) Re-add CHECK constraint allowing all three values ['football', 'soccer', 'cricket']",
+        "why_this_fixes_it": "By temporarily removing the constraint, data can be updated to 'football' without violation. The temporary constraint allows both old and new values until migration 0002 is reversed, which will restore the original constraint",
+        "migration_file": "/home/ed/Dev/architecture/backend/apps/assessments/migrations/0003_migrate_football_to_soccer.py",
+        "function_modified": "reverse_migrate_soccer_to_football",
+        "sql_operations": [
+          "ALTER TABLE assessments DROP CONSTRAINT IF EXISTS assessments_sport_valid_choice",
+          "UPDATE assessments SET sport = 'football' WHERE sport = 'soccer'",
+          "ALTER TABLE assessments ADD CONSTRAINT assessments_sport_valid_choice CHECK (sport IN ('football', 'soccer', 'cricket'))"
+        ],
+        "reversibility": "Migration can now be reversed and re-applied repeatedly without errors"
+      }
+    },
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "file_modified",
+      "file_path": "/home/ed/Dev/architecture/backend/apps/assessments/migrations/0003_migrate_football_to_soccer.py",
+      "changes": "Modified reverse_migrate_soccer_to_football function to drop CHECK constraint before updating data, then re-add a temporary constraint allowing both 'football' and 'soccer' values"
+    },
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "test_created",
+      "file_path": "/home/ed/Dev/architecture/backend/tests/test_issue_355_migration_roundtrip.py",
+      "purpose": "Comprehensive round-trip migration tests validating forward->reverse->forward sequences without data corruption",
+      "test_coverage": [
+        "test_migration_roundtrip: Validates complete forward->reverse->forward cycle",
+        "test_reverse_migration_with_multiple_records: Ensures bulk data reversal works correctly",
+        "test_reverse_migration_preserves_data_integrity: Verifies all non-sport fields remain unchanged during reversal"
+      ]
+    },
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "acceptance_criteria_validated",
+      "details": {
+        "AC1_reverse_without_error": "PASS - Reverse migration completes without IntegrityError (test_reverse_migration_function)",
+        "AC2_data_reverted_correctly": "PASS - Records properly reverted from 'soccer' to 'football' (test_reverse_migration_with_multiple_records)",
+        "AC3_all_tests_pass": "PASS - All tests in TestStory21_2ReverseMigration pass (2/2 tests)",
+        "AC4_forward_after_reverse": "PASS - Forward migration executes successfully after reverse (test_migration_roundtrip)"
+      }
+    },
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "test_results",
+      "description": "All migration tests passing",
+      "test_command": "pytest tests/test_story_21_2_migration.py tests/test_issue_355_migration_roundtrip.py",
+      "results": {
+        "total_tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "story_21_2_tests": 14,
+        "issue_355_tests": 3,
+        "test_files": [
+          "tests/test_story_21_2_migration.py",
+          "tests/test_issue_355_migration_roundtrip.py"
+        ]
+      }
+    },
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "impact_assessment",
+      "details": {
+        "users_affected": "Development and DevOps teams managing database migrations",
+        "severity": "HIGH - Prevents safe rollback of Feature 21 in production",
+        "frequency": "Low (only during migration rollback scenarios)",
+        "deployment_risk_before_fix": "Cannot safely rollback migrations, creating deployment risk",
+        "deployment_risk_after_fix": "Migrations can be safely reversed and re-applied as needed",
+        "production_readiness": "Migration is now production-ready with proper reversibility"
+      }
+    },
+    {
+      "timestamp": "2025-11-02T00:00:00Z",
+      "type": "key_decision",
+      "description": "Used database-level constraint manipulation instead of model-based approach",
+      "rationale": "Django migrations apply in sequence. The CHECK constraint is created by migration 0002's AlterField operation. To reverse the data migration (0003) before reversing the schema change (0002), we must temporarily modify the database constraint directly using SQL. This ensures the constraint allows 'football' values during the reversal window.",
+      "alternatives_considered": [
+        "Changing migration order - would break Django's migration dependency chain",
+        "Removing CHECK constraint entirely - would leave database in invalid state temporarily",
+        "Using RunSQL operation - considered but RunPython with cursor access is more maintainable"
+      ]
+    }
+  ]
+}

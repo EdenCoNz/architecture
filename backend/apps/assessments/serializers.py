@@ -73,11 +73,19 @@ class AssessmentSerializer(serializers.ModelSerializer):
         default=list,
     )
 
+    # Display label for sport field (Story 21.3)
+    sport_display = serializers.CharField(
+        source="get_sport_display",
+        read_only=True,
+        help_text="Human-readable display name for the sport (e.g., 'Football' for 'soccer')",
+    )
+
     class Meta:
         model = Assessment
         fields = [
             "id",
             "sport",
+            "sport_display",
             "age",
             "experience_level",
             "training_days",
@@ -97,7 +105,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
                     "required": "Sport selection is required",
                     "null": "Sport cannot be empty",
                     "blank": "Sport cannot be empty",
-                    "invalid_choice": "Please select a valid sport (football or cricket)",
+                    "invalid_choice": "Please select a valid sport (soccer or cricket)",
                 },
             },
             "experience_level": {
@@ -196,7 +204,9 @@ class AssessmentSerializer(serializers.ModelSerializer):
 
         valid_sports = [choice[0] for choice in Assessment.Sport.choices]
         if value not in valid_sports:
-            raise serializers.ValidationError("Please select a valid sport (football or cricket)")
+            raise serializers.ValidationError(
+                "Please select a valid sport (soccer or cricket)"
+            )
 
         return value
 
@@ -217,7 +227,9 @@ class AssessmentSerializer(serializers.ModelSerializer):
         # Check if value is a list (multiple selections)
         if isinstance(value, list):
             if len(value) > 1:
-                raise serializers.ValidationError("Please select only one equipment level")
+                raise serializers.ValidationError(
+                    "Please select only one equipment level"
+                )
             elif len(value) == 0:
                 raise serializers.ValidationError("Equipment level is required")
             # If it's a single-item list, extract the value
@@ -260,7 +272,9 @@ class AssessmentSerializer(serializers.ModelSerializer):
 
         for item in value:
             if not isinstance(item, str) or not item.strip():
-                raise serializers.ValidationError("Each equipment item must be a non-empty string")
+                raise serializers.ValidationError(
+                    "Each equipment item must be a non-empty string"
+                )
 
         return value
 
@@ -282,7 +296,13 @@ class AssessmentSerializer(serializers.ModelSerializer):
             serializers.ValidationError: If validation fails
         """
         # Ensure all required fields are present
-        required_fields = ["sport", "age", "experience_level", "training_days", "equipment"]
+        required_fields = [
+            "sport",
+            "age",
+            "experience_level",
+            "training_days",
+            "equipment",
+        ]
         missing_fields = [field for field in required_fields if field not in data]
 
         if missing_fields:
