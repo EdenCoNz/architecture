@@ -336,6 +336,7 @@ User sees final result
    - This principle applies to ALL documentation in `docs/`
 
 3. **Review System-Wide Configuration Context**
+   - Read `docs/context/bash-cheatsheet.md` for bash scripting reference
    - Understand how configuration affects agent behavior
    - Review documentation standards for configuration
    - Check how commands should interact with environment settings
