@@ -26,9 +26,7 @@ class TestSportDisplayLabels:
         - Given the system stores "soccer" internally, when the API returns sport choices,
           then it should include a display label "Football" for the "soccer" value
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -40,27 +38,17 @@ class TestSportDisplayLabels:
 
         # Find soccer choice
         soccer_choice = next(
-            (
-                choice
-                for choice in response.data["choices"]
-                if choice["value"] == "soccer"
-            ),
+            (choice for choice in response.data["choices"] if choice["value"] == "soccer"),
             None,
         )
 
         assert soccer_choice is not None, "Soccer choice not found in response"
         assert soccer_choice["value"] == "soccer", "Internal value should be 'soccer'"
-        assert (
-            soccer_choice["display_name"] == "Football"
-        ), "Display name should be 'Football'"
+        assert soccer_choice["display_name"] == "Football", "Display name should be 'Football'"
 
         # Verify cricket is also present
         cricket_choice = next(
-            (
-                choice
-                for choice in response.data["choices"]
-                if choice["value"] == "cricket"
-            ),
+            (choice for choice in response.data["choices"] if choice["value"] == "cricket"),
             None,
         )
         assert cricket_choice is not None, "Cricket choice not found in response"
@@ -74,9 +62,7 @@ class TestSportDisplayLabels:
         - Given I view my saved assessment, when the sport is displayed,
           then it should show "Football" not "soccer"
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -94,12 +80,8 @@ class TestSportDisplayLabels:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["sport"] == "soccer", "Value should be 'soccer'"
-        assert (
-            "sport_display" in response.data
-        ), "Response should include sport_display field"
-        assert (
-            response.data["sport_display"] == "Football"
-        ), "Display should be 'Football'"
+        assert "sport_display" in response.data, "Response should include sport_display field"
+        assert response.data["sport_display"] == "Football", "Display should be 'Football'"
 
     def test_assessment_list_includes_sport_display_labels(self) -> None:
         """
@@ -109,9 +91,7 @@ class TestSportDisplayLabels:
         - Given I view the sport selection options, when I see the available sports,
           then "Football" should be displayed as a choice
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -141,9 +121,7 @@ class TestSportDisplayLabels:
         - Given I view my saved assessment, when the sport is displayed,
           then it should show "Football" not "soccer"
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -167,9 +145,7 @@ class TestSportDisplayLabels:
         """
         Test that cricket assessments also have correct display labels.
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="cricket",
@@ -201,9 +177,7 @@ class TestSportDisplayLabels:
         """
         Test that creating an assessment returns the sport display label.
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -227,9 +201,7 @@ class TestSportDisplayLabels:
         """
         Test that updating an assessment returns the sport display label.
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="cricket",

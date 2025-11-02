@@ -37,9 +37,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_with_valid_data(self) -> None:
         """Test authenticated user can create assessment with valid data."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -67,9 +65,7 @@ class TestAssessmentAPI:
 
     def test_assessment_associated_with_authenticated_user(self) -> None:
         """Test assessment is stored with correct user association."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -93,9 +89,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_age_minimum(self) -> None:
         """Test age validation rejects values below 13."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -119,9 +113,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_age_maximum(self) -> None:
         """Test age validation rejects values above 100."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -145,9 +137,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_required_fields(self) -> None:
         """Test creating assessment with missing required fields."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -167,9 +157,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_sport_choices(self) -> None:
         """Test sport field only accepts valid choices."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -193,9 +181,7 @@ class TestAssessmentAPI:
 
     def test_retrieved_assessment_matches_submitted_data(self) -> None:
         """Test assessment data retrieved matches what was submitted."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -226,9 +212,7 @@ class TestAssessmentAPI:
 
     def test_storage_failure_returns_error(self) -> None:
         """Test storage failure returns appropriate error."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -252,12 +236,8 @@ class TestAssessmentAPI:
 
     def test_user_can_only_access_own_assessment(self) -> None:
         """Test user can only retrieve their own assessment."""
-        user1 = User.objects.create_user(
-            email="user1@example.com", password="testpass123"
-        )
-        user2 = User.objects.create_user(
-            email="user2@example.com", password="testpass123"
-        )
+        user1 = User.objects.create_user(email="user1@example.com", password="testpass123")
+        user2 = User.objects.create_user(email="user2@example.com", password="testpass123")
 
         # Create assessment for user1
         Assessment.objects.create(
@@ -284,9 +264,7 @@ class TestAssessmentAPI:
 
     def test_get_assessment_returns_user_assessment(self) -> None:
         """Test GET request returns authenticated user's assessment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="cricket",
@@ -320,9 +298,7 @@ class TestAssessmentAPI:
 
     def test_update_assessment_with_valid_data(self) -> None:
         """Test authenticated user can update their assessment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -360,9 +336,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_age_non_numeric(self) -> None:
         """Test age validation rejects non-numeric values via API."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -384,9 +358,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_age_null(self) -> None:
         """Test age validation rejects null values via API."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -408,9 +380,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_multiple_errors(self) -> None:
         """Test API returns all validation errors for multiple invalid fields."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -437,9 +407,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_sport_empty_string(self) -> None:
         """Test sport validation rejects empty strings via API."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -462,9 +430,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_sport_case_sensitive(self) -> None:
         """Test sport validation is case-sensitive via API."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -487,9 +453,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_all_fields_valid_stores_successfully(self) -> None:
         """Test when all validations pass, assessment is stored successfully."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -517,9 +481,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_age_boundary_values(self) -> None:
         """Test age validation at exact boundary values via API."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
         url = reverse("assessment-list")
@@ -556,9 +518,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_validates_single_equipment_selection(self) -> None:
         """Test single equipment selection is enforced via API."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -580,9 +540,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_rejects_multiple_equipment_selections(self) -> None:
         """Test API rejects multiple equipment selections (Story 19.7)."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -605,9 +563,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_requires_equipment_level(self) -> None:
         """Test API requires equipment level to be provided (Story 19.7)."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -630,9 +586,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_rejects_empty_string_equipment(self) -> None:
         """Test API rejects empty string for equipment (Story 19.7)."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -654,9 +608,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_rejects_null_equipment(self) -> None:
         """Test API rejects null value for equipment (Story 19.7)."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -678,9 +630,7 @@ class TestAssessmentAPI:
 
     def test_create_assessment_accepts_all_valid_equipment_levels(self) -> None:
         """Test API accepts all valid equipment levels (Story 19.7)."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
         url = reverse("assessment-list")
@@ -715,9 +665,7 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_current_user_assessment_via_me_endpoint(self) -> None:
         """Test retrieving current user's assessment via /me endpoint."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="cricket",
@@ -744,9 +692,7 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_nonexistent_assessment_returns_404(self) -> None:
         """Test retrieving assessment when none exists returns 404 with clear message."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         client = APIClient()
         client.force_authenticate(user=user)
 
@@ -759,9 +705,7 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_assessment_includes_all_submitted_fields(self) -> None:
         """Test retrieved assessment includes all fields that were submitted."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         submitted_data = {
             "sport": "soccer",
             "age": 25,
@@ -794,9 +738,7 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_assessment_for_program_generation(self) -> None:
         """Test retrieving assessment data for program generation use case."""
-        user = User.objects.create_user(
-            email="athlete@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="athlete@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -823,9 +765,7 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_assessment_for_profile_display(self) -> None:
         """Test retrieving assessment data for profile display use case."""
-        user = User.objects.create_user(
-            email="user@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="user@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="cricket",
@@ -861,9 +801,7 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_assessment_detail_by_id(self) -> None:
         """Test retrieving specific assessment by ID."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -886,12 +824,8 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_other_user_assessment_returns_404(self) -> None:
         """Test user cannot retrieve another user's assessment by ID."""
-        user1 = User.objects.create_user(
-            email="user1@example.com", password="testpass123"
-        )
-        user2 = User.objects.create_user(
-            email="user2@example.com", password="testpass123"
-        )
+        user1 = User.objects.create_user(email="user1@example.com", password="testpass123")
+        user2 = User.objects.create_user(email="user2@example.com", password="testpass123")
 
         assessment = Assessment.objects.create(
             user=user1,
@@ -913,12 +847,8 @@ class TestAssessmentRetrieval:
 
     def test_list_assessments_returns_only_user_assessments(self) -> None:
         """Test list endpoint returns only authenticated user's assessments."""
-        user1 = User.objects.create_user(
-            email="user1@example.com", password="testpass123"
-        )
-        user2 = User.objects.create_user(
-            email="user2@example.com", password="testpass123"
-        )
+        user1 = User.objects.create_user(email="user1@example.com", password="testpass123")
+        user2 = User.objects.create_user(email="user2@example.com", password="testpass123")
 
         # Create assessments for both users
         assessment1 = Assessment.objects.create(
@@ -954,9 +884,7 @@ class TestAssessmentRetrieval:
 
     def test_retrieve_assessment_after_update(self) -> None:
         """Test retrieving assessment returns updated data after modification."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",

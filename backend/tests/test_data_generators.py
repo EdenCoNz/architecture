@@ -210,9 +210,7 @@ class AssessmentDataGenerator:
             >>> generator = AssessmentDataGenerator()
             >>> assessment = generator.generate_soccer_assessment()
         """
-        return FootballAssessmentFactory(
-            **kwargs
-        )  # Factory named for legacy compatibility
+        return FootballAssessmentFactory(**kwargs)  # Factory named for legacy compatibility
 
     def generate_cricket_assessment(self, **kwargs: Any) -> Assessment:
         """
@@ -301,9 +299,7 @@ class AssessmentDataGenerator:
                 "experience_level",
                 random.choice(["beginner", "intermediate", "advanced"]),
             ),
-            "training_days": kwargs.get(
-                "training_days", random.choice(["2-3", "4-5", "6-7"])
-            ),
+            "training_days": kwargs.get("training_days", random.choice(["2-3", "4-5", "6-7"])),
             "injuries": kwargs.get("injuries", "no"),
             "equipment": kwargs.get(
                 "equipment",
@@ -522,9 +518,7 @@ class TestDataGenerator:
             >>> assessments = scenario['assessments']
         """
         users = self.user_generator.generate_users(count=user_count)
-        assessments = self.assessment_generator.generate_assessments(
-            count=assessment_count
-        )
+        assessments = self.assessment_generator.generate_assessments(count=assessment_count)
 
         return {"users": users, "assessments": assessments}
 
@@ -634,8 +628,6 @@ class TestDataGenerator:
             ... )
         """
         users = self.user_generator.generate_users(count=user_count)
-        assessments = self.assessment_generator.generate_assessments(
-            count=assessment_count
-        )
+        assessments = self.assessment_generator.generate_assessments(count=assessment_count)
 
         return {"users": users, "assessments": assessments}

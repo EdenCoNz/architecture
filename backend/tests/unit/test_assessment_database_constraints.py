@@ -40,9 +40,7 @@ class TestAssessmentDatabaseConstraints:
         - When the database processes them
         - Then they should be rejected with clear error messages
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Attempt to bypass Django validation by using raw SQL
         with connection.cursor() as cursor:
@@ -81,9 +79,7 @@ class TestAssessmentDatabaseConstraints:
         - When I inspect database constraints
         - Then it should enforce valid sport choices at the database level
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Insert using raw SQL to verify database constraint allows 'soccer'
         with connection.cursor() as cursor:
@@ -122,9 +118,7 @@ class TestAssessmentDatabaseConstraints:
         - When I inspect database constraints
         - Then it should enforce valid sport choices at the database level
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Insert using raw SQL to verify database constraint allows 'cricket'
         with connection.cursor() as cursor:
@@ -191,9 +185,7 @@ class TestAssessmentDatabaseConstraints:
         - When I review field definitions
         - Then the sport field should have proper null constraints
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Attempt to insert NULL value for sport field using raw SQL
         with connection.cursor() as cursor:
@@ -383,10 +375,7 @@ class TestAssessmentConstraintErrorMessages:
                     "assessments_sport_valid_choice" in error_msg
                     or "check constraint" in error_msg.lower()
                     or "violates check constraint" in error_msg.lower()
-                ), (
-                    f"Error message not clear for invalid sport "
-                    f"'{invalid_sport}': {error_msg}"
-                )
+                ), (f"Error message not clear for invalid sport " f"'{invalid_sport}': {error_msg}")
             finally:
                 # Clean up
                 user.delete()
@@ -422,21 +411,13 @@ class TestAssessmentConstraintErrorMessages:
 
         # Verify the sport constraint has the correct definition
         sport_constraint = next(
-            (
-                name
-                for name in constraint_dict.keys()
-                if "sport" in name and "valid" in name
-            ),
+            (name for name in constraint_dict.keys() if "sport" in name and "valid" in name),
             None,
         )
         if sport_constraint:
             definition = constraint_dict[sport_constraint]
-            assert (
-                "soccer" in definition.lower()
-            ), "Sport constraint should include 'soccer'"
-            assert (
-                "cricket" in definition.lower()
-            ), "Sport constraint should include 'cricket'"
+            assert "soccer" in definition.lower(), "Sport constraint should include 'soccer'"
+            assert "cricket" in definition.lower(), "Sport constraint should include 'cricket'"
 
 
 @pytest.mark.django_db
@@ -450,9 +431,7 @@ class TestAssessmentIndexPerformance:
         This verifies the index actually improves query performance.
         """
         # Create test user and assessment
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -483,9 +462,7 @@ class TestAssessmentIndexPerformance:
         """
         Test user_id index efficiently supports reverse relationship lookups.
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="soccer",

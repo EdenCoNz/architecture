@@ -20,9 +20,7 @@ class TestStory21_1_SoccerIdentifier:
         Acceptance Criteria: Given a user selects "Football" in the assessment form,
         when the data is saved, then the database should store "soccer" as the sport value.
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Create assessment with sport="soccer" (internal value)
         assessment = Assessment.objects.create(
@@ -91,9 +89,7 @@ class TestStory21_1_SoccerIdentifier:
         Acceptance Criteria: Given assessment data exists with sport="soccer",
         when the system processes this data, then all functionality should work correctly.
         """
-        user = User.objects.create_user(
-            email="process@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="process@example.com", password="testpass123")
 
         # Create assessment with soccer
         assessment = Assessment.objects.create(

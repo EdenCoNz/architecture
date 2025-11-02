@@ -204,9 +204,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
 
         valid_sports = [choice[0] for choice in Assessment.Sport.choices]
         if value not in valid_sports:
-            raise serializers.ValidationError(
-                "Please select a valid sport (soccer or cricket)"
-            )
+            raise serializers.ValidationError("Please select a valid sport (soccer or cricket)")
 
         return value
 
@@ -227,9 +225,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
         # Check if value is a list (multiple selections)
         if isinstance(value, list):
             if len(value) > 1:
-                raise serializers.ValidationError(
-                    "Please select only one equipment level"
-                )
+                raise serializers.ValidationError("Please select only one equipment level")
             elif len(value) == 0:
                 raise serializers.ValidationError("Equipment level is required")
             # If it's a single-item list, extract the value
@@ -272,9 +268,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
 
         for item in value:
             if not isinstance(item, str) or not item.strip():
-                raise serializers.ValidationError(
-                    "Each equipment item must be a non-empty string"
-                )
+                raise serializers.ValidationError("Each equipment item must be a non-empty string")
 
         return value
 

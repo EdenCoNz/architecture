@@ -1587,6 +1587,19 @@
             "backend-developer"
           ],
           "description": "Fix CI/CD Pipeline failure - database constraint not enforcing sports terminology (migration 0004 AddConstraint not replacing existing constraint)"
+        },
+        {
+          "type": "fix",
+          "issueNumber": 363,
+          "timestamp": "2025-11-02T15:00:00Z",
+          "status": "planned",
+          "implementationLog": "docs/features/21/issues/363/implementation-log.json",
+          "userStoriesPath": "docs/features/21/issues/363/user-stories.md",
+          "totalStories": 1,
+          "assignedAgents": [
+            "backend-developer"
+          ],
+          "description": "Fix CI/CD Pipeline failure - Black code formatting violations in 15 backend Python files from Feature 21 implementation"
         }
       ]
     }

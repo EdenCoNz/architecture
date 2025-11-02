@@ -214,9 +214,7 @@ class TestStory21_2ReverseMigration(TransactionTestCase):
         migration_module = importlib.import_module(
             "apps.assessments.migrations.0003_migrate_football_to_soccer"
         )
-        reverse_migrate_soccer_to_football = (
-            migration_module.reverse_migrate_soccer_to_football
-        )
+        reverse_migrate_soccer_to_football = migration_module.reverse_migrate_soccer_to_football
 
         # Verify reverse function exists
         assert callable(reverse_migrate_soccer_to_football)
@@ -242,9 +240,7 @@ class TestStory21_2ReverseMigration(TransactionTestCase):
         migration_module = importlib.import_module(
             "apps.assessments.migrations.0003_migrate_football_to_soccer"
         )
-        reverse_migrate_soccer_to_football = (
-            migration_module.reverse_migrate_soccer_to_football
-        )
+        reverse_migrate_soccer_to_football = migration_module.reverse_migrate_soccer_to_football
 
         from django.apps import apps as django_apps
 
@@ -399,9 +395,7 @@ class TestStory21_2Integration(TransactionTestCase):
         assert ("soccer", "Football") in sport_choices
 
         # Verify 'football' is NOT in choices
-        football_choices = [
-            choice for choice in sport_choices if choice[0] == "football"
-        ]
+        football_choices = [choice for choice in sport_choices if choice[0] == "football"]
         assert len(football_choices) == 0
 
     def test_display_label_is_football(self):

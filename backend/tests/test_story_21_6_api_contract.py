@@ -55,9 +55,7 @@ class TestStory21_6_SportFieldDocumentation:
 
         # Verify internal value and display label are clearly distinguished
         assert soccer_choice["value"] == "soccer", "Internal value should be 'soccer'"
-        assert (
-            soccer_choice["display_name"] == "Football"
-        ), "Display label should be 'Football'"
+        assert soccer_choice["display_name"] == "Football", "Display label should be 'Football'"
 
     def test_create_assessment_request_uses_soccer_value(self):
         """
@@ -75,9 +73,7 @@ class TestStory21_6_SportFieldDocumentation:
             "equipment": "no_equipment",
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         # Request should succeed with documented value
         assert response.status_code == status.HTTP_201_CREATED
@@ -98,18 +94,14 @@ class TestStory21_6_SportFieldDocumentation:
             "equipment": "no_equipment",
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
         response_data = response.json()
 
         # Response should include both internal value and display label as documented
         assert response_data["sport"] == "soccer", "Internal value should be 'soccer'"
-        assert (
-            response_data["sport_display"] == "Football"
-        ), "Display label should be 'Football'"
+        assert response_data["sport_display"] == "Football", "Display label should be 'Football'"
 
     def test_retrieve_assessment_response_includes_both_value_and_display(self):
         """
@@ -185,9 +177,7 @@ class TestStory21_6_SportFieldDocumentation:
             # Clean up before each test
             Assessment.objects.filter(user=self.user).delete()
 
-            response = self.client.post(
-                "/api/v1/assessments/", data=request_data, format="json"
-            )
+            response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
             assert (
                 response.status_code == status.HTTP_201_CREATED
@@ -218,9 +208,7 @@ class TestStory21_6_SportFieldDocumentation:
                 "equipment": "no_equipment",
             }
 
-            response = self.client.post(
-                "/api/v1/assessments/", data=request_data, format="json"
-            )
+            response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
             assert (
                 response.status_code == status.HTTP_400_BAD_REQUEST
@@ -266,9 +254,7 @@ class TestStory21_6_SportFieldDocumentation:
         # Should include all model choices
         expected_values = [choice[0] for choice in Assessment.Sport.choices]
 
-        assert (
-            returned_values == expected_values
-        ), "sport-choices should return all valid values"
+        assert returned_values == expected_values, "sport-choices should return all valid values"
 
     def test_error_message_documents_valid_values(self):
         """
@@ -285,9 +271,7 @@ class TestStory21_6_SportFieldDocumentation:
             "equipment": "no_equipment",
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         response_data = response.json()
@@ -335,9 +319,7 @@ class TestStory21_6_APIContractExamples:
             "equipment_items": ["dumbbells", "resistance_bands"],
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -372,9 +354,7 @@ class TestStory21_6_APIContractExamples:
             "equipment_items": [],
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -400,9 +380,7 @@ class TestStory21_6_APIContractExamples:
             "equipment": "no_equipment",
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         # Should fail as documented
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -435,9 +413,7 @@ class TestStory21_6_APIContractExamples:
             assert isinstance(choice["display_name"], str)
 
         # Verify soccer entry matches documentation
-        soccer_choice = next(
-            (c for c in data["choices"] if c["value"] == "soccer"), None
-        )
+        soccer_choice = next((c for c in data["choices"] if c["value"] == "soccer"), None)
         assert soccer_choice is not None
         assert soccer_choice == {"value": "soccer", "display_name": "Football"}
 
@@ -471,9 +447,7 @@ class TestStory21_6_ValidationErrors:
             "equipment": "no_equipment",
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         response_data = response.json()
@@ -494,9 +468,7 @@ class TestStory21_6_ValidationErrors:
             "equipment": "no_equipment",
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         response_data = response.json()
@@ -516,9 +488,7 @@ class TestStory21_6_ValidationErrors:
             "equipment": "no_equipment",
         }
 
-        response = self.client.post(
-            "/api/v1/assessments/", data=request_data, format="json"
-        )
+        response = self.client.post("/api/v1/assessments/", data=request_data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         response_data = response.json()

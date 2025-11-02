@@ -65,15 +65,11 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         try:
             self.perform_create(serializer)
             headers = self.get_success_headers(serializer.data)
-            return Response(
-                serializer.data, status=status.HTTP_201_CREATED, headers=headers
-            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         except Exception as e:
             # Handle database integrity errors (e.g., duplicate assessment)
             return Response(
-                {
-                    "detail": "Unable to save assessment. You may already have an assessment."
-                },
+                {"detail": "Unable to save assessment. You may already have an assessment."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

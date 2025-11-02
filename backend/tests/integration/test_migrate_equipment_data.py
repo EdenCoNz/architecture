@@ -78,9 +78,7 @@ class TestEquipmentMigrator:
         assert result == "full_gym"
 
         # basic_equipment should win
-        result = migrator._convert_multiple_to_single(
-            ["no_equipment", "basic_equipment"]
-        )
+        result = migrator._convert_multiple_to_single(["no_equipment", "basic_equipment"])
         assert result == "basic_equipment"
 
         # no_equipment only
@@ -101,9 +99,7 @@ class TestEquipmentMigrator:
 
     def test_migrate_valid_string_equipment_skipped(self):
         """Test migration skips already valid string equipment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -124,9 +120,7 @@ class TestEquipmentMigrator:
 
     def test_migrate_basic_equipment_without_items_flagged(self):
         """Test basic equipment without items is flagged for re-assessment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -149,9 +143,7 @@ class TestEquipmentMigrator:
 
     def test_migrate_basic_equipment_with_items_accepted(self):
         """Test basic equipment with items is accepted without flagging."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -175,9 +167,7 @@ class TestEquipmentMigrator:
         Note: Since equipment field is CharField in current schema, this test
         simulates the migration logic directly rather than storing a list.
         """
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -201,9 +191,7 @@ class TestEquipmentMigrator:
 
     def test_migrate_multiple_selections_clears_items_when_needed(self):
         """Test migration clears items when not basic equipment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -227,9 +215,7 @@ class TestEquipmentMigrator:
 
     def test_migrate_invalid_equipment_returns_error(self):
         """Test migration with invalid equipment returns error."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -265,9 +251,7 @@ class TestEquipmentMigrator:
 
     def test_migration_details_tracking(self):
         """Test migration details are tracked for each assessment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -286,9 +270,7 @@ class TestEquipmentMigrator:
         assert detail["user_id"] == user.id
         assert detail["user_email"] == user.email
         assert detail["status"] == "skipped"  # Already valid single selection
-        assert (
-            detail["equipment"] == "full_gym"
-        )  # For skipped status, uses "equipment" key
+        assert detail["equipment"] == "full_gym"  # For skipped status, uses "equipment" key
 
 
 @pytest.mark.django_db
@@ -306,9 +288,7 @@ class TestMigrateEquipmentDataCommand:
         """Test command processes all assessments."""
         # Create multiple assessments
         for i in range(3):
-            user = User.objects.create_user(
-                email=f"user{i}@example.com", password="testpass123"
-            )
+            user = User.objects.create_user(email=f"user{i}@example.com", password="testpass123")
             Assessment.objects.create(
                 user=user,
                 sport="soccer",
@@ -328,9 +308,7 @@ class TestMigrateEquipmentDataCommand:
 
     def test_command_dry_run_mode(self):
         """Test command dry run mode doesn't save changes."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -355,9 +333,7 @@ class TestMigrateEquipmentDataCommand:
 
     def test_command_save_report(self):
         """Test command saves report to file."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -373,9 +349,7 @@ class TestMigrateEquipmentDataCommand:
 
         try:
             out = StringIO()
-            call_command(
-                "migrate_equipment_data", f"--save-report={report_file}", stdout=out
-            )
+            call_command("migrate_equipment_data", f"--save-report={report_file}", stdout=out)
 
             # Verify report file was created and contains valid JSON
             with open(report_file, "r") as f:
@@ -392,12 +366,8 @@ class TestMigrateEquipmentDataCommand:
 
     def test_command_displays_report_summary(self):
         """Test command displays migration report summary."""
-        user1 = User.objects.create_user(
-            email="user1@example.com", password="testpass123"
-        )
-        user2 = User.objects.create_user(
-            email="user2@example.com", password="testpass123"
-        )
+        user1 = User.objects.create_user(email="user1@example.com", password="testpass123")
+        user2 = User.objects.create_user(email="user2@example.com", password="testpass123")
 
         # Create different scenarios
         Assessment.objects.create(  # Will be skipped
@@ -431,9 +401,7 @@ class TestMigrateEquipmentDataCommand:
 
     def test_users_can_access_migrated_data_on_login(self):
         """Test that users with migrated data can access their updated equipment selection."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -458,9 +426,7 @@ class TestMigrateEquipmentDataCommand:
 
     def test_migration_preserves_other_assessment_fields(self):
         """Test that migration doesn't affect other assessment fields."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="cricket",
@@ -495,9 +461,7 @@ class TestMigrateEquipmentDataCommand:
 
     def test_migration_handles_edge_cases(self):
         """Test migration handles edge cases correctly."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Duplicate selections
         assessment1 = Assessment.objects.create(
@@ -528,9 +492,7 @@ class TestEquipmentMigrationAcceptanceCriteria(TestCase):
     def test_criterion_1_multiple_selections_retains_advanced(self):
         """AC1: When existing assessment data has multiple equipment selections,
         the most specific or advanced option should be retained."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Scenario: User selected both no_equipment and full_gym
         assessment = Assessment.objects.create(
@@ -557,9 +519,7 @@ class TestEquipmentMigrationAcceptanceCriteria(TestCase):
     def test_criterion_2_basic_equipment_without_items_flagged(self):
         """AC2: When existing equipment data indicates "basic equipment" without specific items,
         it should be flagged for user re-assessment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         assessment = Assessment.objects.create(
             user=user,
@@ -582,9 +542,7 @@ class TestEquipmentMigrationAcceptanceCriteria(TestCase):
     def test_criterion_3_users_not_losing_assessment(self):
         """AC3: When existing equipment data is migrated, users should not lose
         their original assessment."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Create assessment with multiple selections
         assessment = Assessment.objects.create(
@@ -618,9 +576,7 @@ class TestEquipmentMigrationAcceptanceCriteria(TestCase):
     def test_criterion_4_migrated_data_visible_on_login(self):
         """AC4: When users with migrated data log in, they should see their
         updated equipment selection."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         assessment = Assessment.objects.create(
             user=user,

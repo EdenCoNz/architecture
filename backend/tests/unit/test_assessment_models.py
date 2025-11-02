@@ -17,9 +17,7 @@ class TestAssessmentModel:
 
     def test_create_assessment_with_valid_data(self) -> None:
         """Test creating assessment with all valid required fields."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -41,9 +39,7 @@ class TestAssessmentModel:
 
     def test_assessment_associated_with_correct_user(self) -> None:
         """Test assessment is correctly associated with user account."""
-        user = User.objects.create_user(
-            email="user1@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="user1@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="cricket",
@@ -61,9 +57,7 @@ class TestAssessmentModel:
 
     def test_one_assessment_per_user(self) -> None:
         """Test OneToOneField ensures only one assessment per user."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -88,9 +82,7 @@ class TestAssessmentModel:
 
     def test_age_validation_minimum(self) -> None:
         """Test age validation rejects values below 13."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment(
             user=user,
             sport="soccer",
@@ -109,9 +101,7 @@ class TestAssessmentModel:
 
     def test_age_validation_maximum(self) -> None:
         """Test age validation rejects values above 100."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment(
             user=user,
             sport="soccer",
@@ -130,9 +120,7 @@ class TestAssessmentModel:
 
     def test_age_validation_accepts_valid_range(self) -> None:
         """Test age validation accepts values in range 13-100."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
 
         # Test minimum valid age
         assessment1 = Assessment(
@@ -147,9 +135,7 @@ class TestAssessmentModel:
         assessment1.full_clean()  # Should not raise
 
         user.delete()
-        user2 = User.objects.create_user(
-            email="test2@example.com", password="testpass123"
-        )
+        user2 = User.objects.create_user(email="test2@example.com", password="testpass123")
 
         # Test maximum valid age
         assessment2 = Assessment(
@@ -165,9 +151,7 @@ class TestAssessmentModel:
 
     def test_sport_choices_validation(self) -> None:
         """Test sport field only accepts valid choices."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment(
             user=user,
             sport="basketball",  # Invalid choice
@@ -185,9 +169,7 @@ class TestAssessmentModel:
 
     def test_experience_level_choices_validation(self) -> None:
         """Test experience_level field only accepts valid choices."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment(
             user=user,
             sport="soccer",
@@ -205,9 +187,7 @@ class TestAssessmentModel:
 
     def test_training_days_choices_validation(self) -> None:
         """Test training_days field only accepts valid choices."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment(
             user=user,
             sport="soccer",
@@ -225,9 +205,7 @@ class TestAssessmentModel:
 
     def test_equipment_choices_validation(self) -> None:
         """Test equipment field only accepts valid choices."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment(
             user=user,
             sport="soccer",
@@ -245,12 +223,8 @@ class TestAssessmentModel:
 
     def test_has_injuries_property(self) -> None:
         """Test has_injuries property correctly identifies injury status."""
-        user1 = User.objects.create_user(
-            email="user1@example.com", password="testpass123"
-        )
-        user2 = User.objects.create_user(
-            email="user2@example.com", password="testpass123"
-        )
+        user1 = User.objects.create_user(email="user1@example.com", password="testpass123")
+        user2 = User.objects.create_user(email="user2@example.com", password="testpass123")
 
         assessment_no_injuries = Assessment.objects.create(
             user=user1,
@@ -277,9 +251,7 @@ class TestAssessmentModel:
 
     def test_retrieved_assessment_matches_submitted_data(self) -> None:
         """Test assessment data retrieved from DB matches what was submitted."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         original_data = {
             "user": user,
             "sport": "cricket",
@@ -308,9 +280,7 @@ class TestAssessmentModel:
 
     def test_assessment_timestamps(self) -> None:
         """Test assessment has created_at and updated_at timestamps from TimeStampedModel."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -327,9 +297,7 @@ class TestAssessmentModel:
 
     def test_assessment_cascade_delete_with_user(self) -> None:
         """Test assessment is deleted when associated user is deleted."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",

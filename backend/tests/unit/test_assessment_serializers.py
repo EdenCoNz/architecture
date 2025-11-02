@@ -17,9 +17,7 @@ class TestAssessmentSerializer:
 
     def test_serialize_assessment(self) -> None:
         """Test serializing an assessment to JSON."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -195,9 +193,7 @@ class TestAssessmentSerializer:
 
     def test_create_assessment_via_serializer(self) -> None:
         """Test creating assessment instance via serializer."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         data = {
             "sport": "cricket",
             "age": 28,
@@ -223,9 +219,7 @@ class TestAssessmentSerializer:
 
     def test_update_assessment_via_serializer(self) -> None:
         """Test updating assessment instance via serializer."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -262,9 +256,7 @@ class TestAssessmentSerializer:
 
     def test_serializer_excludes_user_field(self) -> None:
         """Test serializer doesn't expose user field in output."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -615,9 +607,7 @@ class TestAssessmentSerializer:
         serializer = AssessmentSerializer(data=data)
         assert not serializer.is_valid()
         assert "equipment" in serializer.errors
-        assert "Please select only one equipment level" in str(
-            serializer.errors["equipment"]
-        )
+        assert "Please select only one equipment level" in str(serializer.errors["equipment"])
 
     def test_validate_equipment_empty_string_rejected(self) -> None:
         """Test equipment validation rejects empty string."""
@@ -804,9 +794,7 @@ class TestAssessmentSerializer:
 
     def test_create_assessment_with_basic_equipment_items(self) -> None:
         """Test creating assessment with basic equipment and items."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         data = {
             "sport": "soccer",
             "age": 25,
@@ -827,9 +815,7 @@ class TestAssessmentSerializer:
 
     def test_update_assessment_equipment_and_items(self) -> None:
         """Test updating assessment to add equipment items."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",
@@ -861,9 +847,7 @@ class TestAssessmentSerializer:
 
     def test_serialize_assessment_with_equipment_items(self) -> None:
         """Test serializing assessment with equipment items to JSON."""
-        user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
+        user = User.objects.create_user(email="test@example.com", password="testpass123")
         assessment = Assessment.objects.create(
             user=user,
             sport="soccer",

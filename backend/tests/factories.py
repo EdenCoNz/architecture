@@ -239,9 +239,7 @@ class BeginnerAssessmentFactory(AssessmentFactory):
     age = factory.LazyFunction(lambda: random.randint(16, 30))
     experience_level = "beginner"
     training_days = "2-3"
-    equipment = factory.LazyFunction(
-        lambda: random.choice(["no_equipment", "basic_equipment"])
-    )
+    equipment = factory.LazyFunction(lambda: random.choice(["no_equipment", "basic_equipment"]))
 
 
 class AdvancedAssessmentFactory(AssessmentFactory):
@@ -262,9 +260,7 @@ class AdvancedAssessmentFactory(AssessmentFactory):
     age = factory.LazyFunction(lambda: random.randint(20, 45))
     experience_level = "advanced"
     training_days = factory.LazyFunction(lambda: random.choice(["4-5", "6-7"]))
-    equipment = factory.LazyFunction(
-        lambda: random.choice(["basic_equipment", "full_gym"])
-    )
+    equipment = factory.LazyFunction(lambda: random.choice(["basic_equipment", "full_gym"]))
 
 
 class InjuredAssessmentFactory(AssessmentFactory):
@@ -379,9 +375,7 @@ class TestDataBuilder:
         return AssessmentFactory.create_batch(count, **kwargs)
 
     @staticmethod
-    def create_user_with_assessment(
-        sport="soccer", experience_level="beginner", **kwargs
-    ):
+    def create_user_with_assessment(sport="soccer", experience_level="beginner", **kwargs):
         """
         Create a user with an associated assessment.
 
