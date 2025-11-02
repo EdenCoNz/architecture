@@ -130,7 +130,7 @@ class TestAssessmentDataGenerator:
         assert assessment.id is not None
 
         # Verify required fields
-        assert assessment.sport in ["football", "cricket"]
+        assert assessment.sport in ["soccer", "cricket"]
         assert 13 <= assessment.age <= 100
         assert assessment.experience_level in ["beginner", "intermediate", "advanced"]
         assert assessment.training_days in ["2-3", "4-5", "6-7"]
@@ -174,16 +174,16 @@ class TestAssessmentDataGenerator:
         training = [a.training_days for a in assessments]
         assert len(set(training)) > 1, "Should have varied training days"
 
-    def test_generate_football_assessment(self):
+    def test_generate_soccer_assessment(self):
         """
-        Test that generating a football-specific assessment works.
+        Test that generating a soccer-specific assessment works.
 
         Acceptance Criteria: Generate valid assessment submissions with varied attributes
         """
         generator = AssessmentDataGenerator()
-        assessment = generator.generate_football_assessment()
+        assessment = generator.generate_soccer_assessment()
 
-        assert assessment.sport == "football"
+        assert assessment.sport == "soccer"
 
     def test_generate_cricket_assessment(self):
         """
@@ -291,7 +291,7 @@ class TestEdgeCaseDataGenerator:
         assert len(assessments) == 2
 
         sports = [a.sport for a in assessments]
-        assert "football" in sports
+        assert "soccer" in sports
         assert "cricket" in sports
 
     def test_generate_all_experience_level_combinations(self):
@@ -373,7 +373,7 @@ class TestTestDataGenerator:
 
         for assessment in scenario["assessments"]:
             assert assessment.user is not None
-            assert assessment.sport in ["football", "cricket"]
+            assert assessment.sport in ["soccer", "cricket"]
 
     def test_generate_user_with_assessment(self):
         """
@@ -429,7 +429,7 @@ class TestTestDataGenerator:
             assert user.email is not None
 
         for assessment in data["assessments"]:
-            assert assessment.sport in ["football", "cricket"]
+            assert assessment.sport in ["soccer", "cricket"]
 
     def test_generated_data_is_representative(self):
         """
@@ -442,11 +442,11 @@ class TestTestDataGenerator:
 
         # Check for realistic distribution of sports
         sports = [a.sport for a in data["assessments"]]
-        football_count = sports.count("football")
+        soccer_count = sports.count("soccer")
         cricket_count = sports.count("cricket")
 
         # Should have a mix of both sports (not all one type)
-        assert football_count > 0, "Should have some football assessments"
+        assert soccer_count > 0, "Should have some soccer assessments"
         assert cricket_count > 0, "Should have some cricket assessments"
 
         # Check for realistic age distribution
@@ -542,7 +542,7 @@ class TestDataGeneratorUtils:
         assert "equipment" in assessment_dict
 
         # Verify values are valid
-        assert assessment_dict["sport"] in ["football", "cricket"]
+        assert assessment_dict["sport"] in ["soccer", "cricket"]
         assert 13 <= assessment_dict["age"] <= 100
 
     def test_generate_user_credentials_for_authentication_testing(self):

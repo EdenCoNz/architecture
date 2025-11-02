@@ -29,7 +29,7 @@ User = get_user_model()
 try:
     from apps.assessments.models import Assessment
 except (ImportError, RuntimeError):
-    Assessment = None
+    Assessment = None  # type: ignore[assignment,misc]
     pytestmark = pytest.mark.skip(reason="Assessment models not available")
 
 
@@ -52,7 +52,9 @@ class TestDatabaseIsolation:
         # Check we're using test database
         # Accept :memory:, file:memory, or databases with "test" in name
         is_test_db = (
-            "test" in db_name.lower() or db_name == ":memory:" or "memory" in db_name.lower()
+            "test" in db_name.lower()
+            or db_name == ":memory:"
+            or "memory" in db_name.lower()
         )
 
         assert is_test_db, (
@@ -68,7 +70,9 @@ class TestDatabaseIsolation:
         """
         # Database should be completely empty at start
         assert User.objects.count() == 0, "Database should start with no users"
-        assert Assessment.objects.count() == 0, "Database should start with no assessments"
+        assert (
+            Assessment.objects.count() == 0
+        ), "Database should start with no assessments"
 
     def test_test_data_is_isolated_between_tests_first(self, isolated_db):
         """
@@ -80,7 +84,7 @@ class TestDatabaseIsolation:
         """
         # Create test data
         user = UserFactory(email="first.test@example.com")
-        assessment = AssessmentFactory(user=user, sport="football")
+        assessment = AssessmentFactory(user=user, sport="soccer")
 
         # Verify data exists in this test
         assert User.objects.count() == 1
@@ -138,7 +142,9 @@ class TestDatabaseIsolation:
         Acceptance Criteria: AC3 - Each test has clean data state
         """
         # Should start clean despite previous test creating 5 users
-        assert User.objects.count() == 0, "Users from previous batch test are still present!"
+        assert (
+            User.objects.count() == 0
+        ), "Users from previous batch test are still present!"
         assert (
             Assessment.objects.count() == 0
         ), "Assessments from previous batch test are still present!"
@@ -317,7 +323,9 @@ class TestDataBuilderIsolation:
         """
         # Previous test created 4 users and 4 assessments
         # They should not be visible here
-        assert User.objects.count() == 0, "Users from previous scenario test still exist!"
+        assert (
+            User.objects.count() == 0
+        ), "Users from previous scenario test still exist!"
         assert (
             Assessment.objects.count() == 0
         ), "Assessments from previous scenario test still exist!"
@@ -464,7 +472,9 @@ class TestAcceptanceCriteria:
 
         # Verify using test database (memory or with test in name)
         is_test_db = (
-            "test" in db_name.lower() or db_name == ":memory:" or "memory" in db_name.lower()
+            "test" in db_name.lower()
+            or db_name == ":memory:"
+            or "memory" in db_name.lower()
         )
         assert is_test_db
 
@@ -516,7 +526,9 @@ class TestAcceptanceCriteria:
         # Verify we're NOT using production/development database
         db_name = connection.settings_dict["NAME"]
         is_test_db = (
-            "test" in db_name.lower() or db_name == ":memory:" or "memory" in db_name.lower()
+            "test" in db_name.lower()
+            or db_name == ":memory:"
+            or "memory" in db_name.lower()
         )
         assert is_test_db, "Test is using production/development database!"
 

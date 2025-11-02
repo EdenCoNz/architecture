@@ -171,13 +171,64 @@ describe('AssessmentForm', () => {
 
       await waitFor(() => {
         expect(mockSubmit).toHaveBeenCalledWith({
-          sport: 'football',
+          sport: 'soccer',
           age: 25,
           experienceLevel: 'intermediate',
           trainingDays: '4-5',
           injuries: null,
           equipment: ['no-equipment'],
         });
+      });
+    });
+
+    // Story 21.4: Sport value transformation tests
+    it('should send "soccer" to backend when user selects "Football" (Story 21.4 AC 1)', async () => {
+      const user = userEvent.setup();
+      const mockSubmit = vi.fn().mockResolvedValue({ success: true });
+      render(<AssessmentForm onSubmit={mockSubmit} />);
+
+      // User selects "Football" from UI
+      await user.click(screen.getByRole('button', { name: /select football/i }));
+      await user.type(screen.getByLabelText(/age/i), '25');
+      await user.click(screen.getByRole('radio', { name: /intermediate/i }));
+      await user.click(screen.getByRole('button', { name: /4-5 days/i }));
+      await user.click(screen.getByRole('radio', { name: /no.*injur/i }));
+      await user.click(screen.getByRole('button', { name: /no equipment/i }));
+
+      await user.click(screen.getByRole('button', { name: /submit/i }));
+
+      // Verify that "soccer" (not "Football") is sent to backend
+      await waitFor(() => {
+        expect(mockSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sport: 'soccer',
+          })
+        );
+      });
+    });
+
+    it('should send "cricket" when user selects "Cricket" (Story 21.4 validation)', async () => {
+      const user = userEvent.setup();
+      const mockSubmit = vi.fn().mockResolvedValue({ success: true });
+      render(<AssessmentForm onSubmit={mockSubmit} />);
+
+      // User selects "Cricket" from UI
+      await user.click(screen.getByRole('button', { name: /select cricket/i }));
+      await user.type(screen.getByLabelText(/age/i), '30');
+      await user.click(screen.getByRole('radio', { name: /advanced/i }));
+      await user.click(screen.getByRole('button', { name: /6-7 days/i }));
+      await user.click(screen.getByRole('radio', { name: /no.*injur/i }));
+      await user.click(screen.getByRole('button', { name: /full gym/i }));
+
+      await user.click(screen.getByRole('button', { name: /submit/i }));
+
+      // Verify that "cricket" is sent to backend
+      await waitFor(() => {
+        expect(mockSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sport: 'cricket',
+          })
+        );
       });
     });
   });

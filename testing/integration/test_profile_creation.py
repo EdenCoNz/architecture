@@ -240,7 +240,7 @@ class TestProfileCreationFromAssessment:
         # Submit beginner assessment
         submit_url = f"{api_base_url}/assessments/"
         beginner_data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 20,
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -258,7 +258,7 @@ class TestProfileCreationFromAssessment:
 
         # Verify profile contains data for personalized recommendations
         assert profile["experience_level"] == "beginner"
-        assert profile["sport"] == "football"
+        assert profile["sport"] == "soccer"
         assert profile["equipment"] == "no_equipment"
         assert profile["training_days"] == "2-3"
 
@@ -312,7 +312,7 @@ class TestProfileCreationFromAssessment:
         # Submit assessment with injury history
         submit_url = f"{api_base_url}/assessments/"
         injury_data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -356,7 +356,7 @@ class TestProfileCreationFromAssessment:
             # Submit assessment with specific equipment
             submit_url = f"{api_base_url}/assessments/"
             equipment_data = {
-                "sport": "football",
+                "sport": "soccer",
                 "age": 25,
                 "experience_level": "intermediate",
                 "training_days": days,
@@ -386,7 +386,7 @@ class TestProfileCreationFromAssessment:
 
         Acceptance Criteria: Recommendations should be sport-specific
         """
-        sports = ["football", "cricket"]
+        sports = ["soccer", "cricket"]
 
         for sport in sports:
             # Clean up previous assessment
@@ -501,7 +501,7 @@ class TestProfileCreationFromAssessment:
         submit_url = f"{api_base_url}/assessments/"
 
         user1_data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -524,7 +524,7 @@ class TestProfileCreationFromAssessment:
         profile_url = f"{api_base_url}/assessments/me/"
 
         profile1 = session1.get(profile_url).json()
-        assert profile1["sport"] == "football"
+        assert profile1["sport"] == "soccer"
         assert profile1["experience_level"] == "beginner"
 
         profile2 = session2.get(profile_url).json()
@@ -572,7 +572,7 @@ class TestProfileCreationFromAssessment:
         # Submit comprehensive assessment
         submit_url = f"{api_base_url}/assessments/"
         complete_data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 28,
             "experience_level": "intermediate",
             "training_days": "4-5",

@@ -111,7 +111,7 @@ def assessment_data() -> Dict[str, Any]:
         Dictionary with valid assessment data
     """
     return {
-        "sport": "football",
+        "sport": "soccer",
         "age": 25,
         "experience_level": "intermediate",
         "training_days": "4-5",

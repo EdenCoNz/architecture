@@ -54,7 +54,9 @@ class TestUserGenerationExamples:
     def test_create_user_for_authentication_testing(self):
         """Example: Create a user with known credentials for auth tests."""
         user_gen = UserDataGenerator()
-        user, password = user_gen.generate_user_with_credentials(password="SecurePass123!")
+        user, password = user_gen.generate_user_with_credentials(
+            password="SecurePass123!"
+        )
 
         # Password is available for login tests
         assert user.check_password("SecurePass123!")
@@ -69,16 +71,16 @@ class TestAssessmentGenerationExamples:
         assessment = assessment_gen.generate_assessment()
 
         # Assessment is ready to use
-        assert assessment.sport in ["football", "cricket"]
+        assert assessment.sport in ["soccer", "cricket"]
         assert 13 <= assessment.age <= 100
 
     def test_create_sport_specific_assessment(self):
-        """Example: Create a football-specific assessment."""
+        """Example: Create a soccer-specific assessment."""
         assessment_gen = AssessmentDataGenerator()
-        football = assessment_gen.generate_football_assessment()
+        soccer_assessment = assessment_gen.generate_soccer_assessment()
 
         # Use for sport-specific logic tests
-        assert football.sport == "football"
+        assert soccer_assessment.sport == "soccer"
 
     def test_create_level_specific_assessment(self):
         """Example: Create a beginner assessment for training logic."""
@@ -183,18 +185,20 @@ class TestCompleteScenarioExamples:
         """Example: Test user with assessment creation workflow."""
         test_gen = TestDataGenerator()
         user, assessment = test_gen.generate_user_with_assessment(
-            sport="football", experience_level="intermediate"
+            sport="soccer", experience_level="intermediate"
         )
 
         # User and assessment are linked
         assert assessment.user == user
-        assert assessment.sport == "football"
+        assert assessment.sport == "soccer"
         assert assessment.experience_level == "intermediate"
 
     def test_bulk_data_for_performance(self):
         """Example: Generate bulk data for performance testing."""
         test_gen = TestDataGenerator()
-        bulk_data = test_gen.generate_bulk_test_data(user_count=100, assessment_count=80)
+        bulk_data = test_gen.generate_bulk_test_data(
+            user_count=100, assessment_count=80
+        )
 
         # Use for load testing, pagination testing, etc.
         assert len(bulk_data["users"]) == 100
@@ -217,7 +221,7 @@ class TestPracticalUseCases:
         # 2. User completes assessment
         assessment_gen = AssessmentDataGenerator()
         assessment_data = assessment_gen.generate_assessment_dict(
-            sport="football", experience_level="beginner"
+            sport="soccer", experience_level="beginner"
         )
 
         # 3. Create assessment for user (simulating API submission)
@@ -225,7 +229,7 @@ class TestPracticalUseCases:
 
         # Verify complete flow
         assert user.assessment == assessment
-        assert assessment.sport == "football"
+        assert assessment.sport == "soccer"
 
     def test_multiple_users_with_different_profiles(self):
         """
@@ -318,7 +322,7 @@ class TestWithFixtures:
 
     def test_with_assessment_fixture(self, sample_assessment):
         """Example: Use assessment fixture in test."""
-        assert sample_assessment.sport in ["football", "cricket"]
+        assert sample_assessment.sport in ["soccer", "cricket"]
 
     def test_with_scenario_fixture(self, onboarding_scenario):
         """Example: Use complete scenario fixture in test."""

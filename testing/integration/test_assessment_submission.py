@@ -176,7 +176,7 @@ class TestAssessmentDataSubmission:
 
         # Test with invalid sport containing special characters
         data = {
-            "sport": "football!@#",
+            "sport": "soccer!@#",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -231,7 +231,7 @@ class TestAssessmentDataSubmission:
         url = f"{api_base_url}/assessments/"
 
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 12,  # Below minimum
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -289,7 +289,7 @@ class TestAssessmentDataSubmission:
         url = f"{api_base_url}/assessments/"
 
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 101,  # Above maximum
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -319,7 +319,7 @@ class TestAssessmentDataSubmission:
         url = f"{api_base_url}/assessments/"
 
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": None,
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -348,7 +348,7 @@ class TestAssessmentDataSubmission:
         url = f"{api_base_url}/assessments/"
 
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": "twenty-five",
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -403,7 +403,7 @@ class TestAssessmentDataSubmission:
         url = f"{api_base_url}/assessments/"
 
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "expert",  # Invalid choice
             "training_days": "4-5",
@@ -429,7 +429,7 @@ class TestAssessmentDataSubmission:
         url = f"{api_base_url}/assessments/"
 
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "10",  # Invalid choice
@@ -455,7 +455,7 @@ class TestAssessmentDataSubmission:
         url = f"{api_base_url}/assessments/"
 
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -516,10 +516,10 @@ class TestAssessmentDataSubmission:
         """
         url = f"{api_base_url}/assessments/"
 
-        # Test football with all valid combinations
+        # Test soccer with all valid combinations
         test_cases = [
             {
-                "sport": "football",
+                "sport": "soccer",
                 "age": 25,
                 "experience_level": "beginner",
                 "training_days": "2-3",
@@ -535,7 +535,7 @@ class TestAssessmentDataSubmission:
                 "equipment": "basic_equipment",
             },
             {
-                "sport": "football",
+                "sport": "soccer",
                 "age": 35,
                 "experience_level": "advanced",
                 "training_days": "6-7",

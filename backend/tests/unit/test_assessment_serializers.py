@@ -17,10 +17,12 @@ class TestAssessmentSerializer:
 
     def test_serialize_assessment(self) -> None:
         """Test serializing an assessment to JSON."""
-        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
         assessment = Assessment.objects.create(
             user=user,
-            sport="football",
+            sport="soccer",
             age=25,
             experience_level="intermediate",
             training_days="4-5",
@@ -31,7 +33,7 @@ class TestAssessmentSerializer:
         serializer = AssessmentSerializer(assessment)
         data = serializer.data
 
-        assert data["sport"] == "football"
+        assert data["sport"] == "soccer"
         assert data["age"] == 25
         assert data["experience_level"] == "intermediate"
         assert data["training_days"] == "4-5"
@@ -64,7 +66,7 @@ class TestAssessmentSerializer:
     def test_validate_age_minimum(self) -> None:
         """Test age validation rejects values below 13."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 12,  # Below minimum
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -80,7 +82,7 @@ class TestAssessmentSerializer:
     def test_validate_age_maximum(self) -> None:
         """Test age validation rejects values above 100."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 101,  # Above maximum
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -97,7 +99,7 @@ class TestAssessmentSerializer:
         """Test age validation accepts values in range 13-100."""
         # Test minimum valid age
         data1 = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 13,
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -137,7 +139,7 @@ class TestAssessmentSerializer:
     def test_validate_experience_level_choices(self) -> None:
         """Test experience_level field only accepts valid choices."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "expert",  # Invalid choice
             "training_days": "4-5",
@@ -152,7 +154,7 @@ class TestAssessmentSerializer:
     def test_validate_training_days_choices(self) -> None:
         """Test training_days field only accepts valid choices."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "8-10",  # Invalid choice
@@ -167,7 +169,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_choices(self) -> None:
         """Test equipment field only accepts valid choices."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -193,7 +195,9 @@ class TestAssessmentSerializer:
 
     def test_create_assessment_via_serializer(self) -> None:
         """Test creating assessment instance via serializer."""
-        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
         data = {
             "sport": "cricket",
             "age": 28,
@@ -219,10 +223,12 @@ class TestAssessmentSerializer:
 
     def test_update_assessment_via_serializer(self) -> None:
         """Test updating assessment instance via serializer."""
-        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
         assessment = Assessment.objects.create(
             user=user,
-            sport="football",
+            sport="soccer",
             age=25,
             experience_level="beginner",
             training_days="2-3",
@@ -256,10 +262,12 @@ class TestAssessmentSerializer:
 
     def test_serializer_excludes_user_field(self) -> None:
         """Test serializer doesn't expose user field in output."""
-        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
         assessment = Assessment.objects.create(
             user=user,
-            sport="football",
+            sport="soccer",
             age=25,
             experience_level="intermediate",
             training_days="4-5",
@@ -274,7 +282,7 @@ class TestAssessmentSerializer:
         """Test id, created_at, updated_at are read-only."""
         data = {
             "id": 999,  # Should be ignored
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -296,7 +304,7 @@ class TestAssessmentSerializer:
     def test_validate_age_non_numeric_string(self) -> None:
         """Test age validation rejects non-numeric string values."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": "twenty-five",  # Non-numeric string
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -312,7 +320,7 @@ class TestAssessmentSerializer:
     def test_validate_age_negative_value(self) -> None:
         """Test age validation rejects negative values."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": -5,  # Negative age
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -327,7 +335,7 @@ class TestAssessmentSerializer:
     def test_validate_age_zero_value(self) -> None:
         """Test age validation rejects zero value."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 0,  # Zero age
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -343,7 +351,7 @@ class TestAssessmentSerializer:
     def test_validate_age_float_value(self) -> None:
         """Test age validation rejects float values."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25.7,  # Float age
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -359,7 +367,7 @@ class TestAssessmentSerializer:
     def test_validate_age_null_value(self) -> None:
         """Test age validation rejects null values."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": None,  # Null age
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -404,7 +412,7 @@ class TestAssessmentSerializer:
     def test_validate_sport_case_sensitivity(self) -> None:
         """Test sport validation is case-sensitive."""
         data = {
-            "sport": "FOOTBALL",  # Uppercase
+            "sport": "SOCCER",  # Uppercase
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -439,7 +447,7 @@ class TestAssessmentSerializer:
     def test_validate_partial_data_missing_fields(self) -> None:
         """Test validation with only some required fields present."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             # Missing: experience_level, training_days, equipment
         }
@@ -453,7 +461,7 @@ class TestAssessmentSerializer:
     def test_validate_experience_level_null_value(self) -> None:
         """Test experience_level validation rejects null values."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": None,  # Null level
             "training_days": "4-5",
@@ -468,7 +476,7 @@ class TestAssessmentSerializer:
     def test_validate_training_days_null_value(self) -> None:
         """Test training_days validation rejects null values."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": None,  # Null training days
@@ -483,7 +491,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_null_value(self) -> None:
         """Test equipment validation rejects null values."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -499,7 +507,7 @@ class TestAssessmentSerializer:
         """Test age validation at exact boundary values."""
         # Test age = 13 (minimum valid)
         data_min = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 13,
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -511,7 +519,7 @@ class TestAssessmentSerializer:
 
         # Test age = 12 (below minimum)
         data_below = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 12,
             "experience_level": "beginner",
             "training_days": "2-3",
@@ -550,7 +558,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_single_selection_valid(self) -> None:
         """Test equipment validation accepts single valid selection."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -566,7 +574,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_single_selection_no_equipment(self) -> None:
         """Test equipment validation accepts single no_equipment selection."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -581,7 +589,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_single_selection_full_gym(self) -> None:
         """Test equipment validation accepts single full_gym selection."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -596,7 +604,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_multiple_selections_list_rejected(self) -> None:
         """Test equipment validation rejects multiple selections as list."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -607,12 +615,14 @@ class TestAssessmentSerializer:
         serializer = AssessmentSerializer(data=data)
         assert not serializer.is_valid()
         assert "equipment" in serializer.errors
-        assert "Please select only one equipment level" in str(serializer.errors["equipment"])
+        assert "Please select only one equipment level" in str(
+            serializer.errors["equipment"]
+        )
 
     def test_validate_equipment_empty_string_rejected(self) -> None:
         """Test equipment validation rejects empty string."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -628,7 +638,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_null_rejected(self) -> None:
         """Test equipment validation rejects null value."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -644,7 +654,7 @@ class TestAssessmentSerializer:
     def test_validate_basic_equipment_requires_items(self) -> None:
         """Test basic equipment selection requires equipment items to be specified."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -663,7 +673,7 @@ class TestAssessmentSerializer:
     def test_validate_basic_equipment_missing_items_field(self) -> None:
         """Test basic equipment without items field is rejected."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -682,7 +692,7 @@ class TestAssessmentSerializer:
     def test_validate_basic_equipment_with_single_item(self) -> None:
         """Test basic equipment with single equipment item is accepted."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -699,7 +709,7 @@ class TestAssessmentSerializer:
     def test_validate_basic_equipment_with_multiple_items(self) -> None:
         """Test basic equipment with multiple equipment items is accepted."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -719,7 +729,7 @@ class TestAssessmentSerializer:
     def test_validate_basic_equipment_with_custom_items(self) -> None:
         """Test basic equipment with custom equipment items is accepted."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -736,7 +746,7 @@ class TestAssessmentSerializer:
     def test_validate_basic_equipment_with_predefined_and_custom_items(self) -> None:
         """Test basic equipment with both predefined and custom items is accepted."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -761,7 +771,7 @@ class TestAssessmentSerializer:
     def test_validate_no_equipment_clears_items(self) -> None:
         """Test non-basic equipment clears items even if provided."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -778,7 +788,7 @@ class TestAssessmentSerializer:
     def test_validate_full_gym_clears_items(self) -> None:
         """Test full_gym equipment clears items even if provided."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -794,9 +804,11 @@ class TestAssessmentSerializer:
 
     def test_create_assessment_with_basic_equipment_items(self) -> None:
         """Test creating assessment with basic equipment and items."""
-        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -815,10 +827,12 @@ class TestAssessmentSerializer:
 
     def test_update_assessment_equipment_and_items(self) -> None:
         """Test updating assessment to add equipment items."""
-        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
         assessment = Assessment.objects.create(
             user=user,
-            sport="football",
+            sport="soccer",
             age=25,
             experience_level="beginner",
             training_days="2-3",
@@ -829,7 +843,7 @@ class TestAssessmentSerializer:
 
         # Update to basic equipment with items
         update_data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -847,10 +861,12 @@ class TestAssessmentSerializer:
 
     def test_serialize_assessment_with_equipment_items(self) -> None:
         """Test serializing assessment with equipment items to JSON."""
-        user = User.objects.create_user(email="test@example.com", password="testpass123")
+        user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
         assessment = Assessment.objects.create(
             user=user,
-            sport="football",
+            sport="soccer",
             age=25,
             experience_level="intermediate",
             training_days="4-5",
@@ -871,7 +887,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_items_empty_string_rejected(self) -> None:
         """Test equipment items with empty strings are rejected."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -887,7 +903,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_items_whitespace_only_rejected(self) -> None:
         """Test equipment items with whitespace only are rejected."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",
@@ -903,7 +919,7 @@ class TestAssessmentSerializer:
     def test_validate_equipment_items_not_list_rejected(self) -> None:
         """Test equipment items that are not a list are rejected."""
         data = {
-            "sport": "football",
+            "sport": "soccer",
             "age": 25,
             "experience_level": "intermediate",
             "training_days": "4-5",

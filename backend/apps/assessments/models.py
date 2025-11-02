@@ -24,7 +24,7 @@ class Assessment(TimeStampedModel):
     class Sport(models.TextChoices):
         """Supported sports."""
 
-        FOOTBALL = "football", _("Football")
+        SOCCER = "soccer", _("Football")
         CRICKET = "cricket", _("Cricket")
 
     class ExperienceLevel(models.TextChoices):
@@ -126,6 +126,12 @@ class Assessment(TimeStampedModel):
             models.Index(fields=["user"]),
             models.Index(fields=["sport"]),
             models.Index(fields=["created_at"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(sport__in=["soccer", "cricket"]),
+                name="assessments_sport_valid_choice",
+            ),
         ]
 
     def __str__(self) -> str:

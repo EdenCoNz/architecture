@@ -36,7 +36,7 @@ User = get_user_model()
 try:
     from apps.assessments.models import Assessment
 except (ImportError, RuntimeError):
-    Assessment = None
+    Assessment = None  # type: ignore[assignment,misc]
 
 
 class UserFactory(DjangoModelFactory):
@@ -139,7 +139,7 @@ class AssessmentFactory(DjangoModelFactory):
 
     Default values:
     - user: Created via UserFactory (unique)
-    - sport: Random choice between football/cricket
+    - sport: Random choice between soccer/cricket
     - age: Random age between 18-65
     - experience_level: Random choice (beginner/intermediate/advanced)
     - training_days: Random choice (2-3, 4-5, 6-7)
@@ -150,8 +150,8 @@ class AssessmentFactory(DjangoModelFactory):
         # Create assessment with default values
         assessment = AssessmentFactory()
 
-        # Create football assessment for existing user
-        assessment = AssessmentFactory(user=user, sport='football')
+        # Create soccer assessment for existing user
+        assessment = AssessmentFactory(user=user, sport='soccer')
 
         # Create beginner assessment with no equipment
         assessment = AssessmentFactory(
@@ -171,7 +171,7 @@ class AssessmentFactory(DjangoModelFactory):
     user = factory.SubFactory(UserFactory)
 
     # Sport selection - random choice
-    sport = factory.LazyFunction(lambda: random.choice(["football", "cricket"]))
+    sport = factory.LazyFunction(lambda: random.choice(["soccer", "cricket"]))
 
     # Age with realistic distribution
     age = factory.LazyFunction(lambda: random.randint(18, 65))
@@ -195,14 +195,18 @@ class AssessmentFactory(DjangoModelFactory):
 
 class FootballAssessmentFactory(AssessmentFactory):
     """
-    Factory for creating football-focused assessments.
+    Factory for creating soccer-focused assessments.
+
+    Note: Named 'Football' for legacy reasons but creates assessments with sport="soccer".
+    This aligns with the internal identifier change from "football" to "soccer".
 
     Examples:
-        # Create football assessment
+        # Create soccer assessment
         assessment = FootballAssessmentFactory()
+        assert assessment.sport == "soccer"
     """
 
-    sport = "football"
+    sport = "soccer"
 
 
 class CricketAssessmentFactory(AssessmentFactory):
@@ -235,7 +239,9 @@ class BeginnerAssessmentFactory(AssessmentFactory):
     age = factory.LazyFunction(lambda: random.randint(16, 30))
     experience_level = "beginner"
     training_days = "2-3"
-    equipment = factory.LazyFunction(lambda: random.choice(["no_equipment", "basic_equipment"]))
+    equipment = factory.LazyFunction(
+        lambda: random.choice(["no_equipment", "basic_equipment"])
+    )
 
 
 class AdvancedAssessmentFactory(AssessmentFactory):
@@ -256,7 +262,9 @@ class AdvancedAssessmentFactory(AssessmentFactory):
     age = factory.LazyFunction(lambda: random.randint(20, 45))
     experience_level = "advanced"
     training_days = factory.LazyFunction(lambda: random.choice(["4-5", "6-7"]))
-    equipment = factory.LazyFunction(lambda: random.choice(["basic_equipment", "full_gym"]))
+    equipment = factory.LazyFunction(
+        lambda: random.choice(["basic_equipment", "full_gym"])
+    )
 
 
 class InjuredAssessmentFactory(AssessmentFactory):
@@ -363,20 +371,22 @@ class TestDataBuilder:
             list: List of Assessment instances
 
         Examples:
-            # Create 10 football assessments
+            # Create 10 soccer assessments
             assessments = TestDataBuilder.create_assessment_batch(
-                10, sport='football'
+                10, sport='soccer'
             )
         """
         return AssessmentFactory.create_batch(count, **kwargs)
 
     @staticmethod
-    def create_user_with_assessment(sport="football", experience_level="beginner", **kwargs):
+    def create_user_with_assessment(
+        sport="soccer", experience_level="beginner", **kwargs
+    ):
         """
         Create a user with an associated assessment.
 
         Args:
-            sport (str): Sport type (football/cricket)
+            sport (str): Sport type (soccer/cricket)
             experience_level (str): Experience level
             **kwargs: Additional assessment attributes
 
@@ -386,7 +396,7 @@ class TestDataBuilder:
         Examples:
             user, assessment = (
                 TestDataBuilder.create_user_with_assessment(
-                    sport='football',
+                    sport='soccer',
                     experience_level='advanced'
                 )
             )
@@ -483,7 +493,7 @@ class FixtureHelper:
         Examples:
             FixtureHelper.cleanup_assessments()
         """
-        if Assessment:
+        if Assessment is not None:
             Assessment.objects.all().delete()
 
     @staticmethod

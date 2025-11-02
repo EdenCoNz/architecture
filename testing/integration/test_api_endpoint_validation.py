@@ -702,7 +702,7 @@ class TestAssessmentEndpoints:
         - Error messages for missing required fields
         """
         incomplete_data = {
-            "sport": "football",
+            "sport": "soccer",
             # Missing age, experience_level, training_days
         }
 
